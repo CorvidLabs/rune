@@ -6,11 +6,9 @@ agent driving it programmatically. Every command returns the same structured `Re
 
 ## Install
 
-```sh
-gem install rune
-```
-
-Or from source:
+The unqualified `rune` gem name is already taken on the public RubyGems.org registry by an
+unrelated package, so `gem install rune` there installs the wrong thing. Install from source
+instead:
 
 ```sh
 git clone https://github.com/CorvidLabs/rune.git

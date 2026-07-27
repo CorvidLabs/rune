@@ -23,7 +23,11 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = ">= 3.0"
 
-  spec.files         = Dir["lib/**/*", "bin/*", "LICENSE", "README.md", "plugin.toml"]
+  # docs/ and examples/ are included because README.md itself links to
+  # docs/getting_started.md and examples/demo_tui.rb/smoke_test.rb — without
+  # them, a gem-installed copy's own packaged README points at files that
+  # don't exist.
+  spec.files         = Dir["lib/**/*", "bin/*", "docs/**/*", "examples/**/*", "LICENSE", "README.md", "plugin.toml"]
   spec.bindir        = "bin"
   spec.executables   = ["rune"]
   spec.require_paths = ["lib"]

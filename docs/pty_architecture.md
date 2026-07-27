@@ -104,16 +104,65 @@ The script engine processes steps in a single non-blocking pass so `send_keys` w
 
 ---
 
-## 6. Error Handling & Exit Codes
+## 6. Live Interactive Passthrough (`PTYWatcher` / `rune watch`)
 
-`PTYRunner` standardizes Unix exit codes across edge cases:
+`PTYRunner` buffers a command's entire output and returns once it finishes: correct for scripting and capture, but wrong for actually sitting at the keyboard and driving an interactive program while something else observes the session. `PTYWatcher` (`lib/rune/pty_watcher.rb`) is a separate class for that live, bidirectional case rather than a mode bolted onto `PTYRunner` — the execution model (raw terminal mode, a background input-forwarding thread) is different enough not to belong there, and `PTYRunner`'s "run, capture, return once" contract stays frozen.
+
+### Raw terminal mode (`io/console`)
+
+For arrow keys and other single-byte/escape-sequence input to reach the child at all, the *parent* process's own controlling terminal has to leave cooked mode, where the kernel line-buffers input and locally echoes keystrokes until a newline arrives. `io/console` (required explicitly, not implicitly pulled in by `pty`) adds `IO#raw`, which `PTYWatcher#with_raw_input` wraps around the whole forwarding session:
+
+```ruby
+def with_raw_input(&block)
+  entered = false
+  @input.raw do
+    entered = true
+    block.call
+  end
+rescue Errno::ENOTTY, NoMethodError
+  raise if entered   # only fall back if raw-mode *entry* itself failed
+
+  block.call
+end
+```
+
+The `entered` flag matters: once raw mode is genuinely engaged, an unrelated exception from deep inside the session (a broken output sink, say) must propagate normally, not get treated as "raw mode isn't supported" and silently re-run the whole already-spawned session a second time.
+
+### Bidirectional forwarding
+
+Unlike `PTYRunner`'s single read loop, `PTYWatcher` runs two things concurrently: a background thread forwards the human's real keystrokes into the child's PTY as they arrive (`forward_input`), while the main thread polls the child's output and streams it to the screen immediately (`pump_output`), rather than accumulating it into a buffer returned only at the end.
+
+```
++------------------+   keystrokes    +------------------+   output    +-------------------+
+|  Human terminal  | --------------> |  PTYWatcher       | ----------> |  Real terminal      |
+|  (raw mode)      |  (bg thread)    |  (master PTY)     |  (live)     |  screen + NDJSON log |
++------------------+                 +------------------+             +-------------------+
+```
+
+### NDJSON event log
+
+Every chunk that reaches the screen is also written as an NDJSON event to a log file (an announced temp file by default, or `--log=PATH`), so an AI agent can `tail -f` the session live without any JSON noise landing in the human's own terminal:
+
+```json
+{"event":"start","command":"...","pid":12345}
+{"event":"output","bytes":42,"text":"..."}
+{"event":"exit","exit_code":0}
+```
+
+Deliberately not stderr by default: stderr shares the human's terminal with the live passthrough, and real usage immediately showed that interleaving JSON into an interactive session made it unreadable.
+
+---
+
+## 7. Error Handling & Exit Codes
+
+Both `PTYRunner` and `PTYWatcher` standardize Unix exit codes across edge cases:
 
 | Condition | Exit Code | Handling |
 | :--- | :--- | :--- |
 | Normal Exit | `status.exitstatus` | Clean completion |
 | Command Not Found | `127` | Rescues `Errno::ENOENT` |
 | Permission Denied | `126` | Rescues `Errno::EACCES` |
-| Execution Timeout | `124` | Rescues `Timeout::Error` after `timeout_seconds` |
+| Execution Timeout (`PTYRunner` only) | `124` | Rescues `Timeout::Error`, then `SIGKILL`s and reaps the child — `Timeout.timeout` only interrupts Ruby's own control flow, not the spawned OS process |
 | Child Killed (Signal) | `128 + sig` | Signals like `SIGKILL` (137) or `SIGTERM` (143) |
 
 ---
@@ -126,3 +175,4 @@ The script engine processes steps in a single non-blocking pass so `send_keys` w
 3. `TextSanitizer` for clean agent JSON.
 4. `PromptDetector` for smart interactivity checks.
 5. `Script` DSL for step-by-step automated input.
+6. `PTYWatcher` + `io/console` raw mode for live, bidirectional human-driven sessions with an agent-tailable NDJSON log.

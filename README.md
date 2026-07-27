@@ -38,11 +38,9 @@ Every command produces formatted, colored terminal output for humans — and str
 
 ## Install
 
-```sh
-gem install rune
-```
-
-Or from source:
+The unqualified `rune` gem name is already taken on the public RubyGems.org registry by an
+unrelated package, so `gem install rune` there installs the wrong thing. Install from source
+instead:
 
 ```sh
 git clone https://github.com/CorvidLabs/rune.git
@@ -138,7 +136,7 @@ rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
 ## Architecture & Internals
 
 - 📖 **[Getting Started guide](docs/getting_started.md)** — Output modes, `rune run` usage, timeouts, and parsers with real command output.
-- 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — How pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, and script execution work under the hood in Ruby.
+- 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — How pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, script execution, and `rune watch`'s live bidirectional passthrough work under the hood in Ruby.
 
 ---
 
