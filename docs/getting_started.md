@@ -126,6 +126,9 @@ heuristic's known limitations before relying on `:auto` against unfamiliar outpu
 
 ## Next steps
 
+- [`examples/smoke_test.rb`](../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` or `fledge
+  run smoke-test`. A standalone, assertion-based tour of real behavior (no bundler/rspec required):
+  output modes, `--timeout` validation, parsers, `Script`, signal forwarding, prompt detection.
 - [PTY Architecture Guide](pty_architecture.md) — how the PTY runner, stream reading, and prompt
   detection work internally.
 - [`specs/`](../specs/) — machine-checked module contracts (`spec-sync`) for `cli`, `parsers`, and

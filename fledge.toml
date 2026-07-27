@@ -12,6 +12,7 @@ install = "bundle install"
 spec-check = "which specsync >/dev/null 2>&1 && specsync check || echo 'specsync skipped (not in PATH)'"
 trust = "fledge trust verify"
 clean = "rm -f *.gem"
+smoke-test = "ruby examples/smoke_test.rb"
 
 [lanes.verify]
 description = "Full CI gate: lint, tests, and spec-sync."

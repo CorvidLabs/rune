@@ -49,6 +49,22 @@ RSpec.describe Rune::PTYRunner do
       expect(result.error).to include('PTY unavailable')
     end
 
+    it 'fails gracefully instead of crashing when the OS refuses to allocate a pty at runtime' do
+      allow(PTY).to receive(:spawn).and_raise(Errno::ENXIO, 'no ptys available')
+
+      result = described_class.new('echo hi').run
+
+      expect(result).to be_failure
+      expect(result.error).to include('PTY allocation failed at runtime')
+    end
+
+    it 'still treats Errno::ENOENT/EACCES as a property of the wrapped command, not the platform' do
+      result = described_class.new('non_existent_command_xyz_12345').run
+
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(127)
+    end
+
     it 'handles missing commands gracefully with exit code 127' do
       runner = described_class.new('non_existent_command_xyz_12345')
       result = runner.run

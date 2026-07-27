@@ -32,6 +32,12 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 7. If the `pty` stdlib failed to load (e.g. unsupported platform), `#run` returns a structured
    failure immediately instead of raising `NameError`/`LoadError`; other rune commands (`version`,
    `help`) remain usable regardless.
+8. If the `pty` stdlib loaded but the OS refuses to allocate a pty at runtime (`Errno::ENXIO`,
+   `EMFILE`, `ENFILE`, `EPERM` — e.g. a sandbox/container denying it, or pty exhaustion), `#run`
+   returns a structured failure instead of raising. This is distinct from `Errno::ENOENT`/`EACCES`
+   raised by exec'ing the *target* command, which remain ordinary exit codes (127/126) in
+   `data[:exit_code]` on a successful `Result`, since those describe the wrapped command, not rune's
+   own environment.
 
 ## Behavioral Examples
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.
@@ -46,7 +52,8 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | No command argument | Returns `Result.failure("No command specified...")` |
 | Command times out | Returns exit code 124 with timeout message in output |
 | `--timeout` value is not a positive integer (`0`, negative, non-numeric, empty) | Returns `Result.failure("Invalid --timeout value...")` before spawning anything |
-| `pty` stdlib failed to load | `PTYRunner#run` returns `Result.failure("PTY unavailable on this platform...")` |
+| `pty` stdlib failed to load | `PTYRunner#run` returns `Result.failure("PTY unavailable: ...")` |
+| OS refuses pty allocation at runtime (sandbox/container/exhaustion) | `PTYRunner#run` returns `Result.failure("PTY allocation failed at runtime: ...")` |
 
 ## Dependencies
 - Ruby stdlib: `pty`, `timeout`

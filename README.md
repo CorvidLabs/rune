@@ -125,10 +125,16 @@ result = runner.run
 ## Development & Verification
 
 ```sh
-fledge run test         # Run RSpec test suite (41 examples)
+fledge run test         # Run RSpec test suite (77 examples)
 fledge run lint         # Run RuboCop linter (0 offenses)
 fledge lanes run verify # Full CI gate (lint + tests + spec-sync)
+fledge run smoke-test   # Runnable, assertion-based tour of real behavior (examples/smoke_test.rb)
 ```
+
+`examples/smoke_test.rb` is a standalone, dependency-free script (no bundler/rspec required) that
+exercises `rune run`, `--timeout`, `TableParser`/`KeyValueParser`, `Script`, signal forwarding, and
+prompt detection against the real CLI binary, with pass/fail output and a non-zero exit on failure.
+Useful as a quick manual sanity check, or on a machine without the dev dependencies installed.
 
 ---
 

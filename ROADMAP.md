@@ -17,8 +17,11 @@ toolchain green — not new commands.
       when unavailable, while every other command keeps working. This is the "fail fast with a
       clear error" option, not a working `Process.spawn` fallback — `rune run` genuinely doesn't
       function without a PTY on 0.2.0; a real non-PTY execution path (losing TTY-dependent behavior
-      but staying functional) remains a possible future enhancement, not done here. Covered in
-      `spec/rune/pty_runner_spec.rb`.
+      but staying functional) remains a possible future enhancement, not done here (explicitly
+      descoped — not worth it without an actual Windows/restrictive-CI user). Extended to also
+      cover the OS refusing pty allocation at *runtime* (`Errno::ENXIO`/`EMFILE`/`ENFILE`/`EPERM`
+      — sandbox/container denial, pty exhaustion), not just `require 'pty'` failing at load time.
+      Covered in `spec/rune/pty_runner_spec.rb`.
 - [x] **TableParser delimiter option** — `TableParser.parse(text, format:)` now accepts `:auto`
       (default heuristic), `:pipe`, or `:space` to bypass auto-detection. Heuristic limitations
       are documented in `specs/parsers/parsers.spec.md` under "Known Limitations."

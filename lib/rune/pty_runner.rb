@@ -21,6 +21,12 @@ module Rune
   class PTYRunner
     attr_reader :command, :input, :script, :timeout_seconds, :on_output
 
+    # Raised when the OS itself refuses to allocate a pty (device exhaustion,
+    # a sandbox/container denying it), as opposed to Errno::ENOENT/EACCES from
+    # exec'ing the *target* command, which are a property of the wrapped
+    # command and already handled as ordinary exit codes in execute_pty.
+    PTY_ALLOCATION_ERRORS = [Errno::ENXIO, Errno::EMFILE, Errno::ENFILE, Errno::EPERM].freeze
+
     def self.pty_available? = PTY_LOAD_ERROR.nil?
 
     def initialize(command, input: nil, script: nil, timeout_seconds: 30, &on_output)
@@ -43,19 +49,18 @@ module Rune
       Result.success({ command: command, exit_code: exit_code || 0, clean_output: clean_output,
                        raw_output: raw_output, prompt_detected: prompt_detected, duration_ms: duration_ms },
                      exit_code: exit_code || 0)
+    rescue *PTY_ALLOCATION_ERRORS => e
+      Result.failure("PTY allocation failed at runtime: #{e.class} - #{e.message}. Platform/sandbox may restrict it.")
     rescue StandardError => e
       Result.failure("Failed to execute command '#{command}': #{e.message}")
     end
 
-    def detect_prompt?(line)
-      Parsers::PromptDetector.detect?(line)
-    end
+    def detect_prompt?(line) = Parsers::PromptDetector.detect?(line)
 
     private
 
     def pty_unavailable_result
-      Result.failure('PTY unavailable on this platform (pty stdlib failed to load: ' \
-                     "#{PTY_LOAD_ERROR&.message}). rune run requires a Unix-like platform with pty support.")
+      Result.failure("PTY unavailable: pty stdlib failed to load (#{PTY_LOAD_ERROR&.message}).")
     end
 
     def execute_pty
