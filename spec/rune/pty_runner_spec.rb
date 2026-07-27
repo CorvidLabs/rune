@@ -15,6 +15,18 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:duration_ms]).to be_a(Numeric)
     end
 
+    it 'handles wrapped commands emitting bytes that are not valid UTF-8 without crashing' do
+      # printf interprets the \xHH escapes itself, emitting raw invalid-UTF-8
+      # bytes on stdout — this is what a real command (e.g. a compiler
+      # emitting non-UTF-8 diagnostic bytes) looks like from PTYRunner's side.
+      runner = described_class.new(['printf', '\xff\xfe\x00binary garbage\n'])
+      result = runner.run
+
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(0)
+      expect(result.data[:clean_output]).to include('binary garbage')
+    end
+
     it 'captures non-zero exit codes' do
       runner = described_class.new('ruby -e "exit 42"')
       result = runner.run

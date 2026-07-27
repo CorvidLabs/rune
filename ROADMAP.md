@@ -57,6 +57,15 @@ toolchain green — not new commands.
       trailing `[>$%#...]` catch-all pattern. Added a `FALSE_POSITIVES` exclusion for a digit
       immediately before a trailing `%` (trade-off: a real tcsh prompt on a hostname ending in a
       digit is now missed, judged rare relative to how common progress output is).
+- [x] **Non-UTF-8 wrapped-command output crashed `rune run`** — found via real internal dogfooding
+      (installed rune as a fledge plugin in `attest` and ran its Swift test suite through
+      `rune run`): `swift test`'s output tripped `Encoding::CompatibilityError: incompatible
+      encoding regexp match (UTF-8 regexp with BINARY (ASCII-8BIT) string)`, since raw PTY reads
+      aren't reliably tagged as valid UTF-8 but every downstream regex (prompt detection, ANSI
+      stripping, `wait_for`) is. Each chunk is now force-encoded to UTF-8 and scrubbed of invalid
+      byte sequences immediately after `readpartial`. Verified against the real `swift test`
+      command that triggered it (138 tests, 0 failures, full structured output) and covered by a
+      regression test in `spec/rune/pty_runner_spec.rb`.
 - [ ] **Trust toolchain verification** — Run and pass the full trust gate ahead of tagging 0.2.0:
       `fledge run test`, `fledge run lint`, `fledge run spec-check`, `fledge trust verify`. Treat
       an Augur `block` verdict or a failed Attest provenance check as a hard stop per `AGENTS.md`.
@@ -80,9 +89,13 @@ Gates that must all be green before `rune` 0.2.0 is tagged and published:
 - [x] **PTY edge cases documented/fixed** — Non-PTY fallback behavior (see milestone item above)
       is explicitly documented as an unsupported-platform limitation; no silent crashes on
       Windows/sandboxed CI (other commands keep working, `rune run` fails clearly).
-- [ ] **Dogfooding (internal + external)** — `rune` used for at least one real task inside another
-      CorvidLabs repo via `fledge plugins install rune` (internal), and at least one external
-      user/agent run reported back before tagging.
+- [x] **Internal dogfooding** — `fledge plugins install`ed from local path into `attest` (a
+      separate CorvidLabs repo), then used `fledge rune run --json -- swift test` for a real task.
+      This is exactly how it surfaced the non-UTF-8 output bug above — real dogfooding, not a
+      synthetic exercise.
+- [ ] **External dogfooding** — at least one user/agent run outside this session reported back
+      before tagging. Still open; needs an actual external report, not something verifiable from
+      inside this session.
 - [x] **CorvidLabs site tools page live** — `rune` has a full `/rune/` landing page and
       `/rune/docs/` section, registered in the site's project catalog and top nav alongside
       `fledge`, `augur`, `attest`, and `spec-sync` (`CorvidLabs/site#225`).

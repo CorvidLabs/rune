@@ -38,6 +38,10 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
    raised by exec'ing the *target* command, which remain ordinary exit codes (127/126) in
    `data[:exit_code]` on a successful `Result`, since those describe the wrapped command, not rune's
    own environment.
+9. Raw PTY output is force-encoded to UTF-8 and scrubbed of invalid byte sequences as soon as it's
+   read, before any regex runs against it (prompt detection, ANSI stripping, script `wait_for`). A
+   wrapped command emitting non-UTF-8 bytes (found via real dogfooding: `swift test`'s output could
+   trigger it) does not crash `rune run` with `Encoding::CompatibilityError`.
 
 ## Behavioral Examples
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.
@@ -54,6 +58,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `--timeout` value is not a positive integer (`0`, negative, non-numeric, empty) | Returns `Result.failure("Invalid --timeout value...")` before spawning anything |
 | `pty` stdlib failed to load | `PTYRunner#run` returns `Result.failure("PTY unavailable: ...")` |
 | OS refuses pty allocation at runtime (sandbox/container/exhaustion) | `PTYRunner#run` returns `Result.failure("PTY allocation failed at runtime: ...")` |
+| Wrapped command emits bytes that are not valid UTF-8 | Bytes are force-encoded + scrubbed; `Result` still succeeds, no `Encoding::CompatibilityError` |
 
 ## Dependencies
 - Ruby stdlib: `pty`, `timeout`

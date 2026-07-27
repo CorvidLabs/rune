@@ -124,7 +124,12 @@ module Rune
         forward_signal.call
         next unless reader.wait_readable(0.2)
 
-        chunk = reader.readpartial(4096)
+        # Raw PTY reads aren't reliably tagged as valid UTF-8 (wrapped tools can
+        # emit binary-ish bytes or bytes Ruby reads back as ASCII-8BIT), and
+        # every downstream regex (prompt detection, ANSI stripping, script
+        # wait_for) is UTF-8. Force + scrub once, at the source, rather than
+        # risk an Encoding::CompatibilityError deep in a regex match later.
+        chunk = reader.readpartial(4096).force_encoding(Encoding::UTF_8).scrub
         output_buffer << chunk
         on_output&.call(chunk)
         prompt_found ||= chunk.split("\n").any? { |line| detect_prompt?(line) }

@@ -103,6 +103,13 @@ section('rune run — basics') do
     assert(data['exit_code'] == 127, data.inspect)
     assert(status == 127, "rune process should mirror exit 127, got #{status}")
   end
+
+  check('wrapped commands emitting non-UTF-8 bytes do not crash rune (found via real dogfooding)') do
+    out, = run_cli('run', '--json', '--', 'printf', '\xff\xfe\x00binary garbage\n')
+    parsed = JSON.parse(out)
+    assert(parsed['status'] == 'ok', out)
+    assert(parsed['data']['clean_output'].include?('binary garbage'), out)
+  end
 end
 
 section('rune run --timeout') do
