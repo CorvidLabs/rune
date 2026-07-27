@@ -23,8 +23,7 @@ jobs:
       - name: Install Fledge
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL https://github.com/CorvidLabs/fledge/releases/download/v1.7.0/fledge-linux-x86_64 -o "$HOME/.local/bin/fledge" || curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash || true
-          chmod +x "$HOME/.local/bin/fledge" 2>/dev/null || true
+          curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash || true
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run Fledge Verification Lane
@@ -39,13 +38,13 @@ jobs:
         continue-on-error: true
 
       - name: Augur Risk Gate
-        uses: CorvidLabs/augur@v1
+        uses: CorvidLabs/augur@1.0.0
         with:
           threshold: block
         continue-on-error: true
 
       - name: Attest Provenance Check
-        uses: CorvidLabs/attest@v1
+        uses: CorvidLabs/attest@1.0.0
         with:
           policy: .attest.json
         continue-on-error: true
