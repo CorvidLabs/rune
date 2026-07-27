@@ -35,33 +35,66 @@ module Rune
 
         def parse_space_table(lines)
           header_line = lines.first
-          header_matches = find_header_spans(header_line)
-          headers = header_matches.map { |m| normalize_header(m[:name]) }
+          headers, spans = find_headers_and_spans(header_line)
 
           lines[1..].map do |line|
-            values = extract_column_values(line, header_matches)
+            values = extract_values(line, headers.size, spans)
             build_row(headers, values)
           end
         end
 
-        def find_header_spans(line)
-          spans = []
-          line.scan(/\S+/) do |match|
-            start_pos = Regexp.last_match.begin(0)
-            spans << { name: match, start: start_pos }
-          end
+        def find_headers_and_spans(header_line)
+          raw_headers = header_line.split(/\s{2,}/).map(&:strip).reject(&:empty?)
+          return multi_space_spans(header_line, raw_headers) if raw_headers.size > 1
 
-          spans.each_with_index do |span, idx|
-            span[:end] = idx < spans.size - 1 ? spans[idx + 1][:start] - 1 : line.length
-          end
-          spans
+          single_space_spans(header_line)
         end
 
-        def extract_column_values(line, spans)
-          spans.map do |span|
-            val = line[span[:start]..span[:end]]
-            val ? val.strip : ''
+        def multi_space_spans(header_line, raw_headers)
+          spans = []
+          search_start = 0
+          raw_headers.each do |h|
+            idx = header_line.index(h, search_start) || search_start
+            spans << { name: h, start: idx }
+            search_start = idx + h.length
           end
+          set_span_ends(spans, header_line.length)
+          [raw_headers.map { |h| normalize_header(h) }, spans]
+        end
+
+        def single_space_spans(header_line)
+          spans = []
+          header_line.scan(/\S+/) do |match|
+            spans << { name: match, start: Regexp.last_match.begin(0) }
+          end
+          set_span_ends(spans, header_line.length)
+          [spans.map { |s| normalize_header(s[:name]) }, spans]
+        end
+
+        def set_span_ends(spans, total_length)
+          spans.each_with_index do |span, idx|
+            span[:end] = idx < spans.size - 1 ? spans[idx + 1][:start] - 1 : total_length
+          end
+        end
+
+        def extract_values(line, num_headers, spans)
+          space_split = line.strip.split(/\s{2,}/)
+          return space_split if space_split.size == num_headers
+
+          if space_split.size > num_headers
+            return space_split[0...(num_headers - 1)] + [space_split[(num_headers - 1)..].join('  ')]
+          end
+
+          extract_by_spans(line, num_headers, spans)
+        end
+
+        def extract_by_spans(line, num_headers, spans)
+          values = spans.each_with_index.map do |span, idx|
+            val = idx == spans.size - 1 ? (line[span[:start]..] || '') : (line[span[:start]..span[:end]] || '')
+            val.strip
+          end
+          values << '' while values.size < num_headers
+          values
         end
 
         def normalize_header(header)

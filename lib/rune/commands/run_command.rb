@@ -12,8 +12,7 @@ module Rune
         clean_args = args.reject { |a| a == '--' }
         return Result.failure('No command specified. Usage: rune run <command...>') if clean_args.empty?
 
-        cmd_string = clean_args.join(' ')
-        PTYRunner.new(cmd_string).run
+        PTYRunner.new(clean_args).run
       end
 
       def human_render(data, io)
