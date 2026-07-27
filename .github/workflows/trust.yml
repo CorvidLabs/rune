@@ -27,9 +27,13 @@ jobs:
       - name: Install Fledge & Spec-Sync
         run: |
           curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash || true
-          curl -fsSL https://raw.githubusercontent.com/CorvidLabs/spec-sync/main/install.sh | bash || true
-          sudo cp -f /home/runner/.local/bin/* /usr/bin/ 2>/dev/null || true
-          sudo cp -f $HOME/.local/bin/* /usr/bin/ 2>/dev/null || true
+          sudo cp -f $HOME/.local/bin/fledge /usr/local/bin/ 2>/dev/null || true
+          sudo cp -f $HOME/.local/bin/fledge /usr/bin/ 2>/dev/null || true
+          fledge plugins install spec-sync || true
+          sudo cp -f $HOME/.cargo/bin/specsync /usr/local/bin/ 2>/dev/null || true
+          sudo cp -f $HOME/.cargo/bin/specsync /usr/bin/ 2>/dev/null || true
+          sudo cp -f $HOME/.local/bin/specsync /usr/local/bin/ 2>/dev/null || true
+          sudo cp -f $HOME/.local/bin/specsync /usr/bin/ 2>/dev/null || true
 
       - uses: CorvidLabs/trust@v1
         id: trust
