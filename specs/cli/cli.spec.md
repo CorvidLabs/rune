@@ -3,15 +3,15 @@ module: cli
 version: 1
 status: draft
 files:
-  - lib/xzst/cli.rb
-  - lib/xzst/command.rb
-  - lib/xzst/result.rb
-  - lib/xzst/renderer.rb
+  - lib/rune/cli.rb
+  - lib/rune/command.rb
+  - lib/rune/result.rb
+  - lib/rune/renderer.rb
 ---
 # CLI
 
 ## Purpose
-Core CLI framework for xzst. Provides command registration, argument parsing, dual-mode output (human-pretty for terminals, structured JSON for agents), and the base `Command` class that all commands extend. Designed so that every interaction is first-class for both humans and AI agents.
+Core CLI framework for rune. Provides command registration, argument parsing, dual-mode output (human-pretty for terminals, structured JSON for agents), and the base `Command` class that all commands extend. Designed so that every interaction is first-class for both humans and AI agents.
 
 ## Public API
 | Name | Type | Description |
@@ -31,11 +31,11 @@ Core CLI framework for xzst. Provides command registration, argument parsing, du
 7. Unknown commands return a structured error, never crash
 
 ## Behavioral Examples
-- Running `xzst version` in a terminal prints human-formatted version info
-- Running `xzst version --json` prints `{"status":"ok","data":{"version":"0.1.0",...}}`
-- Piping `xzst version | cat` automatically outputs JSON
-- Running `xzst nonexistent` returns exit code 1 and an error message
-- Running `xzst help` lists all registered commands
+- Running `rune version` in a terminal prints human-formatted version info
+- Running `rune version --json` prints `{"status":"ok","data":{"version":"0.1.0",...}}`
+- Piping `rune version | cat` automatically outputs JSON
+- Running `rune nonexistent` returns exit code 1 and an error message
+- Running `rune help` lists all registered commands
 
 ## Error Cases
 | Condition | Behavior |

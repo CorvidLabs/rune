@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'xzst'
+require 'rune'
 require 'json'
 require 'stringio'
 
@@ -26,7 +26,7 @@ def capture_cli(*argv, json: false)
   args = argv.flatten
   args << '--json' if json
   begin
-    XZST::CLI.new(io:).run(args)
+    Rune::CLI.new(io:).run(args)
   rescue SystemExit
     # expected — CLI calls exit
   end

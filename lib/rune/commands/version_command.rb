@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-module XZST
+module Rune
   module Commands
     class VersionCommand < Command
       name 'version'
-      summary 'Show xzst version and environment info'
+      summary 'Show rune version and environment info'
 
       def call(_args, _options)
         Result.success({
-                         name: 'xzst',
+                         name: 'rune',
                          version: VERSION,
                          ruby: RUBY_VERSION,
                          ruby_platform: RUBY_PLATFORM,
@@ -18,7 +18,7 @@ module XZST
       end
 
       def human_render(data, io)
-        io.puts "\e[1;35mxzst\e[0m v#{data[:version]}"
+        io.puts "\e[1;35mrune\e[0m v#{data[:version]}"
         io.puts "  Ruby #{data[:ruby]} (#{data[:ruby_platform]})"
         io.puts "  fledge:    #{status_icon(data[:fledge])}"
         io.puts "  spec-sync: #{status_icon(data[:specsync])}"

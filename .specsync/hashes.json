@@ -1,0 +1,10 @@
+{
+  "hashes": {
+    "specs/cli/cli.spec.md": "dc0c8625953912690a623218f7c0350919abc3f2d0ffae2764fbcbf5988fffa4",
+    "lib/rune/result.rb": "d14e937f063b7af5163b26b11ad3abccbba3d48c16ca88720e79080d6b94ddaf",
+    "lib/rune/renderer.rb": "466917605e7a80d5a6dfadc769a5b8c8ffee8bc3b5e35f9085d115b1a56b9f0b",
+    ".specsync/config.toml": "fcc34cb7a50f200d18d22fad7062ddcb355ab4912f32db1e8068320ab0b7a2a3",
+    "lib/rune/cli.rb": "d45224e11f844dfe17cbf89a7b6cc0b6c70157b2be581e65c4b67e006b50523a",
+    "lib/rune/command.rb": "af62e948cedb6336e0de59e920ce44257d05c9a53cb5cc51779383b250583ec0"
+  }
+}

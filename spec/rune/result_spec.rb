@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe XZST::Result do
+RSpec.describe Rune::Result do
   describe '.success' do
     subject(:result) { described_class.success({ version: '1.0' }) }
 

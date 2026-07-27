@@ -2,7 +2,7 @@
 
 require 'json'
 
-module XZST
+module Rune
   class Renderer
     attr_reader :io, :json_mode
 

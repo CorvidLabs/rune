@@ -2,12 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe XZST::CLI do
+RSpec.describe Rune::CLI do
   describe 'version command' do
     it 'outputs version in JSON mode' do
       output = cli_json('version')
       expect(output[:status]).to eq('ok')
-      expect(output[:data][:version]).to eq(XZST::VERSION)
+      expect(output[:data][:version]).to eq(Rune::VERSION)
     end
   end
 

@@ -2,22 +2,22 @@
 
 require 'spec_helper'
 
-RSpec.describe XZST::Renderer do
+RSpec.describe Rune::Renderer do
   let(:io) { StringIO.new }
 
   describe 'agent mode (JSON)' do
     subject(:renderer) { described_class.new(io:, json_mode: true) }
 
     it 'outputs JSON for success results' do
-      result = XZST::Result.success({ name: 'xzst' })
+      result = Rune::Result.success({ name: 'rune' })
       renderer.render(result)
       parsed = JSON.parse(io.string, symbolize_names: true)
       expect(parsed[:status]).to eq('ok')
-      expect(parsed[:data][:name]).to eq('xzst')
+      expect(parsed[:data][:name]).to eq('rune')
     end
 
     it 'outputs JSON for failure results' do
-      result = XZST::Result.failure('bad input')
+      result = Rune::Result.failure('bad input')
       renderer.render(result)
       parsed = JSON.parse(io.string, symbolize_names: true)
       expect(parsed[:status]).to eq('error')
@@ -39,13 +39,13 @@ RSpec.describe XZST::Renderer do
     subject(:renderer) { described_class.new(io: tty_io, json_mode: false) }
 
     it 'uses custom human block when provided' do
-      result = XZST::Result.success({ greeting: 'hello' })
+      result = Rune::Result.success({ greeting: 'hello' })
       renderer.render(result, human_block: ->(data, out) { out.puts "Hi: #{data[:greeting]}" })
       expect(tty_io.string).to include('Hi: hello')
     end
 
     it 'shows error with marker for failures' do
-      result = XZST::Result.failure('something went wrong')
+      result = Rune::Result.failure('something went wrong')
       renderer.render(result)
       expect(tty_io.string).to include('something went wrong')
     end

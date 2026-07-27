@@ -1,13 +1,13 @@
-# fledge.toml — xzst project task definitions
+# fledge.toml — rune project task definitions
 # Docs: https://github.com/CorvidLabs/fledge#task-runner
 
 [tasks]
-dev = "ruby bin/xzst"
+dev = "ruby bin/rune"
 test = "bundle exec rspec"
 lint = "bundle exec rubocop"
 fmt = "bundle exec rubocop -A"
 fmt-check = "bundle exec rubocop"
-build = "gem build xzst.gemspec"
+build = "gem build rune.gemspec"
 install = "bundle install"
 spec-check = "specsync check"
 clean = "rm -f *.gem"

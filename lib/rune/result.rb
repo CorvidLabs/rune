@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module XZST
+module Rune
   class Result
     attr_reader :status, :data, :error
 

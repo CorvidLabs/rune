@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module XZST
+module Rune
   class Command
     class << self
       attr_reader :command_name, :command_summary

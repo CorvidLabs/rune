@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe XZST::Commands::VersionCommand do
+RSpec.describe Rune::Commands::VersionCommand do
   describe '#call' do
     subject(:result) { described_class.new.call([], {}) }
 
@@ -11,7 +11,7 @@ RSpec.describe XZST::Commands::VersionCommand do
     end
 
     it 'includes version' do
-      expect(result.data[:version]).to eq(XZST::VERSION)
+      expect(result.data[:version]).to eq(Rune::VERSION)
     end
 
     it 'includes ruby version' do
@@ -19,7 +19,7 @@ RSpec.describe XZST::Commands::VersionCommand do
     end
 
     it 'includes the project name' do
-      expect(result.data[:name]).to eq('xzst')
+      expect(result.data[:name]).to eq('rune')
     end
 
     it 'includes fledge availability' do

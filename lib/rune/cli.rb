@@ -2,7 +2,7 @@
 
 require 'optparse'
 
-module XZST
+module Rune
   class CLI
     @commands = {}
 
@@ -31,38 +31,40 @@ module XZST
 
     def run(argv)
       args = argv.dup
-
-      # Extract global flags
       @json_mode = args.delete('--json') ? true : false
 
-      command_name = args.shift
-      renderer = Renderer.new(io: @io, json_mode: @json_mode)
+      command_name = resolve_command_name(args.shift)
+      result = command_name == 'help' ? show_help : run_command(command_name, args)
 
-      if command_name.nil? || command_name == 'help'
-        command_name = 'help'
-        result = show_help
-      elsif ['--version', '-v'].include?(command_name)
-        command_name = 'version'
-        result = run_command(command_name, args)
-      else
-        result = run_command(command_name, args)
-      end
-
-      # Find the command instance for human rendering
-      command_class = self.class.commands[command_name]
-      command_instance = command_class&.new
-
-      renderer.render(result,
-                      human_block: (->(data, io) { command_instance.human_render(data, io) } if command_instance))
-
+      render_result(command_name, result)
       exit result.exit_code
     end
 
     private
 
+    def resolve_command_name(name)
+      return 'help' if name.nil? || name == 'help'
+      return 'version' if ['--version', '-v'].include?(name)
+
+      name
+    end
+
+    def render_result(command_name, result)
+      renderer = Renderer.new(io: @io, json_mode: @json_mode)
+      command_instance = self.class.commands[command_name]&.new
+
+      renderer.render(result, human_block: lambda { |data, io|
+        if command_instance
+          command_instance.human_render(data, io)
+        else
+          help_human_render(data, io)
+        end
+      })
+    end
+
     def run_command(name, args)
       command_class = self.class.commands[name]
-      return Result.failure("Unknown command: #{name}. Run 'xzst help' for available commands.") unless command_class
+      return Result.failure("Unknown command: #{name}. Run 'rune help' for available commands.") unless command_class
 
       command = command_class.new
       command.call(args, { json: @json_mode })
@@ -78,7 +80,7 @@ module XZST
     end
 
     def help_human_render(data, io)
-      io.puts "\e[1;35mxzst\e[0m v#{data[:version]}"
+      io.puts "\e[1;35mrune\e[0m v#{data[:version]}"
       io.puts ''
       io.puts 'Commands:'
       data[:commands].each do |cmd|

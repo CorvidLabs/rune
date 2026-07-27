@@ -1,4 +1,4 @@
-# xzst
+# rune
 
 A Ruby CLI tool designed from the ground up to be **human & agent first class**.
 
@@ -7,54 +7,55 @@ Every command produces beautiful, colored terminal output for humans — and str
 ## Install
 
 ```sh
-gem install xzst
+gem install rune
 ```
 
 Or from source:
 
 ```sh
-git clone https://github.com/CorvidLabs/xzst.git
-cd xzst
+git clone https://github.com/CorvidLabs/rune.git
+cd rune
 bundle install
-ruby bin/xzst version
+ruby bin/rune version
 ```
 
 ## Usage
 
 ```sh
 # Human mode (default in terminal)
-xzst version
-# => xzst v0.1.0
+rune version
+# => rune v0.1.0
 # => Ruby 4.0.5 (arm64-darwin25)
 # => fledge:    ✓ available
 # => spec-sync: ✓ available
 
 # Agent mode (--json or piped)
-xzst version --json
-# => {"status":"ok","data":{"version":"0.1.0","ruby":"4.0.5",...}}
+rune version --json
+# => {"status":"ok","data":{"name":"rune","version":"0.1.0","ruby":"4.0.5",...}}
 
 # Auto-detects: piping triggers agent mode
-xzst version | jq .data.version
+rune version | jq .data.version
 # => "0.1.0"
 ```
 
 ## CorvidLabs Integration
 
-xzst optionally detects and integrates with the [CorvidLabs trust toolchain](https://github.com/CorvidLabs):
+rune optionally detects and integrates with the [CorvidLabs trust toolchain](https://github.com/CorvidLabs):
 
 - **[fledge](https://github.com/CorvidLabs/fledge)** — Task runner & project lifecycle
 - **[spec-sync](https://github.com/CorvidLabs/spec-sync)** — Contract enforcement
 - **[augur](https://github.com/CorvidLabs/augur)** — Change risk scoring
 - **[attest](https://github.com/CorvidLabs/attest)** — Commit provenance
 
-These tools enhance xzst when present but are **never required**.
+These tools enhance rune when present but are **never required**.
 
 ## Development
 
 ```sh
-fledge test          # Run tests
-fledge lint          # Lint
-fledge lanes verify  # Full CI gate
+fledge run test        # Run tests
+fledge run lint        # Lint
+fledge lanes run check # Fast quality check
+fledge lanes run verify # Full CI gate
 ```
 
 ## License
