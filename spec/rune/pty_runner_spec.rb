@@ -23,12 +23,30 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:exit_code]).to eq(42)
     end
 
+    it "mirrors the wrapped command's exit code as the process-level Result#exit_code, " \
+       'so callers composing with shell && / || / set -e see it, even though the Result itself succeeded' do
+      runner = described_class.new('ruby -e "exit 42"')
+      result = runner.run
+
+      expect(result).to be_success
+      expect(result.exit_code).to eq(42)
+    end
+
     it 'handles array command arguments with shell escaping' do
       runner = described_class.new(['ruby', '-e', 'puts ARGV[0]', 'hello world'])
       result = runner.run
 
       expect(result).to be_success
       expect(result.data[:clean_output]).to include('hello world')
+    end
+
+    it 'fails gracefully instead of crashing when the pty stdlib is unavailable' do
+      allow(described_class).to receive(:pty_available?).and_return(false)
+
+      result = described_class.new('echo hi').run
+
+      expect(result).to be_failure
+      expect(result.error).to include('PTY unavailable')
     end
 
     it 'handles missing commands gracefully with exit code 127' do
@@ -115,6 +133,12 @@ RSpec.describe Rune::PTYRunner do
       expect(runner.detect_prompt?('if (x > 5) { return true; }')).to be false
       expect(runner.detect_prompt?('export PATH=$PATH:/usr/bin')).to be false
       expect(runner.detect_prompt?('# Section 1 Header')).to be false
+    end
+
+    it 'ignores digit-percent progress output, not just tcsh-style prompts ending in %' do
+      expect(runner.detect_prompt?('Building... 45%')).to be false
+      expect(runner.detect_prompt?('Downloading 100%')).to be false
+      expect(runner.detect_prompt?('Progress: 3.5%')).to be false
     end
   end
 end

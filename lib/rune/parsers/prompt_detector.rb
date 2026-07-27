@@ -19,7 +19,13 @@ module Rune
         /\A\s*>.*<.*>/,
         /\bif\b\s+.*[<>]/,
         /\b\w+\s*=\s*.*\$/,
-        /\A\s*#\s+[A-Z]/i
+        /\A\s*#\s+[A-Z]/i,
+        # Progress output ("Building... 45%", "Downloading 100%") ends in a
+        # bare "<digit>%", which the trailing [>$%#...] prompt fallback below
+        # would otherwise catch. A real tcsh-style "%" prompt is preceded by
+        # a hostname/path, not a digit, so this trade-off only misses the
+        # rare case of a hostname ending in a digit.
+        /\d%\s*\z/
       ].freeze
 
       class << self

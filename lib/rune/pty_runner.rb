@@ -1,6 +1,16 @@
 # frozen_string_literal: true
 
-require 'pty'
+# The pty stdlib is unavailable on some platforms (e.g. Windows) and in some
+# sandboxed/containerized environments. Rescuing here keeps the rest of rune
+# (version, help, anything not touching PTYRunner) usable even when it's
+# missing, instead of crashing the whole binary at boot with a bare LoadError.
+begin
+  require 'pty'
+  PTY_LOAD_ERROR = nil
+rescue LoadError => e
+  PTY_LOAD_ERROR = e
+end
+
 require 'timeout'
 require 'shellwords'
 require_relative 'parsers/text_sanitizer'
@@ -11,6 +21,8 @@ module Rune
   class PTYRunner
     attr_reader :command, :input, :script, :timeout_seconds, :on_output
 
+    def self.pty_available? = PTY_LOAD_ERROR.nil?
+
     def initialize(command, input: nil, script: nil, timeout_seconds: 30, &on_output)
       @command = command.is_a?(Array) ? Shellwords.join(command) : command.to_s
       @input = input
@@ -20,6 +32,8 @@ module Rune
     end
 
     def run
+      return pty_unavailable_result unless self.class.pty_available?
+
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       raw_output, exit_code, prompt_detected = execute_pty
 
@@ -27,7 +41,8 @@ module Rune
       clean_output = Parsers::TextSanitizer.strip_ansi(raw_output)
 
       Result.success({ command: command, exit_code: exit_code || 0, clean_output: clean_output,
-                       raw_output: raw_output, prompt_detected: prompt_detected, duration_ms: duration_ms })
+                       raw_output: raw_output, prompt_detected: prompt_detected, duration_ms: duration_ms },
+                     exit_code: exit_code || 0)
     rescue StandardError => e
       Result.failure("Failed to execute command '#{command}': #{e.message}")
     end
@@ -37,6 +52,11 @@ module Rune
     end
 
     private
+
+    def pty_unavailable_result
+      Result.failure('PTY unavailable on this platform (pty stdlib failed to load: ' \
+                     "#{PTY_LOAD_ERROR&.message}). rune run requires a Unix-like platform with pty support.")
+    end
 
     def execute_pty
       raw_output = +''
