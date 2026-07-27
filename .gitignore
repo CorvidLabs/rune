@@ -8,3 +8,4 @@
 Gemfile.lock
 .fledge/
 coverage/
+.specsync/hashes.json
