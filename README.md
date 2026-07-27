@@ -106,10 +106,12 @@ result = runner.run
 
 ### 5. Watch a Session Live (Human Drives, Agent Tails)
 ```sh
-# Puts your terminal in raw mode, forwards your keystrokes live, and
-# streams output to your screen as it happens. Logs an NDJSON event per
-# chunk to a temp file (announced once, up front) so an agent can
-# `tail -f` it live without any JSON noise landing in your own terminal.
+# Puts your terminal in raw mode, forwards your keystrokes live — including
+# raw escape sequences like arrow keys, not just whole lines — and streams
+# output to your screen as it happens. Logs an NDJSON event per chunk to a
+# temp file (announced once, up front) so an agent can `tail -f` it live
+# without any JSON noise landing in your own terminal. The demo's top-level
+# menu is a real arrow-key selector (↑/↓ + Enter, or q to quit).
 rune watch -- ruby examples/demo_tui.rb
 
 # Or point the log somewhere specific:

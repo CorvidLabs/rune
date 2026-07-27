@@ -110,9 +110,10 @@ message appended to the captured output — it's still a normal `Result`, not an
 `rune run` buffers a command's entire output and only returns it once the command finishes — great
 for scripting and capture, but no good if you actually want to sit at the keyboard and drive an
 interactive program while something else observes the session. `rune watch` is built for that: it
-puts your terminal in raw mode, forwards every keystroke you type to the child live, streams the
-child's output to your screen as it happens (not at the end), and simultaneously logs every chunk
-as an NDJSON event — so an AI agent can tail the session in real time while a human drives it.
+puts your terminal in raw mode, forwards every keystroke you type to the child live — including
+raw escape sequences like arrow keys, not just whole lines — streams the child's output to your
+screen as it happens (not at the end), and simultaneously logs every chunk as an NDJSON event — so
+an AI agent can tail the session in real time while a human drives it.
 
 ```sh
 # A small interactive demo program ships with rune specifically to try this against:
@@ -140,10 +141,14 @@ Each log line is a JSON object: `{"event":"start","command":"...","pid":...}`, t
 
 `rune watch` requires a real terminal (it refuses to run if stdin isn't a TTY — there's no
 meaningful non-interactive mode) and won't work over `rune run`'s own PTY inception, so it can't be
-demonstrated in a piped example the way the rest of this guide is. `examples/demo_tui.rb`'s own
-header comment has copy-pasteable commands, and `spec/rune/pty_watcher_spec.rb` shows how the
-underlying forwarding/logging mechanics are unit-tested (a fake terminal object plus `IO.pipe`s
-drives a real interactive child process end-to-end without needing an actual controlling terminal).
+demonstrated in a piped example the way the rest of this guide is. `examples/demo_tui.rb`'s top-level
+menu is a real arrow-key selector (↑/↓ + Enter, or `q` to quit) rather than type-a-number-and-press-
+Enter, specifically to exercise raw single-byte and escape-sequence forwarding — the thing a purely
+line-buffered menu never touches. `examples/demo_tui.rb`'s own header comment has copy-pasteable
+commands, and `spec/rune/pty_watcher_spec.rb` shows how the underlying forwarding/logging mechanics
+are unit-tested, including a test that drives the arrow-key menu itself end-to-end (a fake terminal
+object plus `IO.pipe`s drives a real interactive child process without needing an actual controlling
+terminal).
 
 ## Parsing structured text
 

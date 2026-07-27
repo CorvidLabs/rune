@@ -92,8 +92,14 @@ passthrough), not scope creep.
       (now rescued, exits 130 cleanly), and the original stderr-by-default event log interleaved
       JSON noise directly into the human's live terminal view, making the session unreadable. The
       log now defaults to an announced temp file instead (`--log=PATH` still overrides it, and
-      `--log=/dev/stderr` still gets the old behavior back if genuinely wanted). See
-      `specs/watch/watch.spec.md`.
+      `--log=/dev/stderr` still gets the old behavior back if genuinely wanted). Its top-level menu
+      was also rebuilt as a real arrow-key selector (↑/↓ + Enter, `q` to quit, `io/console#getch`)
+      instead of type-a-number-and-press-Enter, at the user's request, specifically to exercise raw
+      single-byte/escape-sequence forwarding — the thing rune's byte-level input handling actually
+      has to get right, which a purely line-buffered menu never touches. Covered end-to-end (down
+      arrows, Enter, a line-based sub-prompt, more arrows, Enter again, an interrupt mid-selector,
+      and a lone Escape key that must time out rather than hang) in `spec/rune/pty_watcher_spec.rb`.
+      See `specs/watch/watch.spec.md`.
 - [x] **Substantially expanded test coverage** — 57 → 135 RSpec examples; line coverage 88.5% →
       98.3%, branch coverage 72.9% → 81.8% (SimpleCov added as a dev dependency, opt-in via
       `COVERAGE=1 bundle exec rspec`, `.gitignore`d output). Filled real, previously-untested gaps

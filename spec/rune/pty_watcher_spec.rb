@@ -118,6 +118,81 @@ RSpec.describe Rune::PTYWatcher do
       expect(result.data[:exit_code]).to eq(0)
     end
 
+    it 'forwards raw arrow-key escape sequences and Enter, driving examples/demo_tui.rb\'s ' \
+       'real arrow-key selector end-to-end (not just line-buffered gets input)' do
+      demo_path = File.expand_path('../../examples/demo_tui.rb', __dir__)
+      human_in_r, human_in_w = IO.pipe
+      log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+      output = +''
+
+      watcher = described_class.new(['ruby', demo_path], log: log_w, input: FakeTerminal.new(human_in_r),
+                                                         output: fake_writer(output))
+      result_thread = Thread.new { watcher.watch }
+
+      sleep 0.3
+      human_in_w.write("\e[B\e[B") # down, down -> selects "A yes/no confirmation"
+      sleep 0.3
+      human_in_w.write("\r") # Enter
+      sleep 0.3
+      human_in_w.write("y\n") # answer the confirm prompt (plain line input still works too)
+      sleep 0.3
+      human_in_w.write("\e[B\e[B\e[B\e[B") # fresh menu resets to index 0; down x4 -> "Quit"
+      sleep 0.3
+      human_in_w.write("\r") # Enter -> quit
+
+      result = result_thread.value
+      log_w.close
+
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(0)
+      clean = output.gsub(/\e\[[0-9;]*[A-Za-z]/, '')
+      expect(clean).to include('A yes/no confirmation').and include('Confirmed.').and include('Goodbye!')
+    end
+
+    it "does not hang on a lone Escape key (not followed by a bracket sequence) in demo_tui.rb's " \
+       'selector' do
+      demo_path = File.expand_path('../../examples/demo_tui.rb', __dir__)
+      human_in_r, human_in_w = IO.pipe
+      log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+
+      watcher = described_class.new(['ruby', demo_path], log: log_w, input: FakeTerminal.new(human_in_r),
+                                                         output: fake_writer(+''))
+      result_thread = Thread.new { watcher.watch }
+
+      sleep 0.3
+      human_in_w.write("\e") # lone Escape: read_key's second getch must time out, not hang
+      sleep 1.0
+      human_in_w.write('q') # still responsive afterward
+
+      # Explicit join timeout: a real hang fails this example with a clear
+      # message instead of blocking the whole suite indefinitely.
+      joined = result_thread.join(5)
+      log_w.close
+
+      expect(joined).not_to be_nil, 'watcher.watch hung past the 5s join timeout (lone Escape key not handled)'
+      expect(result_thread.value).to be_success
+    end
+
+    it 'forwards SIGINT to the child while it is blocked in the raw-mode selector itself, not ' \
+       'just in a line-buffered gets prompt' do
+      demo_path = File.expand_path('../../examples/demo_tui.rb', __dir__)
+      log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+
+      watcher = described_class.new(['ruby', demo_path], log: log_w, input: FakeTerminal.new(IO.pipe.first),
+                                                         output: fake_writer(+''))
+      result_thread = Thread.new { watcher.watch }
+      sleep 0.3
+      Process.kill('INT', Process.pid)
+
+      joined = result_thread.join(5)
+      log_w.close
+
+      expect(joined).not_to be_nil, 'watcher.watch hung past the 5s join timeout'
+      result = result_thread.value
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(130)
+    end
+
     it 'does not crash on a wrapped command emitting non-UTF-8 bytes' do
       log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
       watcher = described_class.new(
