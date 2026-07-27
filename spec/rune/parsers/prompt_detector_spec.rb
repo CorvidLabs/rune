@@ -75,6 +75,13 @@ RSpec.describe Rune::Parsers::PromptDetector do
       expect(described_class.detect?('Progress: 3.5%')).to be false
     end
 
+    it 'ignores a line ending in a <placeholder> example, not a real shell prompt terminator ' \
+       '(found via real dogfooding: `rune run --json -- fledge plugins search rune` misreported ' \
+       'prompt_detected: true on a command that had already exited cleanly)' do
+      expect(described_class.detect?('  Install with: fledge plugins install <owner/repo>')).to be false
+      expect(described_class.detect?('Usage: mycli <command>')).to be false
+    end
+
     it 'ignores ordinary prose and log lines' do
       expect(described_class.detect?('just plain output text')).to be false
       expect(described_class.detect?('npm WARN deprecated foo@1.0')).to be false

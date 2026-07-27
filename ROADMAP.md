@@ -208,5 +208,19 @@ Gates that must all be green before `rune` 0.2.0 is tagged and published:
 - [x] **CorvidLabs site tools page live** — `rune` has a full `/rune/` landing page and
       `/rune/docs/` section, registered in the site's project catalog and top nav alongside
       `fledge`, `augur`, `attest`, and `spec-sync` (`CorvidLabs/site#225`).
+- [x] **`rune watch` dogfooded against a real third-party interactive TUI** — `rune watch --
+      fledge plugins search --interactive` (a genuinely different Rust program from
+      `examples/demo_tui.rb`: a live GitHub-search spinner, type-ahead fuzzy filtering rendered
+      character-by-character, arrow-key list navigation, and a nested y/n confirmation sub-prompt)
+      worked end-to-end from a real terminal — selection, install confirmation, and a clean
+      non-zero exit on cancel, with the closing message reporting exit code, plain-seconds
+      duration, and the event log path exactly as designed.
+- [x] **`PromptDetector` false-positive on a `<placeholder>` example line** — found via the same
+      dogfooding: `rune run --json -- fledge plugins search rune` (a command that ran to
+      completion and printed no prompt at all) reported `prompt_detected: true`, because
+      `PTYRunner` scans every line of output for a prompt (not just the last), and the closing
+      `Install with: fledge plugins install <owner/repo>` line ends in a bare `>`, which the
+      trailing `[>$%#...]` prompt fallback pattern doesn't distinguish from a real shell prompt
+      terminator. Added a `<...>`-ending-line exclusion to `FALSE_POSITIVES`.
 - [ ] **Trust toolchain green** — `fledge trust verify` passes with no unresolved Augur `block`
       verdicts and Attest provenance recorded for the release commit.

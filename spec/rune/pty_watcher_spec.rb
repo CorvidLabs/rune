@@ -172,12 +172,17 @@ RSpec.describe Rune::PTYWatcher do
       demo_path = File.expand_path('../../examples/demo_tui.rb', __dir__)
       human_in_r, human_in_w = IO.pipe
       log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+      output = +''
 
       watcher = described_class.new(['ruby', demo_path], log: log_w, input: FakeTerminal.new(human_in_r),
-                                                         output: fake_writer(+''))
+                                                         output: fake_writer(output))
       result_thread = Thread.new { watcher.watch }
 
-      sleep 0.3
+      # A fixed sleep here raced the child's own ruby-process boot/require
+      # time under system load, same class of flake fixed in the SIGINT
+      # spec above — waiting for the menu to actually render guarantees the
+      # child is blocked in the raw-mode selector before sending the key.
+      Timeout.timeout(5) { sleep 0.02 until output.include?('Quit') }
       human_in_w.write("\e") # lone Escape: read_key's second getch must time out, not hang
       sleep 1.0
       human_in_w.write('q') # still responsive afterward

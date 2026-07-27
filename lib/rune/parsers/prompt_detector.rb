@@ -25,7 +25,16 @@ module Rune
         # would otherwise catch. A real tcsh-style "%" prompt is preceded by
         # a hostname/path, not a digit, so this trade-off only misses the
         # rare case of a hostname ending in a digit.
-        /\d%\s*\z/
+        /\d%\s*\z/,
+        # A line ending in a "<placeholder>" example (e.g. "Install with:
+        # fledge plugins install <owner/repo>") ends in a bare ">", which the
+        # trailing [>$%#...] prompt fallback below would otherwise catch —
+        # found via real dogfooding (`rune run --json -- fledge plugins
+        # search rune` misreported prompt_detected: true on a command that
+        # ran to completion and printed no prompt at all). A real shell
+        # prompt ending in ">" is never preceded by a "<...>" pair right
+        # before it, so this is a safe exclusion.
+        /<[^<>]+>\s*\z/
       ].freeze
 
       class << self

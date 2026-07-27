@@ -16,6 +16,18 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:duration_ms]).to be_a(Numeric)
     end
 
+    it 'does not misreport prompt_detected on a command that already exited cleanly, just ' \
+       'because some line of its output ends in a <placeholder> example (found via real ' \
+       'dogfooding: `rune run --json -- fledge plugins search rune` misreported this on its ' \
+       "closing 'Install with: fledge plugins install <owner/repo>' line)" do
+      runner = described_class.new(['ruby', '-e', 'puts "Install with: fledge plugins install <owner/repo>"'])
+      result = runner.run
+
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(0)
+      expect(result.data[:prompt_detected]).to be false
+    end
+
     it 'handles wrapped commands emitting bytes that are not valid UTF-8 without crashing' do
       # printf interprets the \xHH escapes itself, emitting raw invalid-UTF-8
       # bytes on stdout — this is what a real command (e.g. a compiler
