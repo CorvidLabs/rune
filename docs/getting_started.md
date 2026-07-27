@@ -39,7 +39,7 @@ colorized, human-formatted output:
 
 ```sh
 $ rune version
-rune v0.1.3
+rune v0.2.0
 ```
 
 ```sh
@@ -61,24 +61,28 @@ $ ruby bin/rune run --json -- echo "hello agent"
 
 ```sh
 $ ruby bin/rune version | cat
-{"status":"ok","data":{"name":"rune","version":"0.1.3","ruby":"4.0.5","ruby_platform":"arm64-darwin25","fledge":true,"specsync":true}}
+{"status":"ok","data":{"name":"rune","version":"0.2.0","ruby":"4.0.5","ruby_platform":"arm64-darwin25","fledge":true,"specsync":true}}
 ```
 
 Every JSON response has the same envelope: `{"status": "ok"|"error", "data": {...}}` (or
 `{"status": "error", "error": "..."}` on failure).
 
-### 3. Agent NDJSON streaming mode (`--ndjson`)
+### 3. Agent NDJSON envelope mode (`--ndjson`)
 
-For long-running or interactive commands, `--ndjson` streams newline-delimited JSON events as
-they happen instead of waiting for the process to exit:
+`--ndjson` wraps the same result in an `{"event": "result"|"error", ...}` envelope instead of the
+plain `{"status": ...}` shape `--json` uses — a format some agent harnesses expect uniformly for
+every command, `rune run` included:
 
 ```sh
 $ ruby bin/rune run --ndjson -- echo "hello stream"
 {"event":"result","status":"ok","data":{"command":"echo hello\\ stream","exit_code":0,"clean_output":"hello stream\n","raw_output":"hello stream\r\n","prompt_detected":false,"duration_ms":11.45}}
 ```
 
-The `event` field distinguishes stream events (`result`, `error`) so an agent can consume output
-incrementally without buffering the entire response.
+For `rune run`, this is still exactly one line, emitted once the command finishes — `PTYRunner`
+buffers the whole run and returns a single `Result`, so `--ndjson` here is an envelope choice, not
+incremental streaming. For an actual live event stream as a long-running or interactive command
+progresses, see [`rune watch`](#watching-a-session-live-with-rune-watch) below, which emits one
+NDJSON line per output chunk as it happens.
 
 ## Running commands with `rune run`
 

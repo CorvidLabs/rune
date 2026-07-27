@@ -12,6 +12,11 @@ module Rune
         # containing a literal `|` character, or space-delimited data whose columns don't align
         # on a consistent 2+-space gap.
         def parse(text, format: :auto)
+          # Validated unconditionally, before the short-input early return
+          # below — otherwise `parse('', format: :bogus)` silently returned
+          # `[]` instead of raising, making acceptance of an unsupported
+          # format depend on how many rows happened to be in the input.
+          validate_format!(format)
           raw_lines = clean_lines(text)
           return [] if raw_lines.size < 2
 
@@ -25,13 +30,16 @@ module Rune
 
         private
 
+        def validate_format!(format)
+          return if %i[auto pipe space].include?(format)
+
+          raise ArgumentError, "Unknown TableParser format: #{format.inspect} (expected :auto, :pipe, or :space)"
+        end
+
         def resolve_format(format, lines)
-          case format
-          when :auto then lines.first.include?('|') ? :pipe : :space
-          when :pipe, :space then format
-          else
-            raise ArgumentError, "Unknown TableParser format: #{format.inspect} (expected :auto, :pipe, or :space)"
-          end
+          return lines.first.include?('|') ? :pipe : :space if format == :auto
+
+          format
         end
 
         def clean_lines(text)

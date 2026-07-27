@@ -23,6 +23,18 @@ RSpec.describe Rune::Commands::WatchCommand do
       expect(result.error).to include('No command specified')
     end
 
+    it 'fails clearly on an empty --log= value instead of smuggling the raw flag into the ' \
+       'wrapped command\'s argv' do
+      allow($stdin).to receive(:tty?).and_return(true)
+      allow(Rune::PTYWatcher).to receive(:new)
+
+      result = described_class.new.call(%w[--log= -- echo hi], {})
+
+      expect(result).to be_failure
+      expect(result.error).to include('--log requires a path')
+      expect(Rune::PTYWatcher).not_to have_received(:new)
+    end
+
     it 'extracts --log=PATH and opens it for the event log, forwarding the rest as the command' do
       allow($stdin).to receive(:tty?).and_return(true)
 

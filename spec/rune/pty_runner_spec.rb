@@ -116,6 +116,29 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:clean_output]).to include('[rune] Execution timed out after 1 seconds')
     end
 
+    it 'kills the timed-out child process instead of leaving it running as an orphan (found ' \
+       'via a real `ps aux` check after `rune run --timeout=1 -- sleep 30` — Timeout.timeout ' \
+       'only interrupts rune\'s own control flow, not the spawned OS process)' do
+      Dir.mktmpdir do |dir|
+        pid_file = File.join(dir, 'pid')
+        # timeout_seconds: 3, not 1 — under real system load (many parallel
+        # subprocesses/coverage instrumentation, observed directly during
+        # this project's own dogfooding) a `ruby -e` child's own interpreter
+        # boot time can stretch enough to approach a 1s timeout, racing the
+        # pid-capture callback before Timeout fires and turning this into a
+        # test-only flake rather than exercising the fix under test.
+        runner = described_class.new(['ruby', '-e', "File.write(#{pid_file.inspect}, Process.pid); sleep 10"],
+                                     timeout_seconds: 3)
+
+        result = runner.run
+        child_pid = File.read(pid_file).strip.to_i
+        sleep 0.2 # give the OS a moment to finish tearing down the killed process
+
+        expect(result.data[:exit_code]).to eq(124)
+        expect { Process.kill(0, child_pid) }.to raise_error(Errno::ESRCH)
+      end
+    end
+
     it 'wraps any other unexpected error in a generic failure instead of propagating it raw' do
       allow(PTY).to receive(:spawn).and_raise(RuntimeError, 'something truly unexpected')
 

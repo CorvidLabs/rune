@@ -13,6 +13,16 @@ class FakeTerminal < SimpleDelegator
   def tty? = true
 end
 
+# Unlike FakeTerminal, #raw here actually succeeds and yields — simulating a
+# real terminal that genuinely enters raw mode — instead of failing at
+# dispatch with Errno::ENOTTY. Needed specifically to exercise what happens
+# when an exception is raised *after* raw mode was successfully entered,
+# which FakeTerminal's always-fails-immediately #raw can never reach.
+class SuccessfullyEntersRawMode < SimpleDelegator
+  def tty? = true
+  def raw(&block) = block.call
+end
+
 RSpec.describe Rune::PTYWatcher do
   def fake_writer(buffer)
     Object.new.tap do |o|
@@ -101,6 +111,53 @@ RSpec.describe Rune::PTYWatcher do
 
       expect(result).to be_failure
       expect(result.error).to include("Failed to watch command 'echo hi'").and include('something truly unexpected')
+    end
+
+    it 'preserves the conventional 127/126 exit codes for a missing/non-executable wrapped ' \
+       'command, same as PTYRunner, instead of collapsing to a generic failure' do
+      log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+      missing = described_class.new('non_existent_command_xyz_12345', log: log_w,
+                                                                      input: FakeTerminal.new(IO.pipe.first)).watch
+      expect(missing).to be_success
+      expect(missing.data[:exit_code]).to eq(127)
+
+      Dir.mktmpdir do |dir|
+        script_path = File.join(dir, 'not_executable.sh')
+        File.write(script_path, "#!/bin/sh\necho hi\n")
+        File.chmod(0o644, script_path)
+
+        denied = described_class.new(script_path, log: log_w, input: FakeTerminal.new(IO.pipe.first)).watch
+        expect(denied).to be_success
+        expect(denied.data[:exit_code]).to eq(126)
+      end
+      log_w.close
+    end
+
+    it 'does not re-run the session a second time when something inside the raw block raises ' \
+       'NoMethodError unrelated to entering raw mode itself (a real bug: the rescue used to be ' \
+       'scoped broadly enough to catch this and silently retry the whole already-spawned session ' \
+       '— only reproducible when raw mode is entered successfully first, which is why this uses ' \
+       'SuccessfullyEntersRawMode rather than FakeTerminal)' do
+      call_count = 0
+      broken_output = Object.new
+      broken_output.define_singleton_method(:write) do |_s|
+        call_count += 1
+        raise NoMethodError, 'simulated failure unrelated to raw-mode entry'
+      end
+      broken_output.define_singleton_method(:flush) { nil }
+      log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+
+      result = described_class.new(
+        'echo hi',
+        log: log_w,
+        input: SuccessfullyEntersRawMode.new(IO.pipe.first),
+        output: broken_output
+      ).watch
+      log_w.close
+
+      expect(call_count).to eq(1)
+      expect(result).to be_failure
+      expect(result.error).to include('simulated failure unrelated to raw-mode entry')
     end
 
     it 'ends the session cleanly (no hang) when the input source hits EOF before the child exits' do

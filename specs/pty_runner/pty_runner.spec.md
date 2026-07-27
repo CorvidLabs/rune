@@ -5,6 +5,7 @@ status: active
 files:
   - lib/rune/pty_runner.rb
   - lib/rune/commands/run_command.rb
+  - lib/rune/script.rb
 ---
 # PTY Runner
 
@@ -16,6 +17,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 |------|------|-------------|
 | `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, script: nil, timeout_seconds: 30, &on_output)`. Method: `#run` returns `Result`. Class method: `.pty_available?` reports whether the `pty` stdlib loaded successfully. |
 | `RunCommand` | class | Subcommand `rune run [--timeout=SECONDS] <command...>` exposing PTY process runner to humans and agents. `--timeout` overrides the default 30s PTYRunner timeout; only recognized before a `--` separator; must be a positive integer or the command fails with a clear error instead of leaking the raw flag into the executed command. |
+| `Script` | class | Interactive step DSL passed to `PTYRunner.new(script:)`. Constructor: `Script.new(&block)` (or `Script.define(&block)`, an alias) evaluates the block via `instance_eval`, so DSL methods can be called bare inside it. DSL methods: `wait_for(pattern)`, `send_keys(keys)`, `pause(seconds)` — each appends a `Step` to `#steps` (read via `attr_reader`); no I/O happens until `PTYRunner#run` actually executes the steps against the live PTY. |
 
 ## Invariants
 1. Executed commands run inside a PTY session so TTY-dependent CLIs behave naturally.
@@ -46,6 +48,13 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
     further `--` tokens the wrapped command uses itself (cargo, npm, git, and others use `--` to
     separate their own flags from pass-through args, e.g. `cargo clippy --tests -- -D warnings`)
     are preserved untouched (found via real external dogfooding).
+11. `Script.new { ... }` (and `Script.define { ... }`) evaluate the given block via
+    `instance_eval` immediately in the constructor — a block-less `Script.new` (no block given) is
+    valid and simply produces an empty `#steps` array, never raising.
+12. A timed-out command's spawned OS process is explicitly killed (`SIGKILL`) and reaped, not just
+    abandoned — `Timeout.timeout` only interrupts rune's own Ruby control flow, so without this the
+    wrapped process kept running as an orphan after `rune run` had already reported exit code 124
+    (found via a real `ps aux` check after `rune run --timeout=1 -- sleep 30`).
 
 ## Behavioral Examples
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.
@@ -53,6 +62,11 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 - `rune run -- bash -c "exit 7"` — `rune run` (no `--json`) exits `7` at the shell, even though the `Result` is a success.
 - `rune run --timeout=5 -- sleep 30` overrides the default 30s timeout and returns exit code 124 after ~5 seconds.
 - `rune run --timeout=0 -- echo hi` fails fast with `Result.failure("Invalid --timeout value...")` instead of silently disabling the timeout (Ruby's `Timeout.timeout(0)` means "no timeout", not "instant timeout").
+- `rune run --timeout=1 -- sleep 30` returns exit code 124 after ~1 second, and the spawned `sleep`
+  process itself is also terminated — it does not keep running in the background afterward.
+- `Script.new { wait_for(/\?/); send_keys("y\n") }` passed as `PTYRunner.new(cmd, script:)` waits
+  for a `?`-matching prompt in the captured output, then sends `"y\n"` as input, once the wrapped
+  command actually runs.
 
 ## Error Cases
 | Condition | Behavior |
@@ -65,7 +79,12 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | Wrapped command emits bytes that are not valid UTF-8 | Bytes are force-encoded + scrubbed; `Result` still succeeds, no `Encoding::CompatibilityError` |
 
 ## Dependencies
-- Ruby stdlib: `pty`, `timeout`
+- Ruby stdlib: `pty`, `timeout`, `io/wait` (required explicitly — `IO#wait_readable` isn't
+  guaranteed to be autoloaded by `pty` alone on every Ruby version)
 
 ## Change Log
 - v1: Active PTY runner spec contract
+- v1: Added `Script` to this module's file/API coverage (previously untracked by spec-sync
+  despite being public since `PTYRunner`'s `script:` constructor option shipped); documented the
+  explicit `io/wait` require and the timeout-triggered SIGKILL/reap fix for orphaned child
+  processes.

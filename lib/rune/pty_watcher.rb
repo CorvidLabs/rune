@@ -2,6 +2,11 @@
 
 require 'json'
 require 'shellwords'
+# IO#wait_readable is provided by this stdlib extension, not by 'pty' or
+# 'io/console' — without it, pump_output's #wait_readable call crashes with
+# a raw NoMethodError on Ruby versions where it isn't already autoloaded as
+# part of core IO (same issue fixed in pty_runner.rb).
+require 'io/wait'
 require_relative 'signal_handler'
 
 # Needed so the *parent* process's own $stdin/$stdout gain #raw/#getch —
@@ -51,7 +56,7 @@ module Rune
 
     def run_session
       exit_code = nil
-      started_at = Time.now
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
       PTY.spawn(env, @command) do |r, w, pid|
@@ -61,7 +66,18 @@ module Rune
         end
       end
 
-      duration_ms = ((Time.now - started_at) * 1000).round(2)
+      build_result(exit_code, started_at)
+    # Same conventional exit codes PTYRunner already returns for a missing
+    # (127) or non-executable (126) wrapped command, instead of collapsing
+    # both into a generic rune-level failure.
+    rescue Errno::ENOENT
+      build_result(127, started_at)
+    rescue Errno::EACCES
+      build_result(126, started_at)
+    end
+
+    def build_result(exit_code, started_at)
+      duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round(2)
       log_event('exit', exit_code: exit_code)
       data = { command: @command, exit_code: exit_code || 0, duration_ms: duration_ms }
       Result.success(data, exit_code: exit_code || 0)
@@ -73,9 +89,23 @@ module Rune
     # it and rescuing the OS's own "not a tty" error is the only reliable
     # check. NoMethodError is a second fallback for the (now rare) case
     # io/console failed to load at all.
+    #
+    # The `entered` flag is load-bearing, not decorative: without it, an
+    # unrelated NoMethodError raised from deep inside the block (e.g. an
+    # injected output object missing #flush) would also be caught here and
+    # silently re-run the ENTIRE already-spawned PTY session a second time
+    # via the block.call fallback below — re-entering signal traps,
+    # re-spawning the input-forwarding thread, all of it. Only fall back
+    # when the failure happened before the block ever started running.
     def with_raw_input(&block)
-      @input.raw(&block)
+      entered = false
+      @input.raw do
+        entered = true
+        block.call
+      end
     rescue Errno::ENOTTY, NoMethodError
+      raise if entered
+
       block.call
     end
 

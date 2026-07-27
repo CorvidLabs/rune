@@ -12,7 +12,9 @@ module Rune
       def call(args, _options)
         return Result.failure('rune watch requires a real terminal (stdin is not a TTY).') unless $stdin.tty?
 
-        log_path, remaining = extract_log(args)
+        log_path, remaining, log_error = extract_log(args)
+        return Result.failure(log_error) if log_error
+
         clean_args = remaining.first == '--' ? remaining[1..] : remaining
         return Result.failure('No command specified. Usage: rune watch [--log=PATH] <command...>') if clean_args.empty?
 
@@ -80,22 +82,30 @@ module Rune
       end
 
       # --log=PATH: write the NDJSON event stream to a specific file instead
-      # of the default temp path.
+      # of the default temp path. Matches an empty value (`--log=`) too,
+      # rather than leaving it unrecognized — previously that silently fell
+      # through untouched into the wrapped command's own argv instead of
+      # producing a clear error.
       def extract_log(args)
         separator_index = args.index('--')
         head = separator_index ? args[0...separator_index] : args
         tail = separator_index ? args[separator_index..] : []
 
         log_path = nil
+        error = nil
         head = head.reject do |arg|
-          match = arg.match(/\A--log=(.+)\z/)
+          match = arg.match(/\A--log=(.*)\z/)
           next false unless match
 
-          log_path = match[1]
+          if match[1].empty?
+            error = '--log requires a path, e.g. --log=/tmp/session.ndjson'
+          else
+            log_path = match[1]
+          end
           true
         end
 
-        [log_path, head + tail]
+        [log_path, head + tail, error]
       end
     end
   end

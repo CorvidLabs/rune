@@ -81,6 +81,12 @@ RSpec.describe Rune::Parsers::TableParser do
       expect(described_class.parse('')).to eq([])
     end
 
+    it 'raises ArgumentError for an unknown format even when input is too short to parse ' \
+       '(format validation must not depend on row count)' do
+      expect { described_class.parse('', format: :csv) }.to raise_error(ArgumentError, /Unknown TableParser format/)
+      expect { described_class.parse('single line', format: :csv) }.to raise_error(ArgumentError)
+    end
+
     it 'parses a single-word header (single_space_spans, not multi_space_spans)' do
       table_text = <<~TABLE
         NAME

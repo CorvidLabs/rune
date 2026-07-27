@@ -13,11 +13,21 @@ end
 
 require 'timeout'
 require 'shellwords'
+# IO#wait_readable/#wait_writable are provided by this stdlib extension, not
+# by 'pty' itself. On Ruby versions where it isn't already autoloaded as part
+# of core IO, every #run would otherwise crash with a raw NoMethodError the
+# moment read_pty_stream calls #wait_readable — found via a real triage
+# against a Ruby 3.1 install, inside this gem's own declared >= 3.0 support
+# range.
+require 'io/wait'
 require_relative 'parsers/text_sanitizer'
 require_relative 'parsers/prompt_detector'
 require_relative 'signal_handler'
 
 module Rune
+  # rubocop:disable Metrics/ClassLength -- grew past the limit from the timeout-kill and io/wait
+  # fixes; the spawn/read/signal-forwarding logic here is tightly coupled and splitting it across
+  # files for a line-count metric alone would hurt readability more than it helps.
   class PTYRunner
     attr_reader :command, :input, :script, :timeout_seconds, :on_output
 
@@ -67,25 +77,30 @@ module Rune
       raw_output = +''
       exit_code = nil
       prompt_detected = false
+      spawned_pid = nil
 
       Timeout.timeout(timeout_seconds) do
-        prompt_detected, exit_code = spawn_and_stream(raw_output)
+        prompt_detected, exit_code = spawn_and_stream(raw_output) { |pid| spawned_pid = pid }
       end
 
       [raw_output, exit_code, prompt_detected]
     rescue Errno::ENOENT then ["Command not found: #{command}", 127, false]
     rescue Errno::EACCES then ["Permission denied: #{command}", 126, false]
     rescue Timeout::Error
+      # Timeout.timeout only interrupts Ruby's control flow — the spawned OS
+      # process keeps running as an orphan unless killed explicitly here.
+      kill_orphaned_child(spawned_pid)
       ["#{raw_output}\n[rune] Execution timed out after #{timeout_seconds} seconds", 124, false]
     rescue PTY::ChildExited then [raw_output, 0, prompt_detected]
     end
 
-    def spawn_and_stream(raw_output)
+    def spawn_and_stream(raw_output, &on_pid)
       exit_code = nil
       prompt_detected = false
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
       PTY.spawn(env, command) do |r, w, pid|
+        on_pid&.call(pid)
         SignalHandler.with_traps(pid) do |forward_signal|
           write_input(w, input) if input
           prompt_detected = read_pty_stream(r, w, raw_output, forward_signal)
@@ -93,6 +108,17 @@ module Rune
         end
       end
       [prompt_detected, exit_code]
+    end
+
+    # SIGKILL, not SIGTERM: the process already overran its allotted time, so
+    # there's no value giving it another chance to ignore a softer signal.
+    def kill_orphaned_child(pid)
+      return unless pid
+
+      Process.kill('KILL', pid)
+      Process.wait(pid)
+    rescue Errno::ESRCH, Errno::ECHILD
+      nil
     end
 
     def wait_for_process(pid)
@@ -154,4 +180,5 @@ module Rune
       current_index
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

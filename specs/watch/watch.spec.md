@@ -61,10 +61,13 @@ there.
     a separate `Command` instance from the one `#call` ran on, per `CLI#render_result` — can print a
     closing summary and remind where the event log lives without relying on instance state.
 11. `WatchCommand#human_render`'s duration is scaled to be readable at the length a watched session
-    actually runs (seconds to hours, not `PTYRunner`'s usual sub-second commands): milliseconds
-    under 1s, `Ns` under a minute, `Mm Ss` under an hour, `Hh Mm Ss` beyond that — always followed by
-    the exact value in seconds in parentheses, so both the at-a-glance and precise figures are
-    visible.
+    actually runs (seconds to hours, not `PTYRunner`'s usual sub-second commands): a bare
+    `<N>ms` under 1 second, a bare `<N>s` (2 decimal places) under a minute — both already exact
+    enough on their own — or `Mm Ss` under an hour / `Hh Mm Ss` beyond that, each followed by
+    `, <exact seconds>s` since those coarser forms lose sub-second precision the plain figure
+    doesn't need to restate. The exact-seconds suffix is a comma, not parentheses, and only
+    appears on the two coarser (minute/hour) forms — not on the sub-minute cases, where it would
+    just repeat the same number twice.
 
 ## Behavioral Examples
 - `rune watch -- ruby examples/demo_tui.rb` puts your terminal in raw mode, runs the demo TUI
@@ -89,11 +92,13 @@ there.
 | `input` is not a TTY (e.g. piped/non-interactive invocation) | Returns `Result.failure("...requires a real terminal...")` before spawning anything |
 | `pty` stdlib unavailable | Returns `Result.failure("PTY unavailable...")` |
 | No command argument | Returns `Result.failure("No command specified...")` |
+| `--log=` given with no value | Returns `Result.failure("--log requires a path...")` instead of silently smuggling the raw `--log=` token into the wrapped command's argv |
+| Wrapped command missing/non-executable | `Result` still succeeds (mirrors `PTYRunner`): `data[:exit_code]` is `127`/`126`, same convention as `rune run`, instead of collapsing to a generic failure |
 
 ## Dependencies
 - Ruby stdlib: `pty`, `io/console` (required unconditionally, rescued on `LoadError` the same way
   `pty_runner.rb` rescues `pty` — expected almost everywhere but not guaranteed on every platform),
-  `json`
+  `io/wait` (required explicitly for `IO#wait_readable`, same reasoning as `pty_runner.rb`), `json`
 
 ## Change Log
 - v1: Active spec — initial `rune watch` / `PTYWatcher` contract
@@ -101,3 +106,9 @@ there.
   `pty_watcher.rb` never required `io/console` itself, so the parent process's `$stdin` never
   gained `#raw`. `Result#data` now also carries `duration_ms`/`log_path`, and `WatchCommand`'s
   closing message reports both instead of just the bare exit code.
+- v1: Added explicit `require 'io/wait'` (fixing a raw `NoMethodError` crash on Ruby versions
+  where it isn't already autoloaded); narrowed `with_raw_input`'s rescue so it only falls back to
+  `block.call` for a failure in entering raw mode itself, not for any exception raised from deep
+  inside an already-running session (which previously could silently re-run the whole session a
+  second time); switched `duration_ms` to a monotonic clock, matching `PTYRunner`; and added the
+  missing/non-executable-command exit-code parity and empty-`--log=` error cases above.

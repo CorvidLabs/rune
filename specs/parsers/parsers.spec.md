@@ -6,6 +6,7 @@ files:
   - lib/rune/parsers/table_parser.rb
   - lib/rune/parsers/key_value_parser.rb
   - lib/rune/parsers/text_sanitizer.rb
+  - lib/rune/parsers/prompt_detector.rb
 ---
 # Parsers
 
@@ -18,17 +19,32 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | `TableParser` | class | Class method `.parse(text, format: :auto)` converts space or pipe-delimited table text into array of hashes. `format:` accepts `:auto` (default heuristic), `:pipe`, or `:space` to force a parsing mode; raises `ArgumentError` for any other value. |
 | `KeyValueParser` | class | Class method `.parse(text)` converts key-value text lines (`key: val`) into typed hashes. |
 | `TextSanitizer` | class | Class method `.strip_ansi(text)` strips ANSI escape codes and normalizes line endings. |
+| `PromptDetector` | class | Class method `.detect?(line)` reports whether a single line of (possibly ANSI-colored) output looks like an interactive prompt awaiting input — used by `PTYRunner`/`PTYWatcher` to set `prompt_detected` in their results. |
 
 ## Invariants
 1. `TableParser.parse` converts header titles to lowercase underscored symbols.
 2. `KeyValueParser.parse` coerces integer, float, and boolean values automatically.
 3. `TextSanitizer.strip_ansi` returns an empty string for nil input.
 4. `TableParser.parse` with `format: :auto` (default) detects pipe vs. space tables by checking whether the header line contains `|`; `format: :pipe`/`:space` bypass detection entirely.
+5. `TableParser.parse` raises `ArgumentError` for an unrecognized `format:` value regardless of
+   input size — validated unconditionally, not only once the input has 2+ non-empty lines.
+6. `PromptDetector.detect?` strips ANSI codes before matching, and returns `false` (never raises)
+   for `nil`, empty, or whitespace-only input.
+7. `PromptDetector.detect?` has known, deliberate false-positive exclusions that trade rare misses
+   for common correctness: a line ending in a bare `<digit>%` (progress output, e.g. `"Building...
+   45%"`) is never treated as a tcsh-style `%` prompt, and a line ending in a `<placeholder>`-style
+   closing angle bracket (e.g. `"Install with: fledge plugins install <owner/repo>"`) is never
+   treated as a shell prompt's trailing `>`. Both trade-offs are documented inline next to the
+   `FALSE_POSITIVES` patterns that implement them.
 
 ## Behavioral Examples
 - `TableParser.parse("NAME STATUS\nrune active")` returns `[{ name: 'rune', status: 'active' }]`.
 - `TableParser.parse("Name | Status\nrune | active", format: :pipe)` forces pipe parsing even without a `|`-only header separator row.
 - `KeyValueParser.parse("threads: 4")` returns `{ threads: 4 }`.
+- `PromptDetector.detect?('Continue? (y/n) ')` returns `true`; `PromptDetector.detect?('Downloading
+  100%')` and `PromptDetector.detect?('Install with: fledge plugins install <owner/repo>')` both
+  return `false` despite ending in characters (`%`, `>`) the underlying prompt patterns otherwise
+  match on.
 
 ## Error Cases
 | Condition | Behavior |
@@ -45,3 +61,7 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 
 ## Change Log
 - v1: Active parsers spec contract
+- v1: Added `PromptDetector` to this module's file/API coverage (previously untracked by
+  spec-sync despite being public since `PTYRunner#detect_prompt?` shipped); documented the
+  `<placeholder>` false-positive fix and the pre-existing digit-percent one. Also documented that
+  `TableParser.parse` now validates `format:` unconditionally, not only for 2+-line input.
