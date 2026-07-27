@@ -117,11 +117,20 @@ as an NDJSON event — so an AI agent can tail the session in real time while a 
 ```sh
 # A small interactive demo program ships with rune specifically to try this against:
 rune watch -- ruby examples/demo_tui.rb
+```
 
-# The event log goes to stderr by default — redirect it to persist/tail the session:
-rune watch -- ruby examples/demo_tui.rb 2>session.ndjson
+The event log defaults to a temp file, not stderr — mixing NDJSON events into the same terminal as
+the live passthrough was the original design, and real usage immediately showed it was the wrong
+default (the interleaved JSON made the session unreadable). The path is announced once, up front:
 
-# Or write it straight to a file instead:
+```
+[rune watch] live event log: /tmp/rune-watch-12345-1700000000.ndjson
+```
+
+`tail -f` that path from another pane (or have an agent tail it) to watch the session live, with
+your own terminal staying clean. Point it somewhere specific instead with `--log=PATH`:
+
+```sh
 rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
 ```
 

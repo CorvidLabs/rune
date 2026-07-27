@@ -31,8 +31,8 @@ Every command produces formatted, colored terminal output for humans — and str
    - Puts your terminal in raw mode and forwards keystrokes to the child live, byte-for-byte
    - Streams the child's output to your screen as it happens (unlike `rune run`, which buffers and
      returns everything at the end)
-   - Simultaneously logs every chunk as an NDJSON event (to stderr or `--log=PATH`) so an AI agent
-     can tail the session live while a human drives it
+   - Simultaneously logs every chunk as an NDJSON event to a temp file (path announced once, or
+     `--log=PATH`) so an AI agent can tail the session live while a human drives it
 
 ---
 
@@ -106,10 +106,14 @@ result = runner.run
 
 ### 5. Watch a Session Live (Human Drives, Agent Tails)
 ```sh
-# Puts your terminal in raw mode, forwards your keystrokes live, streams
-# output to your screen as it happens, and logs an NDJSON event per chunk
-# to stderr — redirect it to persist/tail the session from another shell.
-rune watch -- ruby examples/demo_tui.rb 2>session.ndjson
+# Puts your terminal in raw mode, forwards your keystrokes live, and
+# streams output to your screen as it happens. Logs an NDJSON event per
+# chunk to a temp file (announced once, up front) so an agent can
+# `tail -f` it live without any JSON noise landing in your own terminal.
+rune watch -- ruby examples/demo_tui.rb
+
+# Or point the log somewhere specific:
+rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
 ```
 
 ---

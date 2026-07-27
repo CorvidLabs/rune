@@ -81,13 +81,18 @@ passthrough), not scope creep.
       `rune run` buffers a command's entire output and only returns it once finished, with no live
       stdin forwarding at all. `rune watch -- <command>` puts the terminal in raw mode, forwards a
       human's keystrokes to the child live, streams output to the screen as it happens, and
-      simultaneously logs every chunk as an NDJSON event (`start`/`output`/`exit`, to stderr or
-      `--log=PATH`) so an agent can tail the session in real time. Implemented as a new
-      `PTYWatcher` class (not a `PTYRunner` mode — `PTYRunner`'s contract stays frozen) with
-      injectable `input`/`output`/`log` so the forwarding/logging mechanics are unit-testable
-      without a real controlling terminal (a fake `#tty? => true` object plus `IO.pipe`s drives a
-      real interactive child end-to-end in `spec/rune/pty_watcher_spec.rb`). `examples/demo_tui.rb`
-      ships as a small interactive program to actually try it against. See
+      simultaneously logs every chunk as an NDJSON event (`start`/`output`/`exit`) so an agent can
+      tail the session in real time. Implemented as a new `PTYWatcher` class (not a `PTYRunner`
+      mode — `PTYRunner`'s contract stays frozen) with injectable `input`/`output`/`log` so the
+      forwarding/logging mechanics are unit-testable without a real controlling terminal (a fake
+      `#tty? => true` object plus `IO.pipe`s drives a real interactive child end-to-end in
+      `spec/rune/pty_watcher_spec.rb`). `examples/demo_tui.rb` ships as a small interactive program
+      to actually try it against — and doing exactly that, live, immediately surfaced two real
+      issues fixed the same session: an unhandled `Interrupt` on Ctrl+C dumped a raw Ruby backtrace
+      (now rescued, exits 130 cleanly), and the original stderr-by-default event log interleaved
+      JSON noise directly into the human's live terminal view, making the session unreadable. The
+      log now defaults to an announced temp file instead (`--log=PATH` still overrides it, and
+      `--log=/dev/stderr` still gets the old behavior back if genuinely wanted). See
       `specs/watch/watch.spec.md`.
 - [x] **Substantially expanded test coverage** — 57 → 135 RSpec examples; line coverage 88.5% →
       98.3%, branch coverage 72.9% → 81.8% (SimpleCov added as a dev dependency, opt-in via

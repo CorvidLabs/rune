@@ -21,8 +21,8 @@ there.
 ## Public API
 | Name | Type | Description |
 |------|------|-------------|
-| `PTYWatcher` | class | Constructor: `(command, log: $stderr, input: $stdin, output: $stdout)`. Method: `#watch` returns `Result`. |
-| `WatchCommand` | class | Subcommand `rune watch [--log=PATH] <command...>`. `--log=PATH` writes the NDJSON event log to a file instead of stderr; only recognized before a `--` separator, same convention as `RunCommand`'s `--timeout`. |
+| `PTYWatcher` | class | Constructor: `(command, log: $stderr, input: $stdin, output: $stdout)`. Method: `#watch` returns `Result`. The library default is `$stderr`; `WatchCommand` (the CLI) always passes an explicit `File` instead — see below. |
+| `WatchCommand` | class | Subcommand `rune watch [--log=PATH] <command...>`. Defaults the NDJSON event log to a temp file (`$stdin.tty?` is checked before anything else, so no file is created if it fails), announcing the path once via `warn`; `--log=PATH` writes it to a specific file instead. Only recognized before a `--` separator, same convention as `RunCommand`'s `--timeout`. |
 
 ## Invariants
 1. Refuses to run (returns `Result.failure`) unless `input` is a real TTY — live passthrough
@@ -44,13 +44,24 @@ there.
    specifically so the live-passthrough mechanics are unit-testable without a real controlling
    terminal — a fake terminal object needs only `#tty? => true`; if it doesn't respond to `#raw`,
    the real raw-mode ioctl is skipped entirely.
+9. `WatchCommand` checks `$stdin.tty?` itself, before doing anything else — including before
+   computing/opening the default log file — so a failed invocation (piped/non-interactive) never
+   creates a stray temp file. This duplicates `PTYWatcher`'s own internal check by design, at the
+   CLI layer specifically to avoid that side effect.
 
 ## Behavioral Examples
 - `rune watch -- ruby examples/demo_tui.rb` puts your terminal in raw mode, runs the demo TUI
-  interactively exactly as if you'd run it directly, and writes an NDJSON event per output chunk
-  to stderr — redirect it to persist/tail the session: `rune watch -- cmd 2>session.ndjson`.
+  interactively exactly as if you'd run it directly, prints
+  `[rune watch] live event log: /tmp/rune-watch-<pid>-<ts>.ndjson` once via `warn`, and writes an
+  NDJSON event per output chunk to that file — `tail -f` it from another pane to watch live.
+  Deliberately *not* stderr by default: stderr shares the human's terminal with the live
+  passthrough, interleaving JSON noise into an otherwise-clean interactive session (this was the
+  original design and real usage immediately showed it was the wrong default).
 - `rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb` writes the event log to a
-  file instead of stderr.
+  specific file instead of the default temp path.
+- `rune watch --log=/dev/stderr -- cmd` (or passing `log: $stderr` directly via the `PTYWatcher`
+  Ruby API) still works if stderr is genuinely wanted, e.g. a wrapping process capturing it
+  programmatically rather than a human watching the same terminal.
 - Piping a fake terminal (`#tty? => true`, no `#raw`) and `IO.pipe`s for input/output into
   `PTYWatcher.new` directly drives a real interactive child process end-to-end in a test, without
   a real terminal — see `spec/rune/pty_watcher_spec.rb`.

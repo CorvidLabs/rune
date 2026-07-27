@@ -20,6 +20,7 @@ require 'json'
 require 'open3'
 require 'rbconfig'
 require 'stringio'
+require 'tmpdir'
 
 # Top-level ivars on `main`, shared across the top-level `def`s below (a
 # top-level `def` is a private method on Object, invoked with self == main).
@@ -282,6 +283,19 @@ section('Rune::PTYWatcher — live bidirectional passthrough (rune watch)') do
     assert(result.success? && output.include?('Hi Claude!'), output)
     events = log_r.read.each_line.map { |line| JSON.parse(line) }
     assert(events.first['event'] == 'start' && events.last['event'] == 'exit', events.inspect)
+  end
+end
+
+section('Rune::Commands::WatchCommand — default log destination') do
+  check('fails fast on non-tty stdin without creating a stray log file (real usage showed ' \
+        'logging to stderr by default made the live session unreadable, so it now defaults ' \
+        'to an announced temp file instead)') do
+    before = Dir.glob(File.join(Dir.tmpdir, 'rune-watch-*.ndjson'))
+    result = Rune::Commands::WatchCommand.new.call(%w[-- echo hi], {})
+    after = Dir.glob(File.join(Dir.tmpdir, 'rune-watch-*.ndjson'))
+
+    assert(result.failure? && result.error.include?('requires a real terminal'), result.error)
+    assert(after == before, "expected no new rune-watch-*.ndjson temp files, got #{after - before}")
   end
 end
 
