@@ -21,7 +21,7 @@ Gem::Specification.new do |spec|
   spec.metadata["changelog_uri"] = "https://github.com/CorvidLabs/rune/releases"
   spec.metadata["allowed_push_host"] = "https://rubygems.pkg.github.com/CorvidLabs"
 
-  spec.required_ruby_version = ">= 4.0"
+  spec.required_ruby_version = ">= 3.0"
 
   spec.files         = Dir["lib/**/*", "bin/*", "LICENSE", "README.md"]
   spec.bindir        = "bin"

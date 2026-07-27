@@ -1,17 +1,17 @@
 {
   "hashes": {
-    "lib/rune/command.rb": "af62e948cedb6336e0de59e920ce44257d05c9a53cb5cc51779383b250583ec0",
-    ".specsync/config.toml": "fcc34cb7a50f200d18d22fad7062ddcb355ab4912f32db1e8068320ab0b7a2a3",
-    "lib/rune/parsers/key_value_parser.rb": "d9ee35cfdd04377655a2b6c8f8cbb1c3586106835f2514cbcd5f4a7a8e09fc31",
     "specs/pty_runner/pty_runner.spec.md": "6a8b880fdf2eec6ee97698d6d9f2c1578750df611a58098f9014b475c61a5da6",
-    "lib/rune/parsers/text_sanitizer.rb": "4412770517600fd988e054998fbe542c3139813ed596473f2f59bbb69f43e3f9",
-    "lib/rune/cli.rb": "e2f8b0a7b949fe3c3495f253bcca9a42626e221c5e10c157ff832031fa725311",
-    "lib/rune/pty_runner.rb": "dee476a7cf41f5dc7d2719337b1585543f6908a22618283d098eaf1fc91bc25d",
-    "lib/rune/result.rb": "d14e937f063b7af5163b26b11ad3abccbba3d48c16ca88720e79080d6b94ddaf",
-    "lib/rune/parsers/table_parser.rb": "e7ed38b86a0be12d7def6e6551cfc3a50c0ba90f7e1d1d1b10dbe58cdca09645",
-    "specs/parsers/parsers.spec.md": "8116bbce7685a767672694c34cdc247844ae7ddaad6e1eed0bb6c3c4d786cdd9",
     "lib/rune/renderer.rb": "df5cc3baff984f955d37e5b7d566a38539c629f65b59c431fbf831c7029e9e57",
-    "lib/rune/commands/run_command.rb": "f0d17fb6a39ec6fdaaaa9406d9386a1b069c3e76af2dcb9a71a93371dc1fd144",
-    "specs/cli/cli.spec.md": "c24f3d26d668270b349b80c181de6403c4e966ce930a0d374e9c53a49895cdcf"
+    "specs/parsers/parsers.spec.md": "8116bbce7685a767672694c34cdc247844ae7ddaad6e1eed0bb6c3c4d786cdd9",
+    "lib/rune/parsers/text_sanitizer.rb": "4412770517600fd988e054998fbe542c3139813ed596473f2f59bbb69f43e3f9",
+    "specs/cli/cli.spec.md": "c24f3d26d668270b349b80c181de6403c4e966ce930a0d374e9c53a49895cdcf",
+    "lib/rune/command.rb": "af62e948cedb6336e0de59e920ce44257d05c9a53cb5cc51779383b250583ec0",
+    "lib/rune/result.rb": "d14e937f063b7af5163b26b11ad3abccbba3d48c16ca88720e79080d6b94ddaf",
+    "lib/rune/commands/run_command.rb": "c79d71069356e3d202f3272830c6cf5d9306e79977915f6a40121e0d0ed9c328",
+    "lib/rune/parsers/table_parser.rb": "961918fee30cbd49e3e7411abac31db2ba22d915b9a4140bfb5a58c0c48269d4",
+    "lib/rune/parsers/key_value_parser.rb": "83ca2a50964236fa02bd8f915e125f504872cbb882d835e9df26dc33439de10d",
+    ".specsync/config.toml": "fcc34cb7a50f200d18d22fad7062ddcb355ab4912f32db1e8068320ab0b7a2a3",
+    "lib/rune/pty_runner.rb": "de7a718754b2c28ced57433f068c16e5af43457575508c77bad27d1eec08fe38",
+    "lib/rune/cli.rb": "e2f8b0a7b949fe3c3495f253bcca9a42626e221c5e10c157ff832031fa725311"
   }
 }

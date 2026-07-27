@@ -4,6 +4,8 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+permissions:
+  contents: read
 
 jobs:
   publish-github-packages:
@@ -18,7 +20,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '4.0.5'
+          ruby-version: '3.3'
 
       - name: Build Gem Package
         run: gem build rune.gemspec
@@ -44,7 +46,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '4.0.5'
+          ruby-version: '3.3'
 
       - name: Publish to RubyGems.org
         env:

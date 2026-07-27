@@ -109,6 +109,14 @@ result = runner.run
 
 ---
 
+## Architecture & Internals
+
+For a deep dive into how pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, and script execution work under the hood in Ruby, see:
+
+- 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — Guide for developers and AI agents.
+
+---
+
 ## Development & Verification
 
 ```sh
