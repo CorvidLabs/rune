@@ -59,6 +59,43 @@ RSpec.describe Rune::PTYRunner do
       expect(result).to be_success
       expect(result.data[:clean_output]).to include('You selected 2')
     end
+
+    it 'drives a script built with Script.new directly (not only .define)' do
+      ruby_code = <<~RUBY
+        $stdout.sync = true
+        puts "Select an option [1-3]:"
+        line = $stdin.gets&.strip
+        puts "You selected \#{line}"
+      RUBY
+
+      script = Rune::Script.new do
+        wait_for(/Select an option/)
+        send_keys "3\n"
+      end
+
+      runner = described_class.new(['ruby', '-e', ruby_code], script: script)
+      result = runner.run
+
+      expect(result).to be_success
+      expect(result.data[:clean_output]).to include('You selected 3')
+    end
+
+    it 'forwards SIGINT to the wrapped child process, terminating it early' do
+      runner = described_class.new('sleep 10', timeout_seconds: 30)
+
+      Thread.new do
+        sleep 0.3
+        Process.kill('INT', Process.pid)
+      end
+
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = runner.run
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+
+      expect(result).to be_success
+      expect(elapsed).to be < 5
+      expect(result.data[:exit_code]).to eq(130)
+    end
   end
 
   describe '#detect_prompt?' do

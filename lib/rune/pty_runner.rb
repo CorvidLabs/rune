@@ -61,9 +61,9 @@ module Rune
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
       PTY.spawn(env, command) do |r, w, pid|
-        SignalHandler.with_traps(pid) do
+        SignalHandler.with_traps(pid) do |forward_signal|
           write_input(w, input) if input
-          prompt_detected = read_pty_stream(r, w, raw_output)
+          prompt_detected = read_pty_stream(r, w, raw_output, forward_signal)
           exit_code = wait_for_process(pid)
         end
       end
@@ -89,14 +89,20 @@ module Rune
       nil
     end
 
-    def read_pty_stream(reader, writer, output_buffer)
+    # Polls with a short readable-wait rather than blocking indefinitely on
+    # readpartial, so a caught signal gets forwarded promptly instead of
+    # waiting for the next chunk of child output (which may never come).
+    def read_pty_stream(reader, writer, output_buffer, forward_signal)
       prompt_found = false
       script_step_index = 0
       loop do
+        forward_signal.call
+        next unless reader.wait_readable(0.2)
+
         chunk = reader.readpartial(4096)
         output_buffer << chunk
         on_output&.call(chunk)
-        chunk.split("\n").each { |line| prompt_found = true if detect_prompt?(line) }
+        prompt_found ||= chunk.split("\n").any? { |line| detect_prompt?(line) }
         script_step_index = process_script_steps(script_step_index, output_buffer, writer) if script
       end
     rescue Errno::EIO, EOFError, PTY::ChildExited, Errno::EPIPE
