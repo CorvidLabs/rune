@@ -30,6 +30,11 @@ require_relative '../lib/rune/version'
 
 $stdout.sync = true
 
+# Set RUNE_DEMO_DEBUG=1 to trace every getch call and its raw result — useful
+# for diagnosing arrow-key/raw-input issues on a terminal/Ruby combination
+# this wasn't tested against directly.
+DEBUG = ENV['RUNE_DEMO_DEBUG'] == '1'
+
 CYAN = "\e[36m"
 GREEN = "\e[32m"
 YELLOW = "\e[33m"
@@ -48,16 +53,34 @@ def banner
   puts "#{BOLD}#{CYAN}rune demo TUI#{RESET}"
   puts "#{CYAN}A small interactive program for dogfooding rune run / rune watch.#{RESET}"
   puts
+  return unless DEBUG
+
+  io_console_version = Gem.loaded_specs['io-console']&.version || 'bundled with Ruby, no separate gem entry'
+  puts "#{YELLOW}[debug] Ruby #{RUBY_VERSION} (#{RUBY_PLATFORM}), io-console: #{io_console_version}, " \
+       "stdin.tty?=#{$stdin.tty?}#{RESET}"
+  puts
+end
+
+def debug_log(msg)
+  return unless DEBUG
+
+  print "#{YELLOW}[debug] #{msg}#{RESET}\r\n"
 end
 
 # getch with intr: true (Ctrl+C still raises a real Interrupt during a raw
 # read) and, optionally, a short non-blocking timeout. Falls back to plain
 # getch if this Ruby/io-console combination doesn't accept these keywords
 # together, rather than raising and silently killing the whole session.
-def safe_getch(**)
-  $stdin.getch(intr: true, **)
-rescue ArgumentError
-  $stdin.getch
+def safe_getch(**opts)
+  debug_log("calling getch(intr: true, #{opts}), stdin.tty?=#{$stdin.tty?}")
+  result = $stdin.getch(intr: true, **opts)
+  debug_log("getch returned #{result.inspect} (bytes: #{result&.bytes})")
+  result
+rescue ArgumentError => e
+  debug_log("getch(intr:) rejected (#{e.message}), falling back to plain getch")
+  result = $stdin.getch
+  debug_log("plain getch returned #{result.inspect} (bytes: #{result&.bytes})")
+  result
 end
 
 # Reads one logical keypress: a plain character, or a recognized arrow-key
@@ -90,20 +113,23 @@ def render_menu(selected)
   end
 end
 
+def move_selection(selected, delta)
+  print "\e[#{MENU.size}A"
+  new_selected = (selected + delta) % MENU.size
+  render_menu(new_selected)
+  new_selected
+end
+
 def select_menu_action
   selected = 0
   puts "Use #{BOLD}↑/↓#{RESET} and #{BOLD}Enter#{RESET} to choose (or press q to quit):"
   render_menu(selected)
   loop do
-    case read_key
-    when :up
-      print "\e[#{MENU.size}A"
-      selected = (selected - 1) % MENU.size
-      render_menu(selected)
-    when :down
-      print "\e[#{MENU.size}A"
-      selected = (selected + 1) % MENU.size
-      render_menu(selected)
+    key = read_key
+    debug_log("read_key -> #{key.inspect}")
+    case key
+    when :up then selected = move_selection(selected, -1)
+    when :down then selected = move_selection(selected, 1)
     when "\r", "\n"
       return MENU[selected][:action]
     when 'q'
