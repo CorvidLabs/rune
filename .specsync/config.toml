@@ -1,0 +1,11 @@
+# spec-sync configuration
+# Docs: https://github.com/CorvidLabs/spec-sync
+
+specs_dir = "specs"
+source_dirs = ["lib"]
+exclude_dirs = ["spec", "vendor", "bundle"]
+exclude_patterns = ["**/*_spec.rb"]
+required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+
+[lifecycle]
+track_history = false

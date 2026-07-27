@@ -1,0 +1,25 @@
+# fledge.toml — xzst project task definitions
+# Docs: https://github.com/CorvidLabs/fledge#task-runner
+
+[tasks]
+dev = "ruby bin/xzst"
+test = "bundle exec rspec"
+lint = "bundle exec rubocop"
+fmt = "bundle exec rubocop -A"
+fmt-check = "bundle exec rubocop"
+build = "gem build xzst.gemspec"
+install = "bundle install"
+spec-check = "specsync check"
+clean = "rm -f *.gem"
+
+[lanes.verify]
+description = "Full CI gate: lint, tests, and spec-sync."
+steps = ["fmt-check", "lint", "test", "spec-check"]
+
+[lanes.check]
+description = "Fast quality check: lint + tests."
+steps = ["lint", "test"]
+
+[lanes.fix]
+description = "Auto-fix: format, then lint to show remaining issues."
+steps = ["fmt", "lint"]
