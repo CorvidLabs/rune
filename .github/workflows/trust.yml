@@ -14,9 +14,15 @@ jobs:
     outputs:
       atlas_enabled: ${{ steps.trust.outputs['atlas-enabled'] }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0.5'
+          bundler-cache: true
 
       - uses: CorvidLabs/trust@v1
         id: trust
