@@ -1,6 +1,6 @@
 # Rune Pseudo-TTY (PTY) & TTY Architecture
 
-> **Guide for gaspar.algo [CRVD] & AI Agents**  
+> **Guide for Developers & AI Agents**  
 > *Understanding how Ruby manages pseudo-terminals, interactive streams, and prompt automation in `rune`.*
 
 ---
