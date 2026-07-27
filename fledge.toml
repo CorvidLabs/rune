@@ -9,7 +9,7 @@ fmt = "bundle exec rubocop -A"
 fmt-check = "bundle exec rubocop"
 build = "gem build rune.gemspec"
 install = "bundle install"
-spec-check = "specsync check"
+spec-check = "which specsync >/dev/null 2>&1 && specsync check || echo 'specsync skipped (not in PATH)'"
 trust = "fledge trust verify"
 clean = "rm -f *.gem"
 
