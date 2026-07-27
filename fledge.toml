@@ -10,6 +10,7 @@ fmt-check = "bundle exec rubocop"
 build = "gem build rune.gemspec"
 install = "bundle install"
 spec-check = "specsync check"
+trust = "fledge trust verify"
 clean = "rm -f *.gem"
 
 [lanes.verify]

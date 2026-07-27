@@ -1,0 +1,59 @@
+name: Publish Gem Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish-github-packages:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0.5'
+
+      - name: Build Gem Package
+        run: gem build rune.gemspec
+
+      - name: Configure GitHub Packages Credentials
+        run: |
+          mkdir -p ~/.gem
+          touch ~/.gem/credentials
+          chmod 0600 ~/.gem/credentials
+          echo "---" > ~/.gem/credentials
+          echo ":github: Bearer ${{ secrets.GITHUB_TOKEN }}" >> ~/.gem/credentials
+
+      - name: Publish Gem to GitHub Packages
+        run: gem push --key github --host https://rubygems.pkg.github.com/CorvidLabs *.gem
+
+  publish-rubygems-org:
+    name: Publish to RubyGems.org
+    runs-on: ubuntu-latest
+    if: false # Enable by setting RUBYGEMS_AUTH_TOKEN secret in GitHub repository settings
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0.5'
+
+      - name: Publish to RubyGems.org
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_AUTH_TOKEN }}
+        run: |
+          mkdir -p ~/.gem
+          touch ~/.gem/credentials
+          chmod 0600 ~/.gem/credentials
+          echo "---" > ~/.gem/credentials
+          echo ":rubygems: ${GEM_HOST_API_KEY}" >> ~/.gem/credentials
+          gem build rune.gemspec
+          gem push *.gem

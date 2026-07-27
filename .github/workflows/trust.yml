@@ -1,0 +1,57 @@
+name: trust
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  trust:
+    runs-on: ubuntu-latest
+    outputs:
+      atlas_enabled: ${{ steps.trust.outputs['atlas-enabled'] }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: CorvidLabs/trust@v1
+        id: trust
+
+      - name: Render Atlas publication
+        if: github.event_name == 'push' && steps.trust.outputs['atlas-enabled'] == 'true'
+        uses: CorvidLabs/fledge-plugin-atlas@bfae900492615c6263c5ef431d1326eabb8b0406 # v1.3.1
+        with:
+          path: .
+          output-dir: trust-atlas
+          components: coverage langmix treemap sunburst calendar
+          version: bfae900492615c6263c5ef431d1326eabb8b0406
+
+      - name: Render interactive Atlas
+        if: github.event_name == 'push' && steps.trust.outputs['atlas-enabled'] == 'true'
+        run: fledge-atlas . --out trust-atlas/index.html
+
+      - name: Upload Atlas Pages artifact
+        if: github.event_name == 'push' && steps.trust.outputs['atlas-enabled'] == 'true'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: trust-atlas
+
+  deploy-atlas:
+    if: github.event_name == 'push' && needs.trust.outputs.atlas_enabled == 'true'
+    needs: trust
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Atlas to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

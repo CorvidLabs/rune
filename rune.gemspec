@@ -16,6 +16,11 @@ Gem::Specification.new do |spec|
   spec.homepage      = "https://github.com/CorvidLabs/rune"
   spec.license       = "MIT"
 
+  spec.metadata["homepage_uri"] = spec.homepage
+  spec.metadata["source_code_uri"] = spec.homepage
+  spec.metadata["changelog_uri"] = "https://github.com/CorvidLabs/rune/releases"
+  spec.metadata["allowed_push_host"] = "https://rubygems.pkg.github.com/CorvidLabs"
+
   spec.required_ruby_version = ">= 4.0"
 
   spec.files         = Dir["lib/**/*", "bin/*", "LICENSE", "README.md"]
