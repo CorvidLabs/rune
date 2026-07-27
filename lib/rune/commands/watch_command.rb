@@ -26,17 +26,34 @@ module Rune
         warn "[rune watch] live event log: #{log_path}"
         log = File.open(log_path, 'a') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
         begin
-          PTYWatcher.new(clean_args, log: log).watch
+          result = PTYWatcher.new(clean_args, log: log).watch
         ensure
           log.close
         end
+        attach_log_path(result, log_path)
       end
 
+      # human_render runs on a separate Command instance from #call (CLI#
+      # render_result builds its own), so the closing message can't reach an
+      # ivar set here — the log path has to travel through Result#data itself.
       def human_render(data, io)
-        io.puts "\n[rune watch] session ended (exit #{data[:exit_code]})"
+        icon = data[:exit_code].zero? ? "\e[32m✓\e[0m" : "\e[33m✗\e[0m"
+        io.puts ''
+        io.puts "#{icon} \e[1msession ended\e[0m (exit #{data[:exit_code]}, #{data[:duration_ms]}ms)"
+        io.puts "  log: \e[36m#{data[:log_path]}\e[0m" if data[:log_path]
       end
 
       private
+
+      # Rebuilds the Result with log_path folded into its data instead of
+      # mutating it in place: Result#data is whatever PTYWatcher handed back,
+      # and relying on it staying a plain mutable Hash forever is a needless
+      # coupling to another class's internals.
+      def attach_log_path(result, log_path)
+        return result unless result.success?
+
+        Result.success(result.data.merge(log_path: log_path), exit_code: result.exit_code)
+      end
 
       def default_log_path
         File.join(Dir.tmpdir, "rune-watch-#{Process.pid}-#{Time.now.to_i}.ndjson")

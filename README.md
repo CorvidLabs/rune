@@ -145,7 +145,7 @@ rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
 ## Development & Verification
 
 ```sh
-fledge run test         # Run RSpec test suite (135 examples, 98%+ line coverage)
+fledge run test         # Run RSpec test suite (143 examples, 98%+ line coverage)
 fledge run lint         # Run RuboCop linter (0 offenses)
 fledge lanes run verify # Full CI gate (lint + tests + spec-sync)
 fledge run smoke-test   # Runnable, assertion-based tour of real behavior (examples/smoke_test.rb)

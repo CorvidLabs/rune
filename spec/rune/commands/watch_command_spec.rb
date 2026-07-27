@@ -68,13 +68,49 @@ RSpec.describe Rune::Commands::WatchCommand do
         expect(log).to be_a(File)
       end
     end
+
+    it "folds the actual log path used into the returned Result's data, so human_render " \
+       '(which runs on a separate Command instance, per CLI#render_result) can report it ' \
+       'without relying on instance state' do
+      allow($stdin).to receive(:tty?).and_return(true)
+
+      Dir.mktmpdir do |dir|
+        log_path = File.join(dir, 'session.ndjson')
+        watcher = instance_double(Rune::PTYWatcher, watch: Rune::Result.success({ exit_code: 0, duration_ms: 12.3 }))
+        allow(Rune::PTYWatcher).to receive(:new).and_return(watcher)
+
+        result = described_class.new.call(["--log=#{log_path}", '--', 'echo', 'hi'], {})
+
+        expect(result.data).to include(exit_code: 0, duration_ms: 12.3, log_path: log_path)
+      end
+    end
+
+    it 'does not fold a log path into a failure result (there is nothing meaningful to attach it to)' do
+      allow($stdin).to receive(:tty?).and_return(true)
+      watcher = instance_double(Rune::PTYWatcher, watch: Rune::Result.failure('boom'))
+      allow(Rune::PTYWatcher).to receive(:new).and_return(watcher)
+
+      result = described_class.new.call(%w[-- echo hi], {})
+
+      expect(result).to be_failure
+      expect(result.error).to eq('boom')
+    end
   end
 
   describe '#human_render' do
-    it 'prints a short closing summary with the exit code' do
+    it 'prints a closing summary with the exit code, duration, and event log path' do
       io = StringIO.new
-      described_class.new.human_render({ exit_code: 3 }, io)
+      described_class.new.human_render({ exit_code: 0, duration_ms: 42.1, log_path: '/tmp/session.ndjson' }, io)
+
+      expect(io.string).to include('exit 0').and include('42.1ms').and include('/tmp/session.ndjson')
+    end
+
+    it 'omits the log line when no log_path is present, without crashing' do
+      io = StringIO.new
+      described_class.new.human_render({ exit_code: 3, duration_ms: 5.0 }, io)
+
       expect(io.string).to include('exit 3')
+      expect(io.string).not_to include('log:')
     end
   end
 end

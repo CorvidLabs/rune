@@ -42,12 +42,24 @@ there.
    output stream ends, regardless of whether it's currently blocked reading more input.
 8. `input`/`output`/`log` are constructor-injectable (defaulting to `$stdin`/`$stdout`/`$stderr`),
    specifically so the live-passthrough mechanics are unit-testable without a real controlling
-   terminal — a fake terminal object needs only `#tty? => true`; if it doesn't respond to `#raw`,
-   the real raw-mode ioctl is skipped entirely.
+   terminal — a fake terminal object needs only `#tty? => true`; entering raw mode is attempted via
+   `input.raw(&block)` and falls back to running the block directly on `Errno::ENOTTY` (not backed
+   by a real terminal, e.g. a test's `IO.pipe`) or `NoMethodError` (`#raw` doesn't exist at all).
+   `pty_watcher.rb` requires `io/console` itself at load time — a real bug found via live-terminal
+   dogfooding was that only a *child* command requiring `io/console` (e.g. `examples/demo_tui.rb`)
+   ever gained `#raw`/`#getch`; the parent CLI process's own `$stdin` never did, so raw mode was
+   silently never entered for actual `rune watch` usage, leaving the terminal in cooked mode
+   (local echo of literal escape sequences, kernel-level line buffering that swallowed
+   no-trailing-newline input like arrow keys entirely).
 9. `WatchCommand` checks `$stdin.tty?` itself, before doing anything else — including before
    computing/opening the default log file — so a failed invocation (piped/non-interactive) never
    creates a stray temp file. This duplicates `PTYWatcher`'s own internal check by design, at the
    CLI layer specifically to avoid that side effect.
+10. `Result#data` on success carries `command`, `exit_code`, and `duration_ms` (milliseconds,
+    matching `PTYRunner`'s convention) from `PTYWatcher`. `WatchCommand#call` folds in `log_path`
+    (the actual path used, default or `--log=`) before returning, so `human_render` — which runs on
+    a separate `Command` instance from the one `#call` ran on, per `CLI#render_result` — can print a
+    closing summary and remind where the event log lives without relying on instance state.
 
 ## Behavioral Examples
 - `rune watch -- ruby examples/demo_tui.rb` puts your terminal in raw mode, runs the demo TUI
@@ -74,7 +86,13 @@ there.
 | No command argument | Returns `Result.failure("No command specified...")` |
 
 ## Dependencies
-- Ruby stdlib: `pty`, `io/console` (only touched when `input` responds to `#raw`), `json`
+- Ruby stdlib: `pty`, `io/console` (required unconditionally, rescued on `LoadError` the same way
+  `pty_runner.rb` rescues `pty` — expected almost everywhere but not guaranteed on every platform),
+  `json`
 
 ## Change Log
 - v1: Active spec — initial `rune watch` / `PTYWatcher` contract
+- v1: Fixed the root cause of arrow keys/raw input never registering in real `rune watch` usage —
+  `pty_watcher.rb` never required `io/console` itself, so the parent process's `$stdin` never
+  gained `#raw`. `Result#data` now also carries `duration_ms`/`log_path`, and `WatchCommand`'s
+  closing message reports both instead of just the bare exit code.

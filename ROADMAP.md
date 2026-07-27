@@ -100,6 +100,28 @@ passthrough), not scope creep.
       arrows, Enter, a line-based sub-prompt, more arrows, Enter again, an interrupt mid-selector,
       and a lone Escape key that must time out rather than hang) in `spec/rune/pty_watcher_spec.rb`.
       See `specs/watch/watch.spec.md`.
+- [x] **Root-caused `rune watch` never actually entering raw mode in real usage** — found via live
+      terminal dogfooding: arrow keys showed up as literal `^[[B`/`^[[A` text and `getch` blocked
+      forever with no output. `lib/rune/pty_watcher.rb` never `require 'io/console'` itself — only
+      `examples/demo_tui.rb` (the *child* process) did — so the real CLI's own `$stdin` in the
+      *parent* process never gained `#raw`/`#getch` at all, silently leaving the terminal in cooked
+      mode (which both locally echoes keystrokes and line-buffers at the kernel level, swallowing
+      any input without a trailing newline). Fixed by requiring `io/console` unconditionally in
+      `pty_watcher.rb` (rescued on `LoadError`, same pattern as `pty_runner.rb`'s `pty` rescue) and
+      rewriting the raw-mode entry point to try `input.raw(&block)` directly, rescuing
+      `Errno::ENOTTY`/`NoMethodError` to fall back for non-tty test doubles — `respond_to?(:raw)`
+      stopped being a valid tty-vs-pipe check the moment `io/console` is required, since it
+      monkey-patches `#raw` onto every `IO` object, tty-backed or not. Confirmed fixed via the
+      user's own live retest (clean arrow-key navigation, no literal escape sequences). Also fixed,
+      found by the same live retest with `RUNE_DEMO_DEBUG=1` tracing on: `examples/demo_tui.rb`'s
+      menu redraw appeared to scroll/duplicate instead of updating in place, because its
+      cursor-up-N-lines math only accounted for the menu's own lines, not the debug-trace lines
+      printed between redraws — now tracked and folded into the cursor-up count.
+- [x] **`rune watch`'s closing message reports duration and the event log path, not just the exit
+      code** — `PTYWatcher`'s `Result#data` now includes `duration_ms` (matching `PTYRunner`'s
+      convention), and `WatchCommand#call` folds the actual `log_path` used into the returned
+      `Result` before handing it back (its `human_render` runs on a *separate* `Command` instance
+      per `CLI#render_result`, so this can't travel through instance state).
 - [x] **Substantially expanded test coverage** — 57 → 135 RSpec examples; line coverage 88.5% →
       98.3%, branch coverage 72.9% → 81.8% (SimpleCov added as a dev dependency, opt-in via
       `COVERAGE=1 bundle exec rspec`, `.gitignore`d output). Filled real, previously-untested gaps

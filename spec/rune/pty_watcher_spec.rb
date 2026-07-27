@@ -60,6 +60,7 @@ RSpec.describe Rune::PTYWatcher do
 
       expect(result).to be_success
       expect(result.data[:exit_code]).to eq(0)
+      expect(result.data[:duration_ms]).to be_a(Numeric).and be > 0
       expect(output).to include('Name?').and include('Hi Claude!')
 
       # Chunk boundaries aren't guaranteed to line up with logical output

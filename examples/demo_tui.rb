@@ -65,6 +65,13 @@ def debug_log(msg)
   return unless DEBUG
 
   print "#{YELLOW}[debug] #{msg}#{RESET}\r\n"
+  # move_selection's cursor-up math has to know about every line printed
+  # since the last redraw, not just MENU.size — otherwise, with debug
+  # tracing on, each debug_log call between keypresses silently shifts the
+  # real cursor row further down than move_selection accounts for, and the
+  # "in-place" redraw lands a few rows below the previous one instead of
+  # overwriting it, producing a menu that appears to scroll/duplicate.
+  @pending_debug_lines = (@pending_debug_lines || 0) + 1
 end
 
 # getch with intr: true (Ctrl+C still raises a real Interrupt during a raw
@@ -114,7 +121,8 @@ def render_menu(selected)
 end
 
 def move_selection(selected, delta)
-  print "\e[#{MENU.size}A"
+  print "\e[#{MENU.size + (@pending_debug_lines || 0)}A"
+  @pending_debug_lines = 0
   new_selected = (selected + delta) % MENU.size
   render_menu(new_selected)
   new_selected
@@ -124,6 +132,10 @@ def select_menu_action
   selected = 0
   puts "Use #{BOLD}↑/↓#{RESET} and #{BOLD}Enter#{RESET} to choose (or press q to quit):"
   render_menu(selected)
+  # Any debug lines printed before this fresh menu (e.g. banner's one-time
+  # debug line) are already scrolled past and aren't part of this redraw
+  # region — don't let them inflate the first move_selection's cursor-up count.
+  @pending_debug_lines = 0
   loop do
     key = read_key
     debug_log("read_key -> #{key.inspect}")

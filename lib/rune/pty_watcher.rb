@@ -4,6 +4,22 @@ require 'json'
 require 'shellwords'
 require_relative 'signal_handler'
 
+# Needed so the *parent* process's own $stdin/$stdout gain #raw/#getch —
+# without this, with_raw_input's real raw-mode call was never reachable at
+# all for the actual CLI (only a *child* command that happens to require
+# 'io/console' itself would ever see it), silently leaving the terminal in
+# normal cooked+echo mode. Cooked mode both echoes keystrokes locally *and*
+# line-buffers them at the kernel level, so anything without a trailing
+# newline (arrow keys, single-char menu input) never even reached the
+# forwarding thread — a real bug found via live terminal testing, not a
+# hypothetical. Rescued the same way pty_runner.rb rescues 'pty': io/console
+# is expected almost everywhere but isn't guaranteed on every platform.
+begin
+  require 'io/console'
+rescue LoadError
+  nil
+end
+
 module Rune
   # Live, bidirectional interactive passthrough for a command in a PTY: the
   # human's real keystrokes are forwarded to the child as they're typed, the
@@ -35,6 +51,7 @@ module Rune
 
     def run_session
       exit_code = nil
+      started_at = Time.now
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
       PTY.spawn(env, @command) do |r, w, pid|
@@ -44,14 +61,22 @@ module Rune
         end
       end
 
+      duration_ms = ((Time.now - started_at) * 1000).round(2)
       log_event('exit', exit_code: exit_code)
-      Result.success({ command: @command, exit_code: exit_code || 0 }, exit_code: exit_code || 0)
+      data = { command: @command, exit_code: exit_code || 0, duration_ms: duration_ms }
+      Result.success(data, exit_code: exit_code || 0)
     end
 
+    # Requiring 'io/console' adds #raw to every IO, tty-backed or not, so
+    # respond_to?(:raw) can no longer distinguish a real terminal from a
+    # plain pipe (as used by the test suite's fake input objects) — calling
+    # it and rescuing the OS's own "not a tty" error is the only reliable
+    # check. NoMethodError is a second fallback for the (now rare) case
+    # io/console failed to load at all.
     def with_raw_input(&block)
-      return block.call unless @input.respond_to?(:raw)
-
       @input.raw(&block)
+    rescue Errno::ENOTTY, NoMethodError
+      block.call
     end
 
     def pump_session(reader, writer, pid, forward_signal)
