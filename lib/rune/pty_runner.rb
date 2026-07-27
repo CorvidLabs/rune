@@ -5,6 +5,7 @@ require 'timeout'
 require 'shellwords'
 require_relative 'parsers/text_sanitizer'
 require_relative 'parsers/prompt_detector'
+require_relative 'signal_handler'
 
 module Rune
   class PTYRunner
@@ -41,25 +42,32 @@ module Rune
       raw_output = +''
       exit_code = nil
       prompt_detected = false
-      env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
       Timeout.timeout(timeout_seconds) do
-        PTY.spawn(env, command) do |r, w, pid|
+        prompt_detected, exit_code = spawn_and_stream(raw_output)
+      end
+
+      [raw_output, exit_code, prompt_detected]
+    rescue Errno::ENOENT then ["Command not found: #{command}", 127, false]
+    rescue Errno::EACCES then ["Permission denied: #{command}", 126, false]
+    rescue Timeout::Error
+      ["#{raw_output}\n[rune] Execution timed out after #{timeout_seconds} seconds", 124, false]
+    rescue PTY::ChildExited then [raw_output, 0, prompt_detected]
+    end
+
+    def spawn_and_stream(raw_output)
+      exit_code = nil
+      prompt_detected = false
+      env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
+
+      PTY.spawn(env, command) do |r, w, pid|
+        SignalHandler.with_traps(pid) do
           write_input(w, input) if input
           prompt_detected = read_pty_stream(r, w, raw_output)
           exit_code = wait_for_process(pid)
         end
       end
-
-      [raw_output, exit_code, prompt_detected]
-    rescue Errno::ENOENT
-      ["Command not found: #{command}", 127, false]
-    rescue Errno::EACCES
-      ["Permission denied: #{command}", 126, false]
-    rescue Timeout::Error
-      ["#{raw_output}\n[rune] Execution timed out after #{timeout_seconds} seconds", 124, false]
-    rescue PTY::ChildExited
-      [raw_output, 0, prompt_detected]
+      [prompt_detected, exit_code]
     end
 
     def wait_for_process(pid)
@@ -70,7 +78,12 @@ module Rune
     end
 
     def write_input(writer, data)
-      writer.write(data)
+      return if data.nil? || data.empty?
+
+      writable = writer.wait_writable(2.0) rescue nil # rubocop:disable Style/RescueModifier
+      return unless writable
+
+      writer.write_nonblock(data)
       writer.flush
     rescue StandardError
       nil
@@ -96,12 +109,9 @@ module Rune
       while current_index < script.steps.size
         step = script.steps[current_index]
         case step.type
-        when :wait_for
-          break unless buffer.match?(step.payload)
-        when :send_keys
-          write_input(writer, step.payload)
-        when :pause
-          sleep(step.payload)
+        when :wait_for then break unless buffer.match?(step.payload)
+        when :send_keys then write_input(writer, step.payload)
+        when :pause then sleep(step.payload)
         end
         current_index += 1
       end

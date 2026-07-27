@@ -12,6 +12,7 @@ require_relative 'rune/parsers/text_sanitizer'
 require_relative 'rune/parsers/prompt_detector'
 require_relative 'rune/parsers/table_parser'
 require_relative 'rune/parsers/key_value_parser'
+require_relative 'rune/signal_handler'
 require_relative 'rune/pty_runner'
 
 # Command implementations
