@@ -18,7 +18,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 |------|------|-------------|
 | `CLI` | class | CLI router. Class methods: `run(argv)`, `register(command_class)`, `commands`. Instance: `run(argv)`. |
 | `Command` | class | Base class for commands. DSL: `name(n)`, `summary(s)`. Override: `call(args, options)`, `human_render(data, io)`. |
-| `Result` | class | Structured result. Class methods: `.success(data)`, `.failure(error)`. Instance: `#success?`, `#failure?`, `#to_h`, `#exit_code`. |
+| `Result` | class | Structured result. Class methods: `.success(data, exit_code: nil)`, `.failure(error, data: nil, exit_code: nil)`. Instance: `#success?`, `#failure?`, `#to_h`, `#exit_code`. |
 | `Renderer` | class | Output formatter. `#agent_mode?`, `#render(result, human_block:)`. Supports JSON and NDJSON modes. |
 
 ## Invariants
@@ -27,7 +27,11 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 3. Non-TTY stdout automatically triggers JSON output (agent mode)
 4. `--json` flag forces JSON output regardless of TTY
 5. `--ndjson` flag forces streaming newline-delimited JSON output
-6. Exit code 0 for success, 1 for errors, 2 for usage errors
+6. `Result#exit_code` defaults to 0 for success / 1 for failure, but a command can override it via
+   `exit_code:` on `Result.success`/`.failure` — e.g. `RunCommand`/`WatchCommand` mirror the wrapped
+   command's own exit code, so `rune run -- false` composes correctly with shell `&&`/`||`/
+   `set -e` even though the `Result` itself is a success. The override affects only the
+   process-level exit status, never `Result#to_h`'s serialized JSON shape.
 7. Commands self-register via Ruby class inheritance hooks
 8. Unknown commands return a structured error, never crash
 

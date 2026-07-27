@@ -21,6 +21,18 @@ RSpec.describe Rune::Result do
     it 'carries the data' do
       expect(result.data).to eq({ version: '1.0' })
     end
+
+    it 'uses the exit_code override when given, even though status is ok' do
+      result = described_class.success({ exit_code: 7 }, exit_code: 7)
+      expect(result).to be_success
+      expect(result.exit_code).to eq 7
+      expect(result.to_h).to eq({ status: 'ok', data: { exit_code: 7 } })
+    end
+
+    it 'treats an exit_code override of 0 as an explicit override, not "unset"' do
+      result = described_class.success({}, exit_code: 0)
+      expect(result.exit_code).to eq 0
+    end
   end
 
   describe '.failure' do

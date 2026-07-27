@@ -6,18 +6,33 @@ module Rune
   module Parsers
     class TableParser
       class << self
-        def parse(text)
+        # format: :auto (default, detects pipe vs. space by scanning the header line for `|`),
+        # :pipe (force markdown-style `| a | b |` parsing), or :space (force whitespace-column
+        # parsing). Force :space or :pipe when the heuristic misdetects a table — e.g. free text
+        # containing a literal `|` character, or space-delimited data whose columns don't align
+        # on a consistent 2+-space gap.
+        def parse(text, format: :auto)
           raw_lines = clean_lines(text)
           return [] if raw_lines.size < 2
 
           lines = raw_lines.map { |l| TextSanitizer.strip_ansi(l) }
-          header_line = lines.first
-          return parse_pipe_table(lines) if header_line.include?('|')
 
-          parse_space_table(lines)
+          case resolve_format(format, lines)
+          when :pipe then parse_pipe_table(lines)
+          when :space then parse_space_table(lines)
+          end
         end
 
         private
+
+        def resolve_format(format, lines)
+          case format
+          when :auto then lines.first.include?('|') ? :pipe : :space
+          when :pipe, :space then format
+          else
+            raise ArgumentError, "Unknown TableParser format: #{format.inspect} (expected :auto, :pipe, or :space)"
+          end
+        end
 
         def clean_lines(text)
           return [] if text.nil?

@@ -1,6 +1,16 @@
 # frozen_string_literal: true
 
-require 'pty'
+# The pty stdlib is unavailable on some platforms (e.g. Windows) and in some
+# sandboxed/containerized environments. Rescuing here keeps the rest of rune
+# (version, help, anything not touching PTYRunner) usable even when it's
+# missing, instead of crashing the whole binary at boot with a bare LoadError.
+begin
+  require 'pty'
+  PTY_LOAD_ERROR = nil
+rescue LoadError => e
+  PTY_LOAD_ERROR = e
+end
+
 require 'timeout'
 require 'shellwords'
 require_relative 'parsers/text_sanitizer'
@@ -11,6 +21,14 @@ module Rune
   class PTYRunner
     attr_reader :command, :input, :script, :timeout_seconds, :on_output
 
+    # Raised when the OS itself refuses to allocate a pty (device exhaustion,
+    # a sandbox/container denying it), as opposed to Errno::ENOENT/EACCES from
+    # exec'ing the *target* command, which are a property of the wrapped
+    # command and already handled as ordinary exit codes in execute_pty.
+    PTY_ALLOCATION_ERRORS = [Errno::ENXIO, Errno::EMFILE, Errno::ENFILE, Errno::EPERM].freeze
+
+    def self.pty_available? = PTY_LOAD_ERROR.nil?
+
     def initialize(command, input: nil, script: nil, timeout_seconds: 30, &on_output)
       @command = command.is_a?(Array) ? Shellwords.join(command) : command.to_s
       @input = input
@@ -20,6 +38,8 @@ module Rune
     end
 
     def run
+      return pty_unavailable_result unless self.class.pty_available?
+
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       raw_output, exit_code, prompt_detected = execute_pty
 
@@ -27,16 +47,21 @@ module Rune
       clean_output = Parsers::TextSanitizer.strip_ansi(raw_output)
 
       Result.success({ command: command, exit_code: exit_code || 0, clean_output: clean_output,
-                       raw_output: raw_output, prompt_detected: prompt_detected, duration_ms: duration_ms })
+                       raw_output: raw_output, prompt_detected: prompt_detected, duration_ms: duration_ms },
+                     exit_code: exit_code || 0)
+    rescue *PTY_ALLOCATION_ERRORS => e
+      Result.failure("PTY allocation failed at runtime: #{e.class} - #{e.message}. Platform/sandbox may restrict it.")
     rescue StandardError => e
       Result.failure("Failed to execute command '#{command}': #{e.message}")
     end
 
-    def detect_prompt?(line)
-      Parsers::PromptDetector.detect?(line)
-    end
+    def detect_prompt?(line) = Parsers::PromptDetector.detect?(line)
 
     private
+
+    def pty_unavailable_result
+      Result.failure("PTY unavailable: pty stdlib failed to load (#{PTY_LOAD_ERROR&.message}).")
+    end
 
     def execute_pty
       raw_output = +''
@@ -61,9 +86,9 @@ module Rune
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
       PTY.spawn(env, command) do |r, w, pid|
-        SignalHandler.with_traps(pid) do
+        SignalHandler.with_traps(pid) do |forward_signal|
           write_input(w, input) if input
-          prompt_detected = read_pty_stream(r, w, raw_output)
+          prompt_detected = read_pty_stream(r, w, raw_output, forward_signal)
           exit_code = wait_for_process(pid)
         end
       end
@@ -89,14 +114,25 @@ module Rune
       nil
     end
 
-    def read_pty_stream(reader, writer, output_buffer)
+    # Polls with a short readable-wait rather than blocking indefinitely on
+    # readpartial, so a caught signal gets forwarded promptly instead of
+    # waiting for the next chunk of child output (which may never come).
+    def read_pty_stream(reader, writer, output_buffer, forward_signal)
       prompt_found = false
       script_step_index = 0
       loop do
-        chunk = reader.readpartial(4096)
+        forward_signal.call
+        next unless reader.wait_readable(0.2)
+
+        # Raw PTY reads aren't reliably tagged as valid UTF-8 (wrapped tools can
+        # emit binary-ish bytes or bytes Ruby reads back as ASCII-8BIT), and
+        # every downstream regex (prompt detection, ANSI stripping, script
+        # wait_for) is UTF-8. Force + scrub once, at the source, rather than
+        # risk an Encoding::CompatibilityError deep in a regex match later.
+        chunk = reader.readpartial(4096).force_encoding(Encoding::UTF_8).scrub
         output_buffer << chunk
         on_output&.call(chunk)
-        chunk.split("\n").each { |line| prompt_found = true if detect_prompt?(line) }
+        prompt_found ||= chunk.split("\n").any? { |line| detect_prompt?(line) }
         script_step_index = process_script_steps(script_step_index, output_buffer, writer) if script
       end
     rescue Errno::EIO, EOFError, PTY::ChildExited, Errno::EPIPE

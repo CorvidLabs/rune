@@ -80,5 +80,52 @@ RSpec.describe Rune::Parsers::TableParser do
     it 'returns empty array for empty input' do
       expect(described_class.parse('')).to eq([])
     end
+
+    it 'parses a single-word header (single_space_spans, not multi_space_spans)' do
+      table_text = <<~TABLE
+        NAME
+        fledge-plugin
+        rune
+      TABLE
+
+      parsed = described_class.parse(table_text)
+      expect(parsed).to eq([{ name: 'fledge-plugin' }, { name: 'rune' }])
+    end
+
+    it 'rejoins fields that overflow beyond the header count back into the last column' do
+      table_text = <<~TABLE
+        NAME  NOTE
+        foo   bar  baz
+      TABLE
+
+      parsed = described_class.parse(table_text)
+      expect(parsed).to eq([{ name: 'foo', note: 'bar  baz' }])
+    end
+
+    it 'forces pipe parsing via format: :pipe even without a header |' do
+      table_text = <<~TABLE
+        Name | Status
+        rune | active
+      TABLE
+
+      parsed = described_class.parse(table_text, format: :pipe)
+      expect(parsed).to eq([{ name: 'rune', status: 'active' }])
+    end
+
+    it 'forces space parsing via format: :space, treating literal | as cell content' do
+      table_text = <<~TABLE
+        NAME   NOTE
+        rune   a | b
+      TABLE
+
+      parsed = described_class.parse(table_text, format: :space)
+      expect(parsed).to eq([{ name: 'rune', note: 'a | b' }])
+    end
+
+    it 'raises ArgumentError for an unknown format' do
+      expect do
+        described_class.parse("a b\n1 2\n", format: :csv)
+      end.to raise_error(ArgumentError, /Unknown TableParser format/)
+    end
   end
 end

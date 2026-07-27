@@ -6,6 +6,8 @@ A Ruby CLI tool and library designed from the ground up to be **human & AI agent
 
 Every command produces formatted, colored terminal output for humans — and structured JSON or live streaming NDJSON for AI agents. Same tool, same commands, dual interface.
 
+📖 New here? Start with the **[Getting Started guide](docs/getting_started.md)**.
+
 ---
 
 ## Capabilities
@@ -25,6 +27,12 @@ Every command produces formatted, colored terminal output for humans — and str
    - `TextSanitizer`: Normalizes line endings and cleans ANSI escape codes
 4. **Interactive Script DSL (`Rune::Script`)**
    - Step-by-step TUI script automation DSL for driving interactive terminal prompts and TUI menus
+5. **Live Interactive Passthrough (`rune watch`)**
+   - Puts your terminal in raw mode and forwards keystrokes to the child live, byte-for-byte
+   - Streams the child's output to your screen as it happens (unlike `rune run`, which buffers and
+     returns everything at the end)
+   - Simultaneously logs every chunk as an NDJSON event to a temp file (path announced once, or
+     `--log=PATH`) so an AI agent can tail the session live while a human drives it
 
 ---
 
@@ -96,6 +104,20 @@ result = runner.run
 # => Result with exit_code 130, clean_output, duration_ms
 ```
 
+### 5. Watch a Session Live (Human Drives, Agent Tails)
+```sh
+# Puts your terminal in raw mode, forwards your keystrokes live — including
+# raw escape sequences like arrow keys, not just whole lines — and streams
+# output to your screen as it happens. Logs an NDJSON event per chunk to a
+# temp file (announced once, up front) so an agent can `tail -f` it live
+# without any JSON noise landing in your own terminal. The demo's top-level
+# menu is a real arrow-key selector (↑/↓ + Enter, or q to quit).
+rune watch -- ruby examples/demo_tui.rb
+
+# Or point the log somewhere specific:
+rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
+```
+
 ---
 
 ## CorvidLabs Integration
@@ -115,19 +137,25 @@ result = runner.run
 
 ## Architecture & Internals
 
-For a deep dive into how pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, and script execution work under the hood in Ruby, see:
-
-- 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — Guide for developers and AI agents.
+- 📖 **[Getting Started guide](docs/getting_started.md)** — Output modes, `rune run` usage, timeouts, and parsers with real command output.
+- 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — How pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, and script execution work under the hood in Ruby.
 
 ---
 
 ## Development & Verification
 
 ```sh
-fledge run test         # Run RSpec test suite (41 examples)
+fledge run test         # Run RSpec test suite (143 examples, 98%+ line coverage)
 fledge run lint         # Run RuboCop linter (0 offenses)
 fledge lanes run verify # Full CI gate (lint + tests + spec-sync)
+fledge run smoke-test   # Runnable, assertion-based tour of real behavior (examples/smoke_test.rb)
+COVERAGE=1 bundle exec rspec  # Same suite, plus an HTML coverage report at coverage/index.html
 ```
+
+`examples/smoke_test.rb` is a standalone, dependency-free script (no bundler/rspec required) that
+exercises `rune run`, `--timeout`, `TableParser`/`KeyValueParser`, `Script`, signal forwarding, and
+prompt detection against the real CLI binary, with pass/fail output and a non-zero exit on failure.
+Useful as a quick manual sanity check, or on a machine without the dev dependencies installed.
 
 ---
 
