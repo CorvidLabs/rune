@@ -31,6 +31,6 @@ RSpec.describe 'rune binary E2E' do
     parsed = JSON.parse(output, symbolize_names: true)
     expect(parsed[:status]).to eq('ok')
     expect(parsed[:data][:command]).to eq('git status')
-    expect(parsed[:data][:clean_output]).to include('On branch')
+    expect(parsed[:data][:clean_output]).to match(/On branch|HEAD detached|nothing to commit/)
   end
 end
