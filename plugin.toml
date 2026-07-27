@@ -1,6 +1,6 @@
 [plugin]
 name = "rune"
-version = "0.1.2"
+version = "0.1.3"
 description = "🔮 Universal TTY ↔ AI Agent bridge and Ruby CLI framework as `fledge rune`."
 author = "Leif"
 license = "MIT"
