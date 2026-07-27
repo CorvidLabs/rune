@@ -1,13 +1,16 @@
 # frozen_string_literal: true
 
+require_relative 'text_sanitizer'
+
 module Rune
   module Parsers
     class TableParser
       class << self
         def parse(text)
-          lines = clean_lines(text)
-          return [] if lines.size < 2
+          raw_lines = clean_lines(text)
+          return [] if raw_lines.size < 2
 
+          lines = raw_lines.map { |l| TextSanitizer.strip_ansi(l) }
           header_line = lines.first
           return parse_pipe_table(lines) if header_line.include?('|')
 
@@ -20,7 +23,7 @@ module Rune
           return [] if text.nil?
 
           text.strip.split("\n").reject do |l|
-            stripped = l.strip
+            stripped = TextSanitizer.strip_ansi(l).strip
             stripped.empty? || stripped.match?(/\A[|\s\-+=:]+\z/)
           end
         end

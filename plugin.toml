@@ -1,0 +1,16 @@
+[plugin]
+name = "rune"
+version = "0.1.2"
+description = "🔮 Universal TTY ↔ AI Agent bridge and Ruby CLI framework as `fledge rune`."
+author = "Leif"
+license = "MIT"
+
+[[commands]]
+name = "rune"
+description = "Universal TTY process runner and structured parser for humans and AI agents"
+binary = "bin/rune"
+
+[capabilities]
+exec = true
+store = false
+metadata = false

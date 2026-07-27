@@ -41,6 +41,15 @@ RSpec.describe Rune::Parsers::TableParser do
       expect(parsed[0]).to eq({ container_id: 'a1b2c3d4e5f6', image: 'nginx:latest', created_at: '2 hours ago' })
     end
 
+    it 'handles ANSI escape codes in headers and cell values' do
+      table_text = "\e[1mNAME\e[0m           \e[32mSTATUS\e[0m   VERSION\n" \
+                   "fledge-plugin  \e[32mactive\e[0m   1.0.0\n"
+
+      parsed = described_class.parse(table_text)
+      expect(parsed.size).to eq(1)
+      expect(parsed[0]).to eq({ name: 'fledge-plugin', status: 'active', version: '1.0.0' })
+    end
+
     it 'handles ragged tables with missing trailing columns' do
       table_text = <<~TABLE
         NAME           STATUS   VERSION
