@@ -102,15 +102,17 @@ RSpec.describe Rune::Commands::WatchCommand do
       io = StringIO.new
       described_class.new.human_render({ exit_code: 0, duration_ms: 42.1, log_path: '/tmp/session.ndjson' }, io)
 
-      expect(io.string).to include('exit 0').and include('42ms').and include('0.04s').and include('/tmp/session.ndjson')
+      expect(io.string).to include('exit 0').and include('42ms').and include('/tmp/session.ndjson')
     end
 
-    it 'formats a multi-second duration in seconds, not raw milliseconds (a watched session ' \
-       'can run far longer than rune run\'s usual sub-second commands)' do
+    it 'formats a sub-minute duration as a single plain-seconds figure, not raw milliseconds ' \
+       "(a watched session can run far longer than rune run's usual sub-second commands) and " \
+       'without restating the same figure twice' do
       io = StringIO.new
       described_class.new.human_render({ exit_code: 0, duration_ms: 12_345.0 }, io)
 
-      expect(io.string).to include('12.3s').and include('12.35s')
+      expect(io.string).to include('12.35s')
+      expect(io.string).not_to match(/\d+(\.\d+)?s, \d+(\.\d+)?s/)
     end
 
     it 'formats a multi-minute duration as minutes and seconds, plus the exact seconds' do

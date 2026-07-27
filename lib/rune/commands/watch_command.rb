@@ -45,22 +45,24 @@ module Rune
 
       private
 
-      # A watched session can run for seconds or minutes, unlike `rune run`'s
-      # usual sub-second commands — "78104.43ms" is unreadable at that scale.
-      # Shows a human-scaled duration plus the exact seconds in parentheses,
-      # so both "roughly how long" and "precisely how long" are visible.
+      # A watched session can run for seconds, minutes, or hours, unlike
+      # `rune run`'s usual sub-second commands — raw milliseconds
+      # (e.g. "78104.43ms") is unreadable at that scale. Under a minute, a
+      # plain seconds figure is already exact enough on its own. Coarser
+      # than that (Mm Ss / Hh Mm Ss) loses sub-second precision, so the
+      # exact seconds are appended in parentheses there — but not below a
+      # minute, where restating the same seconds figure twice is just noise.
       def format_duration(duration_ms)
         seconds = duration_ms / 1000.0
-        human = if duration_ms < 1000
-                  "#{duration_ms.round}ms"
-                elsif seconds < 60
-                  "#{seconds.round(1)}s"
-                elsif seconds < 3600
-                  "#{(seconds / 60).floor}m #{(seconds % 60).round}s"
-                else
-                  "#{(seconds / 3600).floor}h #{((seconds % 3600) / 60).floor}m #{(seconds % 60).round}s"
-                end
-        "#{human}, #{seconds.round(2)}s"
+        return "#{duration_ms.round}ms" if duration_ms < 1000
+        return "#{seconds.round(2)}s" if seconds < 60
+
+        coarse = if seconds < 3600
+                   "#{(seconds / 60).floor}m #{(seconds % 60).round}s"
+                 else
+                   "#{(seconds / 3600).floor}h #{((seconds % 3600) / 60).floor}m #{(seconds % 60).round}s"
+                 end
+        "#{coarse}, #{seconds.round(2)}s"
       end
 
       # Rebuilds the Result with log_path folded into its data instead of

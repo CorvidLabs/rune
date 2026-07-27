@@ -141,6 +141,14 @@ passthrough), not scope creep.
       uncaught-Interrupt exit (1) instead of the expected 130 — reproduced directly outside RSpec to
       confirm before fixing. The test now polls the child's actual captured output for the rendered
       menu before signaling, removing the race instead of tuning the sleep.
+- [x] **Two more live-retest findings on the demo/closing message** — the blinking terminal cursor
+      visibly jumping to wherever the last redraw print landed, on every arrow press, read as a
+      glitch; `examples/demo_tui.rb`'s selector loop now hides it (`\e[?25l`) for the duration of the
+      redraw loop and restores it (`\e[?25h`, via `ensure` so it survives Ctrl+C) once control leaves
+      the selector. Separately, `format_duration`'s parenthetical raw-seconds suffix was pure noise
+      below a minute (`"44.7s, 44.71s"` — the same figure restated) since a plain seconds value is
+      already exact; the parenthetical now only appears for the coarser `Mm Ss`/`Hh Mm Ss` forms,
+      where it actually adds precision the coarse figure alone doesn't have.
 - [x] **`rune watch`'s closing message reports duration and the event log path, not just the exit
       code** — `PTYWatcher`'s `Result#data` now includes `duration_ms` (matching `PTYRunner`'s
       convention), and `WatchCommand#call` folds the actual `log_path` used into the returned

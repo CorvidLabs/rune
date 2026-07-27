@@ -40,6 +40,8 @@ GREEN = "\e[32m"
 YELLOW = "\e[33m"
 BOLD = "\e[1m"
 RESET = "\e[0m"
+HIDE_CURSOR = "\e[?25l"
+SHOW_CURSOR = "\e[?25h"
 
 MENU = [
   { label: 'A table of fake data', action: :table },
@@ -132,21 +134,31 @@ def move_selection(selected, delta)
   new_selected
 end
 
-def select_menu_action
-  # Clears and redraws the banner + menu fresh every round, rather than
-  # leaving each round's action output in scrollback with a new menu block
-  # appended below it — real dogfooding showed the transcript style read as
-  # a redraw bug (an ever-growing pile of "Use ↑/↓..." headers) rather than
-  # a single persistent app screen.
+# Clears and redraws the banner + menu fresh every round, rather than
+# leaving each round's action output in scrollback with a new menu block
+# appended below it — real dogfooding showed the transcript style read as
+# a redraw bug (an ever-growing pile of "Use ↑/↓..." headers) rather than
+# a single persistent app screen. Returns the initial selected index (0).
+def draw_fresh_menu
   clear_screen
   banner
-  selected = 0
   puts "Use #{BOLD}↑/↓#{RESET} and #{BOLD}Enter#{RESET} to choose (or press q to quit):"
-  render_menu(selected)
+  render_menu(0)
   # Any debug lines printed since the last full redraw (e.g. banner's
   # one-time debug line) are already accounted for by the clear above —
   # don't let them inflate the first move_selection's cursor-up count.
   @pending_debug_lines = 0
+  0
+end
+
+def select_menu_action
+  selected = draw_fresh_menu
+  # Hidden for the redraw loop itself: the blinking terminal cursor jumping
+  # to wherever the last \e[K/render_menu print landed, on every arrow
+  # press, reads as a visible glitch. Restored (via ensure, so it survives
+  # Ctrl+C too) once control leaves the selector — the chosen action may
+  # itself want a visible cursor (e.g. ask_name's `gets` prompt).
+  print HIDE_CURSOR
   loop do
     key = read_key
     debug_log("read_key -> #{key.inspect}")
@@ -159,6 +171,8 @@ def select_menu_action
       return :quit
     end
   end
+ensure
+  print SHOW_CURSOR
 end
 
 def show_table
