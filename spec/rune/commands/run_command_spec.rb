@@ -34,6 +34,16 @@ RSpec.describe Rune::Commands::RunCommand do
       expect(Rune::PTYRunner).to have_received(:new).with(%w[echo --timeout=5])
     end
 
+    it "preserves a literal -- that belongs to the wrapped command's own argv " \
+       '(e.g. `cargo clippy --tests -- -D warnings`), stripping only rune\'s own leading separator' do
+      runner = instance_double(Rune::PTYRunner, run: Rune::Result.success({}))
+      allow(Rune::PTYRunner).to receive(:new).and_return(runner)
+
+      described_class.new.call(%w[-- cargo clippy --tests -- -D warnings], {})
+
+      expect(Rune::PTYRunner).to have_received(:new).with(%w[cargo clippy --tests -- -D warnings])
+    end
+
     it 'mirrors the wrapped command exit code as the process-level exit code' do
       result = described_class.new.call(['ruby', '-e', 'exit 3'], {})
       expect(result).to be_success

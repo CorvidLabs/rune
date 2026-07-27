@@ -137,6 +137,16 @@ section('rune run --timeout') do
   end
 end
 
+section('rune run — argv passthrough') do
+  check('a literal -- inside the wrapped command survives (found via real external dogfooding: ' \
+        '`cargo clippy --tests -- -D warnings` had its inner -- silently eaten)') do
+    out, = run_cli('run', '--json', '--', 'printf', '%s\n', '--', 'foo')
+    data = JSON.parse(out)['data']
+    assert(data['command'].include?('-- foo'), data.inspect)
+    assert(data['clean_output'].include?("--\nfoo"), data.inspect)
+  end
+end
+
 section('Rune::Parsers::TableParser') do
   check(':auto detects space-delimited tables') do
     rows = Rune::Parsers::TableParser.parse("NAME STATUS\nrune active\n")

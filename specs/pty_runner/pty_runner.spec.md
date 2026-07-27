@@ -42,6 +42,10 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
    read, before any regex runs against it (prompt detection, ANSI stripping, script `wait_for`). A
    wrapped command emitting non-UTF-8 bytes (found via real dogfooding: `swift test`'s output could
    trigger it) does not crash `rune run` with `Encoding::CompatibilityError`.
+10. Only rune's own leading `--` separator is stripped from the wrapped command's argv — any
+    further `--` tokens the wrapped command uses itself (cargo, npm, git, and others use `--` to
+    separate their own flags from pass-through args, e.g. `cargo clippy --tests -- -D warnings`)
+    are preserved untouched (found via real external dogfooding).
 
 ## Behavioral Examples
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.

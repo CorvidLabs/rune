@@ -12,7 +12,13 @@ module Rune
         timeout_seconds, remaining, timeout_error = extract_timeout(args)
         return Result.failure(timeout_error) if timeout_error
 
-        clean_args = remaining.reject { |a| a == '--' }
+        # Only drop rune's own leading separator (guaranteed to be at index 0
+        # if extract_timeout found one) — not every `--` in the array. Many
+        # wrapped commands (cargo, npm, git) use `--` themselves to separate
+        # their own flags from pass-through args, e.g.
+        # `rune run -- cargo clippy --tests -- -D warnings`; blindly
+        # rejecting every `--` corrupted that inner separator.
+        clean_args = remaining.first == '--' ? remaining[1..] : remaining
         if clean_args.empty?
           return Result.failure('No command specified. Usage: rune run [--timeout=SECONDS] <command...>')
         end

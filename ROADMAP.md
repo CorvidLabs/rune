@@ -35,7 +35,9 @@ toolchain green — not new commands.
       yields a `forward_signal` callable that `PTYRunner#read_pty_stream` polls from ordinary code
       between reads (using `reader.wait_readable(0.2)` instead of an indefinite blocking
       `readpartial`). Verified via a deterministic in-process self-signal regression test in
-      `spec/rune/pty_runner_spec.rb` and `spec/rune/signal_handler_spec.rb`.
+      `spec/rune/pty_runner_spec.rb` and `spec/rune/signal_handler_spec.rb`, and confirmed in a real
+      (non-sandboxed) terminal: `rune run --json -- sleep 30` + Ctrl+C returned in ~2.4s with
+      `exit_code: 130`, not after the full 30s.
 - [x] **`Script.new { ... }` no longer silently produces a broken empty script** — only
       `Script.define { ... }` used to `instance_eval` the block; `Script.new` accepted and
       discarded a block with no error, so the natural Ruby idiom silently built an empty script,
@@ -66,6 +68,13 @@ toolchain green — not new commands.
       byte sequences immediately after `readpartial`. Verified against the real `swift test`
       command that triggered it (138 tests, 0 failures, full structured output) and covered by a
       regression test in `spec/rune/pty_runner_spec.rb`.
+- [x] **A literal `--` inside the wrapped command was silently eaten** — found via real *external*
+      dogfooding (`fledge rune run --json -- cargo clippy --workspace --tests -- -D warnings` in
+      `merlin`): `RunCommand` stripped every `--` token from the args array, not just rune's own
+      leading separator, corrupting any wrapped command that uses `--` itself (cargo, npm, git all
+      do). Now only the first, leading `--` (rune's own) is dropped; any further `--` the wrapped
+      command's own argv contains is preserved untouched. Covered in
+      `spec/rune/commands/run_command_spec.rb`.
 - [ ] **Trust toolchain verification** — Run and pass the full trust gate ahead of tagging 0.2.0:
       `fledge run test`, `fledge run lint`, `fledge run spec-check`, `fledge trust verify`. Treat
       an Augur `block` verdict or a failed Attest provenance check as a hard stop per `AGENTS.md`.
@@ -93,9 +102,10 @@ Gates that must all be green before `rune` 0.2.0 is tagged and published:
       separate CorvidLabs repo), then used `fledge rune run --json -- swift test` for a real task.
       This is exactly how it surfaced the non-UTF-8 output bug above — real dogfooding, not a
       synthetic exercise.
-- [ ] **External dogfooding** — at least one user/agent run outside this session reported back
-      before tagging. Still open; needs an actual external report, not something verifiable from
-      inside this session.
+- [x] **External dogfooding** — ran `fledge rune run --json -- cargo clippy --workspace --tests --
+      -D warnings` and `cargo test` against `merlin` (a Rust/cargo project, a different tech stack
+      than `attest`'s Swift) from a real, unsandboxed terminal. This is exactly how the `--`
+      passthrough bug above was found.
 - [x] **CorvidLabs site tools page live** — `rune` has a full `/rune/` landing page and
       `/rune/docs/` section, registered in the site's project catalog and top nav alongside
       `fledge`, `augur`, `attest`, and `spec-sync` (`CorvidLabs/site#225`).
