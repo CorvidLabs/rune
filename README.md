@@ -102,7 +102,11 @@ result = runner.run
 
 `rune` integrates with the [CorvidLabs trust toolchain](https://github.com/CorvidLabs):
 
-- **[fledge](https://github.com/CorvidLabs/fledge)** — Task runner & project lifecycle
+- **[fledge](https://github.com/CorvidLabs/fledge)** — Task runner & project lifecycle. `rune` is a native `fledge` plugin defined via `plugin.toml`. Install directly via:
+  ```sh
+  fledge plugins install rune
+  fledge rune run --json git status
+  ```
 - **[spec-sync](https://github.com/CorvidLabs/spec-sync)** — Contract enforcement (`specs/`)
 - **[augur](https://github.com/CorvidLabs/augur)** — Change risk scoring
 - **[attest](https://github.com/CorvidLabs/attest)** — Commit provenance
