@@ -118,8 +118,12 @@ RSpec.describe Rune::PTYWatcher do
       expect(result.data[:exit_code]).to eq(0)
     end
 
-    it 'forwards raw arrow-key escape sequences and Enter, driving examples/demo_tui.rb\'s ' \
-       'real arrow-key selector end-to-end (not just line-buffered gets input)' do
+    def type(io, bytes)
+      sleep 0.3
+      io.write(bytes)
+    end
+
+    def drive_demo_menu_to_confirm_and_quit(down_sequence)
       demo_path = File.expand_path('../../examples/demo_tui.rb', __dir__)
       human_in_r, human_in_w = IO.pipe
       log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
@@ -129,19 +133,30 @@ RSpec.describe Rune::PTYWatcher do
                                                          output: fake_writer(output))
       result_thread = Thread.new { watcher.watch }
 
-      sleep 0.3
-      human_in_w.write("\e[B\e[B") # down, down -> selects "A yes/no confirmation"
-      sleep 0.3
-      human_in_w.write("\r") # Enter
-      sleep 0.3
-      human_in_w.write("y\n") # answer the confirm prompt (plain line input still works too)
-      sleep 0.3
-      human_in_w.write("\e[B\e[B\e[B\e[B") # fresh menu resets to index 0; down x4 -> "Quit"
-      sleep 0.3
-      human_in_w.write("\r") # Enter -> quit
+      type(human_in_w, down_sequence * 2) # down, down -> selects "A yes/no confirmation"
+      type(human_in_w, "\r") # Enter
+      type(human_in_w, "y\n") # answer the confirm prompt (plain line input still works too)
+      type(human_in_w, down_sequence * 4) # fresh menu resets to index 0; down x4 -> "Quit"
+      type(human_in_w, "\r") # Enter -> quit
 
       result = result_thread.value
       log_w.close
+      [result, output]
+    end
+
+    it 'forwards raw CSI arrow-key escape sequences (ESC [ B) and Enter, driving ' \
+       "examples/demo_tui.rb's real arrow-key selector end-to-end" do
+      result, output = drive_demo_menu_to_confirm_and_quit("\e[B")
+
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(0)
+      clean = output.gsub(/\e\[[0-9;]*[A-Za-z]/, '')
+      expect(clean).to include('A yes/no confirmation').and include('Confirmed.').and include('Goodbye!')
+    end
+
+    it 'also accepts SS3 arrow-key escape sequences (ESC O B) — the "application cursor keys" ' \
+       'convention some terminals send instead of CSI, which a spawned program cannot control' do
+      result, output = drive_demo_menu_to_confirm_and_quit("\eOB")
 
       expect(result).to be_success
       expect(result.data[:exit_code]).to eq(0)

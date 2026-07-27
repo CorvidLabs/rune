@@ -50,19 +50,32 @@ def banner
   puts
 end
 
+# getch with intr: true (Ctrl+C still raises a real Interrupt during a raw
+# read) and, optionally, a short non-blocking timeout. Falls back to plain
+# getch if this Ruby/io-console combination doesn't accept these keywords
+# together, rather than raising and silently killing the whole session.
+def safe_getch(**)
+  $stdin.getch(intr: true, **)
+rescue ArgumentError
+  $stdin.getch
+end
+
 # Reads one logical keypress: a plain character, or a recognized arrow-key
-# escape sequence (ESC [ A/B). `intr: true` keeps Ctrl+C generating a real
-# Interrupt even while stdin is in raw mode for the read; the second/third
-# bytes of an escape sequence use a short non-blocking timeout so a lone
-# Escape key (not followed by a bracket sequence) returns instead of hanging.
+# escape sequence. Terminals send one of two conventions for arrow keys
+# depending on "cursor key mode" (DECCKM) — CSI (ESC [ A/B, the common
+# default) or SS3 (ESC O A/B, "application mode", used by some terminals/
+# configs) — both are accepted here since a spawned program can't control
+# which one the far end of the pty actually sends. The second/third bytes
+# use a short non-blocking timeout so a lone Escape key (not followed by
+# either sequence) returns instead of hanging forever.
 def read_key
-  first = $stdin.getch(intr: true)
+  first = safe_getch
   return first unless first == "\e"
 
-  second = $stdin.getch(intr: true, min: 0, time: 0.5)
-  return :escape unless second == '['
+  second = safe_getch(min: 0, time: 0.5)
+  return :escape unless ['[', 'O'].include?(second)
 
-  case $stdin.getch(intr: true, min: 0, time: 0.5)
+  case safe_getch(min: 0, time: 0.5)
   when 'A' then :up
   when 'B' then :down
   else :unknown
@@ -143,4 +156,11 @@ rescue Interrupt
   # instead of dumping a Ruby backtrace over whatever the human was doing.
   puts "\n#{YELLOW}Interrupted.#{RESET}"
   exit 130
+rescue StandardError => e
+  # A visible error beats a silent crash: without this, an exception in the
+  # raw-mode read loop kills the process, raw mode gets released, and
+  # whatever's left of the human's session just echoes literal keystrokes
+  # back with no indication anything went wrong.
+  puts "\n#{YELLOW}Unexpected error: #{e.class}: #{e.message}#{RESET}"
+  exit 1
 end
