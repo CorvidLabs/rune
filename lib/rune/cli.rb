@@ -10,7 +10,6 @@ module Rune
       attr_reader :commands
 
       def register(command_class)
-        # Defer registration until command_name is set via TracePoint on class :end
         TracePoint.new(:end) do |tp|
           if tp.self == command_class && command_class.command_name
             @commands[command_class.command_name] = command_class
@@ -27,11 +26,13 @@ module Rune
     def initialize(io: $stdout)
       @io = io
       @json_mode = false
+      @ndjson_mode = false
     end
 
     def run(argv)
       args = argv.dup
       @json_mode = args.delete('--json') ? true : false
+      @ndjson_mode = args.delete('--ndjson') ? true : false
 
       command_name = resolve_command_name(args.shift)
       result = command_name == 'help' ? show_help : run_command(command_name, args)
@@ -50,7 +51,7 @@ module Rune
     end
 
     def render_result(command_name, result)
-      renderer = Renderer.new(io: @io, json_mode: @json_mode)
+      renderer = Renderer.new(io: @io, json_mode: @json_mode, ndjson_mode: @ndjson_mode)
       command_instance = self.class.commands[command_name]&.new
 
       renderer.render(result, human_block: lambda { |data, io|
@@ -67,7 +68,7 @@ module Rune
       return Result.failure("Unknown command: #{name}. Run 'rune help' for available commands.") unless command_class
 
       command = command_class.new
-      command.call(args, { json: @json_mode })
+      command.call(args, { json: @json_mode, ndjson: @ndjson_mode })
     rescue StandardError => e
       Result.failure(e.message)
     end
@@ -88,7 +89,8 @@ module Rune
       end
       io.puts ''
       io.puts 'Global flags:'
-      io.puts "  \e[1m--json\e[0m               Output as JSON (agent mode)"
+      io.puts '  --json               Output as JSON (agent mode)'
+      io.puts '  --ndjson             Stream output as JSON lines (live agent mode)'
       io.puts ''
       io.puts 'Pipe or redirect output to automatically get JSON.'
     end

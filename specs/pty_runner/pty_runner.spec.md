@@ -1,10 +1,9 @@
 ---
 module: pty_runner
 version: 1
-status: draft
+status: active
 files:
   - lib/rune/pty_runner.rb
-  - lib/rune/parsers/text_sanitizer.rb
   - lib/rune/commands/run_command.rb
 ---
 # PTY Runner
@@ -15,9 +14,8 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 ## Public API
 | Name | Type | Description |
 |------|------|-------------|
-| `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, timeout_seconds: 30)`. Method: `#run` returns `Result`. |
-| `Parsers::TextSanitizer` | class | Class method: `.strip_ansi(text)` returns clean un-styled text string. |
-| `Commands::RunCommand` | class | Subcommand `rune run <command...>` exposing PTY process runner to humans and agents. |
+| `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, timeout_seconds: 30)`. Method: `#run` returns `Result`. |
+| `RunCommand` | class | Subcommand `rune run <command...>` exposing PTY process runner to humans and agents. |
 
 ## Invariants
 1. Executed commands run inside a PTY session so TTY-dependent CLIs behave naturally.
@@ -39,4 +37,4 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 - Ruby stdlib: `pty`, `timeout`
 
 ## Change Log
-- v1: Initial PTY runner spec contract
+- v1: Active PTY runner spec contract

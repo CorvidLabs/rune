@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0.5'
+          bundler-cache: true
+
+      - name: Install Fledge & Spec-Sync
+        run: |
+          mkdir -p ~/.local/bin
+          curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash || true
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run Fledge Verification Gate
+        run: |
+          bundle exec rspec
+          bundle exec rubocop

@@ -1,7 +1,7 @@
 ---
 module: cli
 version: 1
-status: draft
+status: active
 files:
   - lib/rune/cli.rb
   - lib/rune/command.rb
@@ -11,7 +11,7 @@ files:
 # CLI
 
 ## Purpose
-Core CLI framework for rune. Provides command registration, argument parsing, dual-mode output (human-pretty for terminals, structured JSON for agents), and the base `Command` class that all commands extend. Designed so that every interaction is first-class for both humans and AI agents.
+Core CLI framework for rune. Provides command registration, argument parsing, dual-mode output (human-pretty for terminals, structured JSON for agents, streaming NDJSON), and the base `Command` class that all commands extend. Designed so that every interaction is first-class for both humans and AI agents.
 
 ## Public API
 | Name | Type | Description |
@@ -19,23 +19,24 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | `CLI` | class | CLI router. Class methods: `run(argv)`, `register(command_class)`, `commands`. Instance: `run(argv)`. |
 | `Command` | class | Base class for commands. DSL: `name(n)`, `summary(s)`. Override: `call(args, options)`, `human_render(data, io)`. |
 | `Result` | class | Structured result. Class methods: `.success(data)`, `.failure(error)`. Instance: `#success?`, `#failure?`, `#to_h`, `#exit_code`. |
-| `Renderer` | class | Output formatter. `#agent_mode?`, `#render(result, human_block:)`. Auto-detects TTY vs pipe. |
+| `Renderer` | class | Output formatter. `#agent_mode?`, `#render(result, human_block:)`. Supports JSON and NDJSON modes. |
 
 ## Invariants
 1. Commands never print directly to stdout — they return a `Result`
 2. `Result#to_h` always includes a `status` key ("ok" or "error")
 3. Non-TTY stdout automatically triggers JSON output (agent mode)
 4. `--json` flag forces JSON output regardless of TTY
-5. Exit code 0 for success, 1 for errors, 2 for usage errors
-6. Commands self-register via Ruby class inheritance hooks
-7. Unknown commands return a structured error, never crash
+5. `--ndjson` flag forces streaming newline-delimited JSON output
+6. Exit code 0 for success, 1 for errors, 2 for usage errors
+7. Commands self-register via Ruby class inheritance hooks
+8. Unknown commands return a structured error, never crash
 
 ## Behavioral Examples
 - Running `rune version` in a terminal prints human-formatted version info
 - Running `rune version --json` prints `{"status":"ok","data":{"version":"0.1.0",...}}`
+- Running `rune version --ndjson` prints `{"event":"result","status":"ok",...}`
 - Piping `rune version | cat` automatically outputs JSON
 - Running `rune nonexistent` returns exit code 1 and an error message
-- Running `rune help` lists all registered commands
 
 ## Error Cases
 | Condition | Behavior |
@@ -49,4 +50,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 - No external runtime dependencies
 
 ## Change Log
-- v1: Initial spec — CLI framework with dual-mode output
+- v1: Active spec — CLI framework with dual-mode output and NDJSON streaming
