@@ -8,10 +8,11 @@ module Rune
   class PTYRunner
     PROMPT_REGEX = %r{(?::\s*|\?\s*|\[[yY]/[nN]\]\s*|:\s*\Z|\$\s*\Z|#\s*\Z)}
 
-    attr_reader :command, :timeout_seconds
+    attr_reader :command, :input, :timeout_seconds
 
-    def initialize(command, timeout_seconds: 30)
+    def initialize(command, input: nil, timeout_seconds: 30)
       @command = command.is_a?(Array) ? command.join(' ') : command.to_s
+      @input = input
       @timeout_seconds = timeout_seconds
     end
 
@@ -40,9 +41,11 @@ module Rune
       raw_output = +''
       exit_code = nil
       prompt_detected = false
+      env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
       Timeout.timeout(timeout_seconds) do
-        PTY.spawn(command) do |r, _w, pid|
+        PTY.spawn(env, command) do |r, w, pid|
+          write_input(w) if input
           prompt_detected = read_pty_stream(r, raw_output)
           _, status = Process.wait2(pid)
           exit_code = status.exitstatus || (status.signaled? ? 128 + status.termsig : 1)
@@ -52,6 +55,13 @@ module Rune
       [raw_output, exit_code, prompt_detected]
     rescue Timeout::Error
       [raw_output + "\n[rune] Execution timed out after #{timeout_seconds} seconds", 124, false]
+    end
+
+    def write_input(writer)
+      writer.write(input)
+      writer.flush
+    rescue StandardError
+      nil
     end
 
     def read_pty_stream(reader, output_buffer)
