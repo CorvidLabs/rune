@@ -80,5 +80,31 @@ RSpec.describe Rune::Parsers::TableParser do
     it 'returns empty array for empty input' do
       expect(described_class.parse('')).to eq([])
     end
+
+    it 'forces pipe parsing via format: :pipe even without a header |' do
+      table_text = <<~TABLE
+        Name | Status
+        rune | active
+      TABLE
+
+      parsed = described_class.parse(table_text, format: :pipe)
+      expect(parsed).to eq([{ name: 'rune', status: 'active' }])
+    end
+
+    it 'forces space parsing via format: :space, treating literal | as cell content' do
+      table_text = <<~TABLE
+        NAME   NOTE
+        rune   a | b
+      TABLE
+
+      parsed = described_class.parse(table_text, format: :space)
+      expect(parsed).to eq([{ name: 'rune', note: 'a | b' }])
+    end
+
+    it 'raises ArgumentError for an unknown format' do
+      expect do
+        described_class.parse("a b\n1 2\n", format: :csv)
+      end.to raise_error(ArgumentError, /Unknown TableParser format/)
+    end
   end
 end

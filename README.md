@@ -6,6 +6,8 @@ A Ruby CLI tool and library designed from the ground up to be **human & AI agent
 
 Every command produces formatted, colored terminal output for humans — and structured JSON or live streaming NDJSON for AI agents. Same tool, same commands, dual interface.
 
+📖 New here? Start with the **[Getting Started guide](docs/getting_started.md)**.
+
 ---
 
 ## Capabilities
@@ -115,9 +117,8 @@ result = runner.run
 
 ## Architecture & Internals
 
-For a deep dive into how pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, and script execution work under the hood in Ruby, see:
-
-- 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — Guide for developers and AI agents.
+- 📖 **[Getting Started guide](docs/getting_started.md)** — Output modes, `rune run` usage, timeouts, and parsers with real command output.
+- 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — How pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, and script execution work under the hood in Ruby.
 
 ---
 

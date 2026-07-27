@@ -14,8 +14,8 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 ## Public API
 | Name | Type | Description |
 |------|------|-------------|
-| `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, timeout_seconds: 30)`. Method: `#run` returns `Result`. |
-| `RunCommand` | class | Subcommand `rune run <command...>` exposing PTY process runner to humans and agents. |
+| `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, script: nil, timeout_seconds: 30, &on_output)`. Method: `#run` returns `Result`. |
+| `RunCommand` | class | Subcommand `rune run [--timeout=SECONDS] <command...>` exposing PTY process runner to humans and agents. `--timeout` overrides the default 30s PTYRunner timeout; only recognized before a `--` separator. |
 
 ## Invariants
 1. Executed commands run inside a PTY session so TTY-dependent CLIs behave naturally.
@@ -26,6 +26,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 ## Behavioral Examples
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.
 - `rune run -- nonexistent_binary` returns structured failure.
+- `rune run --timeout=5 -- sleep 30` overrides the default 30s timeout and returns exit code 124 after ~5 seconds.
 
 ## Error Cases
 | Condition | Behavior |

@@ -1,0 +1,134 @@
+# Getting Started with rune
+
+`rune` is a Ruby CLI and library built to be equally usable by a human at a terminal and an AI
+agent driving it programmatically. Every command returns the same structured `Result` — only the
+*rendering* changes based on how you're calling it.
+
+## Install
+
+```sh
+gem install rune
+```
+
+Or from source:
+
+```sh
+git clone https://github.com/CorvidLabs/rune.git
+cd rune
+bundle install
+ruby bin/rune version
+```
+
+Or as a [fledge](https://github.com/CorvidLabs/fledge) plugin:
+
+```sh
+fledge plugins install rune
+fledge rune run --json git status
+```
+
+## The three output modes
+
+`rune` picks a rendering mode automatically based on how it's invoked, or you can force one
+explicitly with a flag. All three modes execute the exact same command logic — only the output
+format differs.
+
+### 1. Human TTY mode (default, interactive terminal)
+
+When stdout is a real terminal and no `--json`/`--ndjson` flag is given, `rune` prints
+colorized, human-formatted output:
+
+```sh
+$ rune version
+rune v0.1.3
+```
+
+```sh
+$ rune run -- echo "hello"
+✓ echo hello (6.2ms, exit 0)
+
+hello
+```
+
+### 2. Agent JSON mode (`--json`, or automatic pipe detection)
+
+Pass `--json` explicitly, or simply pipe/redirect `rune`'s output — a non-TTY stdout switches
+rendering to JSON automatically, no flag required:
+
+```sh
+$ ruby bin/rune run --json -- echo "hello agent"
+{"status":"ok","data":{"command":"echo hello\\ agent","exit_code":0,"clean_output":"hello agent\n","raw_output":"hello agent\r\n","prompt_detected":false,"duration_ms":8.09}}
+```
+
+```sh
+$ ruby bin/rune version | cat
+{"status":"ok","data":{"name":"rune","version":"0.1.3","ruby":"4.0.5","ruby_platform":"arm64-darwin25","fledge":true,"specsync":true}}
+```
+
+Every JSON response has the same envelope: `{"status": "ok"|"error", "data": {...}}` (or
+`{"status": "error", "error": "..."}` on failure).
+
+### 3. Agent NDJSON streaming mode (`--ndjson`)
+
+For long-running or interactive commands, `--ndjson` streams newline-delimited JSON events as
+they happen instead of waiting for the process to exit:
+
+```sh
+$ ruby bin/rune run --ndjson -- echo "hello stream"
+{"event":"result","status":"ok","data":{"command":"echo hello\\ stream","exit_code":0,"clean_output":"hello stream\n","raw_output":"hello stream\r\n","prompt_detected":false,"duration_ms":11.45}}
+```
+
+The `event` field distinguishes stream events (`result`, `error`) so an agent can consume output
+incrementally without buffering the entire response.
+
+## Running commands with `rune run`
+
+`rune run` spawns any CLI command or interactive TUI inside a real PTY, strips ANSI escape
+sequences, disables pagers, and measures execution time:
+
+```sh
+rune run -- git status
+rune run --json -- npm test
+rune run --ndjson -- fledge lanes run check
+```
+
+### Overriding the timeout
+
+Every `rune run` invocation has a 30-second default timeout. Override it with `--timeout=SECONDS`,
+placed *before* the `--` separator so it isn't mistaken for a flag belonging to the wrapped
+command:
+
+```sh
+$ ruby bin/rune run --json --timeout=1 -- sleep 3
+{"status":"ok","data":{"command":"sleep 3","exit_code":124,"clean_output":"\n[rune] Execution timed out after 1 seconds","raw_output":"\n[rune] Execution timed out after 1 seconds","prompt_detected":false,"duration_ms":1005.32}}
+```
+
+A timed-out command returns exit code `124` with a `[rune] Execution timed out after N seconds`
+message appended to the captured output — it's still a normal `Result`, not an exception.
+
+## Parsing structured text
+
+`Rune::Parsers::TableParser` and `Rune::Parsers::KeyValueParser` turn unstructured terminal output
+into Ruby hashes:
+
+```ruby
+require 'rune'
+
+Rune::Parsers::TableParser.parse(<<~TABLE)
+  NAME           STATUS   VERSION
+  fledge-plugin  active   1.0.0
+TABLE
+# => [{ name: 'fledge-plugin', status: 'active', version: '1.0.0' }]
+```
+
+`TableParser.parse` accepts a `format:` keyword (`:auto` by default, or `:pipe`/`:space` to force
+a parsing mode) — see [`specs/parsers/parsers.spec.md`](../specs/parsers/parsers.spec.md) for the
+heuristic's known limitations before relying on `:auto` against unfamiliar output.
+
+## Next steps
+
+- [PTY Architecture Guide](pty_architecture.md) — how the PTY runner, stream reading, and prompt
+  detection work internally.
+- [`specs/`](../specs/) — machine-checked module contracts (`spec-sync`) for `cli`, `parsers`, and
+  `pty_runner`.
+- [`AGENTS.md`](../AGENTS.md) — conventions for adding new commands and working with the trust
+  toolchain.
