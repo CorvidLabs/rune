@@ -86,4 +86,10 @@ loop do
   else puts "#{YELLOW}Not a valid option.#{RESET}"
   end
   puts
+rescue Interrupt
+  # Ctrl+C mid-prompt (e.g. while `gets` is blocked waiting for input) is a
+  # normal way to end an interactive session, not a crash — exit quietly
+  # instead of dumping a Ruby backtrace over whatever the human was doing.
+  puts "\n#{YELLOW}Interrupted.#{RESET}"
+  exit 130
 end
