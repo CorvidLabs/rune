@@ -123,6 +123,24 @@ passthrough), not scope creep.
       technically working, but reading as an ever-growing pile of duplicate "Use ↑/↓..." headers
       rather than a bug. `select_menu_action` now clears the screen and redraws the banner + menu
       fresh each round instead, so it reads as one persistent app screen.
+- [x] **Clearing the screen every round hid each action's own output entirely** — a live retest of
+      the screen-clear fix above showed the table/progress/confirm/name results flashed and vanished
+      in the same tick, since the outer loop looped straight back into `select_menu_action`'s
+      clear+redraw with no pause. Added a `press_any_key` prompt after every action except `:quit`,
+      so the result is actually readable before the next round clears it.
+- [x] **`rune watch`'s closing duration was raw milliseconds even for multi-second/-minute
+      sessions** (e.g. `78104.43ms`) — unreadable at the scale a *watched* session (as opposed to
+      `PTYRunner`'s usual sub-second commands) actually runs. `WatchCommand#human_render` now scales
+      the unit to the duration (ms under a second, seconds under a minute, `Mm Ss` under an hour,
+      `Hh Mm Ss` beyond that) with the exact seconds always shown alongside in parentheses.
+- [x] **Fixed a real, reproducible race in the SIGINT-during-raw-selector spec** (not the
+      previously-documented rare system-load flake) — found while re-verifying after the fixes
+      above: a fixed `sleep 0.3` before signaling raced the child `ruby examples/demo_tui.rb`
+      process's own boot/require time, and under load the signal sometimes arrived before the child
+      had even reached its `loop do ... rescue Interrupt`, so it died via Ruby's default
+      uncaught-Interrupt exit (1) instead of the expected 130 — reproduced directly outside RSpec to
+      confirm before fixing. The test now polls the child's actual captured output for the rendered
+      menu before signaling, removing the race instead of tuning the sleep.
 - [x] **`rune watch`'s closing message reports duration and the event log path, not just the exit
       code** — `PTYWatcher`'s `Result#data` now includes `duration_ms` (matching `PTYRunner`'s
       convention), and `WatchCommand#call` folds the actual `log_path` used into the returned

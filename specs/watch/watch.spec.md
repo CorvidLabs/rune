@@ -60,6 +60,11 @@ there.
     (the actual path used, default or `--log=`) before returning, so `human_render` — which runs on
     a separate `Command` instance from the one `#call` ran on, per `CLI#render_result` — can print a
     closing summary and remind where the event log lives without relying on instance state.
+11. `WatchCommand#human_render`'s duration is scaled to be readable at the length a watched session
+    actually runs (seconds to hours, not `PTYRunner`'s usual sub-second commands): milliseconds
+    under 1s, `Ns` under a minute, `Mm Ss` under an hour, `Hh Mm Ss` beyond that — always followed by
+    the exact value in seconds in parentheses, so both the at-a-glance and precise figures are
+    visible.
 
 ## Behavioral Examples
 - `rune watch -- ruby examples/demo_tui.rb` puts your terminal in raw mode, runs the demo TUI

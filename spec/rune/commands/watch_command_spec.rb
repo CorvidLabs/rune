@@ -98,11 +98,33 @@ RSpec.describe Rune::Commands::WatchCommand do
   end
 
   describe '#human_render' do
-    it 'prints a closing summary with the exit code, duration, and event log path' do
+    it 'prints a closing summary with the exit code, a millisecond duration, and event log path' do
       io = StringIO.new
       described_class.new.human_render({ exit_code: 0, duration_ms: 42.1, log_path: '/tmp/session.ndjson' }, io)
 
-      expect(io.string).to include('exit 0').and include('42.1ms').and include('/tmp/session.ndjson')
+      expect(io.string).to include('exit 0').and include('42ms').and include('0.04s').and include('/tmp/session.ndjson')
+    end
+
+    it 'formats a multi-second duration in seconds, not raw milliseconds (a watched session ' \
+       'can run far longer than rune run\'s usual sub-second commands)' do
+      io = StringIO.new
+      described_class.new.human_render({ exit_code: 0, duration_ms: 12_345.0 }, io)
+
+      expect(io.string).to include('12.3s').and include('12.35s')
+    end
+
+    it 'formats a multi-minute duration as minutes and seconds, plus the exact seconds' do
+      io = StringIO.new
+      described_class.new.human_render({ exit_code: 0, duration_ms: 78_104.43 }, io)
+
+      expect(io.string).to include('1m 18s').and include('78.1s')
+    end
+
+    it 'formats an hour-plus duration as hours/minutes/seconds, for a session left watching overnight' do
+      io = StringIO.new
+      described_class.new.human_render({ exit_code: 0, duration_ms: 3_725_000.0 }, io)
+
+      expect(io.string).to include('1h 2m 5s').and include('3725.0s')
     end
 
     it 'omits the log line when no log_path is present, without crashing' do

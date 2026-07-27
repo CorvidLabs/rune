@@ -39,11 +39,29 @@ module Rune
       def human_render(data, io)
         icon = data[:exit_code].zero? ? "\e[32m✓\e[0m" : "\e[33m✗\e[0m"
         io.puts ''
-        io.puts "#{icon} \e[1msession ended\e[0m (exit #{data[:exit_code]}, #{data[:duration_ms]}ms)"
+        io.puts "#{icon} \e[1msession ended\e[0m (exit #{data[:exit_code]}, #{format_duration(data[:duration_ms])})"
         io.puts "  log: \e[36m#{data[:log_path]}\e[0m" if data[:log_path]
       end
 
       private
+
+      # A watched session can run for seconds or minutes, unlike `rune run`'s
+      # usual sub-second commands — "78104.43ms" is unreadable at that scale.
+      # Shows a human-scaled duration plus the exact seconds in parentheses,
+      # so both "roughly how long" and "precisely how long" are visible.
+      def format_duration(duration_ms)
+        seconds = duration_ms / 1000.0
+        human = if duration_ms < 1000
+                  "#{duration_ms.round}ms"
+                elsif seconds < 60
+                  "#{seconds.round(1)}s"
+                elsif seconds < 3600
+                  "#{(seconds / 60).floor}m #{(seconds % 60).round}s"
+                else
+                  "#{(seconds / 3600).floor}h #{((seconds % 3600) / 60).floor}m #{(seconds % 60).round}s"
+                end
+        "#{human}, #{seconds.round(2)}s"
+      end
 
       # Rebuilds the Result with log_path folded into its data instead of
       # mutating it in place: Result#data is whatever PTYWatcher handed back,

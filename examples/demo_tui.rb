@@ -187,8 +187,18 @@ def ask_name
   puts "Hello, #{BOLD}#{name}#{RESET}!"
 end
 
+# select_menu_action clears the screen and redraws fresh at the start of
+# every round — without this pause, an action's result (the table, the
+# progress bar's "done" line, "Confirmed.") would print and then vanish
+# in the same tick, never actually readable.
+def press_any_key
+  print "\n#{YELLOW}Press any key to continue...#{RESET}"
+  safe_getch
+end
+
 loop do
-  case select_menu_action
+  action = select_menu_action
+  case action
   when :table then show_table
   when :progress then show_progress
   when :confirm then confirm
@@ -197,7 +207,7 @@ loop do
     puts 'Goodbye!'
     break
   end
-  puts
+  press_any_key unless action == :quit
 rescue Interrupt
   # Ctrl+C mid-prompt (e.g. while waiting on a keypress or `gets`) is a
   # normal way to end an interactive session, not a crash — exit quietly

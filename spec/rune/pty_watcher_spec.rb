@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'delegate'
+require 'timeout'
 
 # A fake terminal: claims to be a tty (so PTYWatcher doesn't bail out with
 # "requires a real terminal"), but has no #raw method, so PTYWatcher skips
@@ -137,6 +138,7 @@ RSpec.describe Rune::PTYWatcher do
       type(human_in_w, down_sequence * 2) # down, down -> selects "A yes/no confirmation"
       type(human_in_w, "\r") # Enter
       type(human_in_w, "y\n") # answer the confirm prompt (plain line input still works too)
+      type(human_in_w, ' ') # press-any-key past the result before the screen clears/redraws
       type(human_in_w, down_sequence * 4) # fresh menu resets to index 0; down x4 -> "Quit"
       type(human_in_w, "\r") # Enter -> quit
 
@@ -193,11 +195,21 @@ RSpec.describe Rune::PTYWatcher do
        'just in a line-buffered gets prompt' do
       demo_path = File.expand_path('../../examples/demo_tui.rb', __dir__)
       log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+      output = +''
 
       watcher = described_class.new(['ruby', demo_path], log: log_w, input: FakeTerminal.new(IO.pipe.first),
-                                                         output: fake_writer(+''))
+                                                         output: fake_writer(output))
       result_thread = Thread.new { watcher.watch }
-      sleep 0.3
+
+      # A fixed sleep here raced the child's own ruby-process boot/require
+      # time: under system load, the child sometimes hadn't reached its
+      # `loop do ... rescue Interrupt` yet when the signal arrived, so it
+      # died via Ruby's default uncaught-Interrupt exit (1) instead of the
+      # expected 130 — a real, reproducible flake, not a hypothetical one.
+      # Waiting for the menu to actually render guarantees the child is
+      # blocked in the raw-mode selector, inside the rescue's scope, before
+      # sending the signal.
+      Timeout.timeout(5) { sleep 0.02 until output.include?('Quit') }
       Process.kill('INT', Process.pid)
 
       joined = result_thread.join(5)
