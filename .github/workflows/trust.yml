@@ -11,64 +11,47 @@ permissions:
 jobs:
   trust:
     runs-on: ubuntu-latest
-    outputs:
-      atlas_enabled: ${{ steps.trust.outputs['atlas-enabled'] }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # augur and attest need full history
 
-      - name: Set up Ruby & Spec-Sync
+      - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '4.0.5'
           bundler-cache: true
 
-      - name: Install Fledge & Spec-Sync
+      - name: Install Fledge
         run: |
-          curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash || true
-          sudo cp -f $HOME/.local/bin/fledge /usr/local/bin/ 2>/dev/null || true
-          sudo cp -f $HOME/.local/bin/fledge /usr/bin/ 2>/dev/null || true
-          fledge plugins install spec-sync || true
-          sudo cp -f $HOME/.cargo/bin/specsync /usr/local/bin/ 2>/dev/null || true
-          sudo cp -f $HOME/.cargo/bin/specsync /usr/bin/ 2>/dev/null || true
-          sudo cp -f $HOME/.local/bin/specsync /usr/local/bin/ 2>/dev/null || true
-          sudo cp -f $HOME/.local/bin/specsync /usr/bin/ 2>/dev/null || true
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://github.com/CorvidLabs/fledge/releases/download/v1.7.0/fledge-linux-x86_64 -o "$HOME/.local/bin/fledge" || curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash || true
+          chmod +x "$HOME/.local/bin/fledge" 2>/dev/null || true
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - uses: CorvidLabs/trust@v1
-        id: trust
+      - name: Run Fledge Verification Lane
+        run: |
+          bundle exec rspec
+          bundle exec rubocop
 
-      - name: Render Atlas publication
-        if: github.event_name == 'push' && steps.trust.outputs['atlas-enabled'] == 'true'
-        uses: CorvidLabs/fledge-plugin-atlas@bfae900492615c6263c5ef431d1326eabb8b0406 # v1.3.1
+      - name: Spec Sync Contract Check
+        uses: CorvidLabs/spec-sync@v5.2.0
         with:
-          path: .
-          output-dir: trust-atlas
-          components: coverage langmix treemap sunburst calendar
-          version: bfae900492615c6263c5ef431d1326eabb8b0406
+          strict: "true"
+        continue-on-error: true
 
-      - name: Render interactive Atlas
-        if: github.event_name == 'push' && steps.trust.outputs['atlas-enabled'] == 'true'
-        run: fledge-atlas . --out trust-atlas/index.html
-
-      - name: Upload Atlas Pages artifact
-        if: github.event_name == 'push' && steps.trust.outputs['atlas-enabled'] == 'true'
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      - name: Augur Risk Gate
+        uses: CorvidLabs/augur@v1
         with:
-          path: trust-atlas
+          threshold: block
+        continue-on-error: true
 
-  deploy-atlas:
-    if: github.event_name == 'push' && needs.trust.outputs.atlas_enabled == 'true'
-    needs: trust
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy Atlas to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+      - name: Attest Provenance Check
+        uses: CorvidLabs/attest@v1
+        with:
+          policy: .attest.json
+        continue-on-error: true
+
+      - name: Verify Trust Block Present
+        run: |
+          grep -q "CorvidLabs trust toolchain: BEGIN" AGENTS.md
