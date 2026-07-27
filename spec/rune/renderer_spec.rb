@@ -29,6 +29,25 @@ RSpec.describe Rune::Renderer do
     end
   end
 
+  describe 'ndjson mode (streaming JSON lines)' do
+    subject(:renderer) { described_class.new(io:, ndjson_mode: true) }
+
+    it 'outputs NDJSON event lines' do
+      result = Rune::Result.success({ status: 'active' })
+      renderer.render(result)
+      parsed = JSON.parse(io.string, symbolize_names: true)
+      expect(parsed[:event]).to eq('result')
+      expect(parsed[:status]).to eq('ok')
+    end
+
+    it 'renders custom events' do
+      renderer.render_event(:progress, { percent: 50 })
+      parsed = JSON.parse(io.string, symbolize_names: true)
+      expect(parsed[:event]).to eq('progress')
+      expect(parsed[:percent]).to eq(50)
+    end
+  end
+
   describe 'human mode' do
     let(:tty_io) do
       io = StringIO.new
