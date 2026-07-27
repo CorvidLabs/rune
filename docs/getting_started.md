@@ -176,8 +176,14 @@ heuristic's known limitations before relying on `:auto` against unfamiliar outpu
 - [`examples/smoke_test.rb`](../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` or `fledge
   run smoke-test`. A standalone, assertion-based tour of real behavior (no bundler/rspec required):
   output modes, `--timeout` validation, parsers, `Script`, signal forwarding, prompt detection.
-- [PTY Architecture Guide](pty_architecture.md) — how the PTY runner, stream reading, and prompt
-  detection work internally.
+- [`examples/demo_tui.rb`](../examples/demo_tui.rb) — the interactive demo used throughout the
+  `rune watch` section above. [`examples/pty_runner_example.rb`](../examples/pty_runner_example.rb),
+  [`table_parser_example.rb`](../examples/table_parser_example.rb), and
+  [`script_automation_example.rb`](../examples/script_automation_example.rb) are smaller,
+  single-concept scripts — each runnable directly (`ruby examples/<name>.rb`) with no setup beyond
+  `require_relative '../lib/rune'`.
+- [PTY Architecture Guide](pty_architecture.md) — how the PTY runner, stream reading, prompt
+  detection, and `rune watch`'s live passthrough work internally.
 - [`specs/`](../specs/) — machine-checked module contracts (`spec-sync`) for `cli`, `parsers`,
   `pty_runner`, and `watch`.
 - [`AGENTS.md`](../AGENTS.md) — conventions for adding new commands and working with the trust
