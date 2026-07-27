@@ -27,6 +27,12 @@ Every command produces formatted, colored terminal output for humans — and str
    - `TextSanitizer`: Normalizes line endings and cleans ANSI escape codes
 4. **Interactive Script DSL (`Rune::Script`)**
    - Step-by-step TUI script automation DSL for driving interactive terminal prompts and TUI menus
+5. **Live Interactive Passthrough (`rune watch`)**
+   - Puts your terminal in raw mode and forwards keystrokes to the child live, byte-for-byte
+   - Streams the child's output to your screen as it happens (unlike `rune run`, which buffers and
+     returns everything at the end)
+   - Simultaneously logs every chunk as an NDJSON event (to stderr or `--log=PATH`) so an AI agent
+     can tail the session live while a human drives it
 
 ---
 
@@ -98,6 +104,14 @@ result = runner.run
 # => Result with exit_code 130, clean_output, duration_ms
 ```
 
+### 5. Watch a Session Live (Human Drives, Agent Tails)
+```sh
+# Puts your terminal in raw mode, forwards your keystrokes live, streams
+# output to your screen as it happens, and logs an NDJSON event per chunk
+# to stderr — redirect it to persist/tail the session from another shell.
+rune watch -- ruby examples/demo_tui.rb 2>session.ndjson
+```
+
 ---
 
 ## CorvidLabs Integration
@@ -125,10 +139,11 @@ result = runner.run
 ## Development & Verification
 
 ```sh
-fledge run test         # Run RSpec test suite (77 examples)
+fledge run test         # Run RSpec test suite (135 examples, 98%+ line coverage)
 fledge run lint         # Run RuboCop linter (0 offenses)
 fledge lanes run verify # Full CI gate (lint + tests + spec-sync)
 fledge run smoke-test   # Runnable, assertion-based tour of real behavior (examples/smoke_test.rb)
+COVERAGE=1 bundle exec rspec  # Same suite, plus an HTML coverage report at coverage/index.html
 ```
 
 `examples/smoke_test.rb` is a standalone, dependency-free script (no bundler/rspec required) that

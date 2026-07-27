@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'rune/script'
+require 'tmpdir'
 
 RSpec.describe Rune::PTYRunner do
   describe '#run' do
@@ -77,6 +78,41 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:exit_code]).to eq(127)
     end
 
+    it 'reports permission-denied (a non-executable file) as exit code 126, not a crash' do
+      Dir.mktmpdir do |dir|
+        script_path = File.join(dir, 'not_executable.sh')
+        File.write(script_path, "#!/bin/sh\necho hi\n")
+        File.chmod(0o644, script_path)
+
+        result = described_class.new(script_path).run
+
+        expect(result).to be_success
+        expect(result.data[:exit_code]).to eq(126)
+        expect(result.data[:clean_output]).to include('Permission denied')
+      end
+    end
+
+    it 'times out and reports it in both the output and exit code, without hanging past the limit' do
+      runner = described_class.new('sleep 5', timeout_seconds: 1)
+
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = runner.run
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+
+      expect(elapsed).to be < 3
+      expect(result.data[:exit_code]).to eq(124)
+      expect(result.data[:clean_output]).to include('[rune] Execution timed out after 1 seconds')
+    end
+
+    it 'wraps any other unexpected error in a generic failure instead of propagating it raw' do
+      allow(PTY).to receive(:spawn).and_raise(RuntimeError, 'something truly unexpected')
+
+      result = described_class.new('echo hi').run
+
+      expect(result).to be_failure
+      expect(result.error).to include("Failed to execute command 'echo hi'").and include('something truly unexpected')
+    end
+
     it 'handles missing commands gracefully with exit code 127' do
       runner = described_class.new('non_existent_command_xyz_12345')
       result = runner.run
@@ -126,6 +162,29 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:clean_output]).to include('You selected 3')
     end
 
+    it 'honors a :pause script step, waiting at least that long before sending the next step' do
+      ruby_code = <<~RUBY
+        $stdout.sync = true
+        puts "Ready"
+        line = $stdin.gets&.strip
+        puts "Got \#{line}"
+      RUBY
+
+      script = Rune::Script.new do
+        wait_for(/Ready/)
+        pause 0.3
+        send_keys "go\n"
+      end
+
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = described_class.new(['ruby', '-e', ruby_code], script: script).run
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+
+      expect(result).to be_success
+      expect(result.data[:clean_output]).to include('Got go')
+      expect(elapsed).to be >= 0.3
+    end
+
     it 'forwards SIGINT to the wrapped child process, terminating it early' do
       runner = described_class.new('sleep 10', timeout_seconds: 30)
 
@@ -141,6 +200,26 @@ RSpec.describe Rune::PTYRunner do
       expect(result).to be_success
       expect(elapsed).to be < 5
       expect(result.data[:exit_code]).to eq(130)
+    end
+  end
+
+  describe '#write_input (private, exercised directly)' do
+    it 'swallows a write failure instead of raising, e.g. writing to an already-closed pty' do
+      broken_writer = instance_double(IO, wait_writable: true)
+      allow(broken_writer).to receive(:write_nonblock).and_raise(Errno::EPIPE, 'broken pipe')
+
+      runner = described_class.new('echo hi')
+      expect { runner.send(:write_input, broken_writer, "data\n") }.not_to raise_error
+    end
+
+    it 'is a no-op for nil or empty data' do
+      writer = instance_double(IO, wait_writable: true)
+      runner = described_class.new('echo hi')
+
+      runner.send(:write_input, writer, nil)
+      runner.send(:write_input, writer, '')
+
+      expect(writer).not_to have_received(:wait_writable)
     end
   end
 

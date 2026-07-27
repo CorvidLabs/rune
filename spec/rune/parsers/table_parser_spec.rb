@@ -81,6 +81,27 @@ RSpec.describe Rune::Parsers::TableParser do
       expect(described_class.parse('')).to eq([])
     end
 
+    it 'parses a single-word header (single_space_spans, not multi_space_spans)' do
+      table_text = <<~TABLE
+        NAME
+        fledge-plugin
+        rune
+      TABLE
+
+      parsed = described_class.parse(table_text)
+      expect(parsed).to eq([{ name: 'fledge-plugin' }, { name: 'rune' }])
+    end
+
+    it 'rejoins fields that overflow beyond the header count back into the last column' do
+      table_text = <<~TABLE
+        NAME  NOTE
+        foo   bar  baz
+      TABLE
+
+      parsed = described_class.parse(table_text)
+      expect(parsed).to eq([{ name: 'foo', note: 'bar  baz' }])
+    end
+
     it 'forces pipe parsing via format: :pipe even without a header |' do
       table_text = <<~TABLE
         Name | Status

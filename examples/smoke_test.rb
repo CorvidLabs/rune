@@ -19,6 +19,7 @@ require_relative '../lib/rune'
 require 'json'
 require 'open3'
 require 'rbconfig'
+require 'stringio'
 
 # Top-level ivars on `main`, shared across the top-level `def`s below (a
 # top-level `def` is a private method on Object, invoked with self == main).
@@ -250,6 +251,37 @@ section('PTY-unavailable handling (simulated — this platform has a working pty
     assert(result.failure? && result.error.include?('PTY allocation failed at runtime'), result.error)
   ensure
     PTY.define_singleton_method(:spawn, original)
+  end
+end
+
+section('Rune::PTYWatcher — live bidirectional passthrough (rune watch)') do
+  check('fails clearly instead of attempting anything when stdin is not a tty') do
+    result = Rune::PTYWatcher.new('echo hi', input: StringIO.new).watch
+    assert(result.failure? && result.error.include?('requires a real terminal'), result.error)
+  end
+
+  check('forwards live input to the child and streams its output back, round-trip') do
+    require 'delegate'
+    fake_terminal = Class.new(SimpleDelegator) { def tty? = true }
+    human_in_r, human_in_w = IO.pipe
+    log_r, log_w = IO.pipe
+    output = +''
+    writer = Object.new
+    writer.define_singleton_method(:write) { |s| output << s }
+    writer.define_singleton_method(:flush) { nil }
+
+    ruby_code = "puts 'Name?'; name = $stdin.gets&.strip; puts \"Hi \#{name}!\""
+    watcher = Rune::PTYWatcher.new(['ruby', '-e', ruby_code], log: log_w,
+                                                              input: fake_terminal.new(human_in_r), output: writer)
+    thread = Thread.new { watcher.watch }
+    sleep 0.3
+    human_in_w.write("Claude\n")
+    result = thread.value
+    log_w.close
+
+    assert(result.success? && output.include?('Hi Claude!'), output)
+    events = log_r.read.each_line.map { |line| JSON.parse(line) }
+    assert(events.first['event'] == 'start' && events.last['event'] == 'exit', events.inspect)
   end
 end
 

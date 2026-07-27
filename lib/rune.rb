@@ -14,10 +14,12 @@ require_relative 'rune/parsers/table_parser'
 require_relative 'rune/parsers/key_value_parser'
 require_relative 'rune/signal_handler'
 require_relative 'rune/pty_runner'
+require_relative 'rune/pty_watcher'
 
 # Command implementations
 require_relative 'rune/commands/version_command'
 require_relative 'rune/commands/run_command'
+require_relative 'rune/commands/watch_command'
 
 module Rune
   class Error < StandardError; end

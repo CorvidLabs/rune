@@ -1,8 +1,10 @@
 # rune 0.2.0 milestone
 
-Tracking issue for the next `rune` release. Scope is deliberately narrow: harden the PTY runner
-and parser APIs that shipped in 0.1.x, close the documentation gap, and keep the CorvidLabs trust
-toolchain green — not new commands.
+Tracking issue for the next `rune` release. Scope was originally deliberately narrow: harden the
+PTY runner and parser APIs that shipped in 0.1.x, close the documentation gap, and keep the
+CorvidLabs trust toolchain green — no new commands. That non-goal was explicitly revisited and
+overridden once, for `rune watch` (see below): a real, requested capability gap (live interactive
+passthrough), not scope creep.
 
 ## Scope
 
@@ -75,15 +77,47 @@ toolchain green — not new commands.
       do). Now only the first, leading `--` (rune's own) is dropped; any further `--` the wrapped
       command's own argv contains is preserved untouched. Covered in
       `spec/rune/commands/run_command_spec.rb`.
+- [x] **`rune watch` — live interactive passthrough** — a genuinely new capability, not a bugfix:
+      `rune run` buffers a command's entire output and only returns it once finished, with no live
+      stdin forwarding at all. `rune watch -- <command>` puts the terminal in raw mode, forwards a
+      human's keystrokes to the child live, streams output to the screen as it happens, and
+      simultaneously logs every chunk as an NDJSON event (`start`/`output`/`exit`, to stderr or
+      `--log=PATH`) so an agent can tail the session in real time. Implemented as a new
+      `PTYWatcher` class (not a `PTYRunner` mode — `PTYRunner`'s contract stays frozen) with
+      injectable `input`/`output`/`log` so the forwarding/logging mechanics are unit-testable
+      without a real controlling terminal (a fake `#tty? => true` object plus `IO.pipe`s drives a
+      real interactive child end-to-end in `spec/rune/pty_watcher_spec.rb`). `examples/demo_tui.rb`
+      ships as a small interactive program to actually try it against. See
+      `specs/watch/watch.spec.md`.
+- [x] **Substantially expanded test coverage** — 57 → 135 RSpec examples; line coverage 88.5% →
+      98.3%, branch coverage 72.9% → 81.8% (SimpleCov added as a dev dependency, opt-in via
+      `COVERAGE=1 bundle exec rspec`, `.gitignore`d output). Filled real, previously-untested gaps
+      driven by the actual coverage report rather than guesswork: `Command`'s `NotImplementedError`
+      and auto-registration, `CLI`'s `--version`/`-v` resolution, bare-argv-defaults-to-help,
+      human-mode rendering dispatch (`help_human_render` and per-command `#human_render`, both
+      previously completely untested), an unhandled exception inside a command's `#call` being
+      caught, and `CLI.run`'s class-level entry point; `RunCommand`/`VersionCommand#human_render`;
+      a dedicated `PromptDetector` spec (previously only exercised indirectly through
+      `PTYRunner#detect_prompt?`); `TableParser`'s single-word-header path and its
+      overflow-beyond-header-count rejoin; `SignalHandler`'s dead-pid-forward and invalid-signal
+      rescue branches; `PTYRunner`'s permission-denied (real non-executable file), real timeout,
+      generic-error, `write_input` failure, and `Script` `:pause`-step paths. Remaining gaps are
+      genuinely hard to simulate rather than neglected: a `TracePoint`-based registration hook
+      SimpleCov can't see inside, real raw-terminal-mode ioctls (same class of limitation as the
+      Ctrl+C verification above — needs an actual controlling terminal), and a couple of
+      `Errno::ECHILD`/`PTY::ChildExited` process-reaping races.
 - [ ] **Trust toolchain verification** — Run and pass the full trust gate ahead of tagging 0.2.0:
       `fledge run test`, `fledge run lint`, `fledge run spec-check`, `fledge trust verify`. Treat
       an Augur `block` verdict or a failed Attest provenance check as a hard stop per `AGENTS.md`.
 
 ## Non-goals for 0.2.0
 
-- New subcommands beyond `run`/`version`.
+- New subcommands beyond `run`/`version`/`watch` (the latter added deliberately, see above).
 - Changes to the `Result`/`Renderer` JSON envelope shape (breaking for existing agent consumers).
-- Adding runtime dependencies — `rune` stays stdlib-only.
+- Adding runtime dependencies — `rune` stays stdlib-only (`rune watch` uses `io/console`, itself
+  Ruby stdlib).
+- A real non-PTY execution fallback (see the PTY-fallback item above) — descoped, not worth the
+  complexity without an actual Windows/restrictive-CI user.
 
 ---
 
@@ -91,10 +125,10 @@ toolchain green — not new commands.
 
 Gates that must all be green before `rune` 0.2.0 is tagged and published:
 
-- [ ] **Stable API freeze** — `PTYRunner`, `TableParser`, `KeyValueParser`, `TextSanitizer`,
-      `Result`, and the `rune run`/`rune version` CLI surface are frozen for 0.2.0. Any further
-      change before tagging requires updating the relevant `specs/*.spec.md` contract in the same
-      change.
+- [ ] **Stable API freeze** — `PTYRunner`, `PTYWatcher`, `TableParser`, `KeyValueParser`,
+      `TextSanitizer`, `Result`, and the `rune run`/`rune version`/`rune watch` CLI surface are
+      frozen for 0.2.0. Any further change before tagging requires updating the relevant
+      `specs/*.spec.md` contract in the same change.
 - [x] **PTY edge cases documented/fixed** — Non-PTY fallback behavior (see milestone item above)
       is explicitly documented as an unsupported-platform limitation; no silent crashes on
       Windows/sandboxed CI (other commands keep working, `rune run` fails clearly).

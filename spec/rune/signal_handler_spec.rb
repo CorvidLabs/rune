@@ -42,5 +42,26 @@ RSpec.describe Rune::SignalHandler do
       Signal.trap('INT', before_int || 'DEFAULT')
       Signal.trap('TERM', before_term || 'DEFAULT')
     end
+
+    it 'treats forwarding to an already-dead pid as handled, not an error' do
+      dead_pid = Process.spawn('true')
+      Process.wait(dead_pid)
+
+      described_class.with_traps(dead_pid) do |forward_signal|
+        Process.kill('INT', Process.pid)
+        sleep 0.05 until (forwarded = forward_signal.call)
+        expect(forwarded).to be true
+      end
+    end
+  end
+
+  describe 'private rescue branches (exercised directly; these never fire via real INT/TERM)' do
+    it '#trap_signal swallows an invalid signal name instead of raising' do
+      expect(described_class.send(:trap_signal, 'NOT_A_REAL_SIGNAL') { nil }).to be_nil
+    end
+
+    it '#restore_signal swallows an invalid signal name instead of raising' do
+      expect(described_class.send(:restore_signal, 'NOT_A_REAL_SIGNAL', 'DEFAULT')).to be_nil
+    end
   end
 end

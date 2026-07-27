@@ -64,4 +64,29 @@ RSpec.describe Rune::Commands::RunCommand do
       expect(result.error).to include('Invalid --timeout value')
     end
   end
+
+  describe '#human_render' do
+    let(:io) { StringIO.new }
+
+    it 'shows a success icon, the command, duration, and exit code for exit_code 0' do
+      described_class.new.human_render(
+        { exit_code: 0, command: 'echo hi', duration_ms: 12.5, clean_output: "hi\n" }, io
+      )
+      output = Rune::Parsers::TextSanitizer.strip_ansi(io.string)
+      expect(output).to include('echo hi').and include('12.5ms').and include('exit 0').and include('hi')
+    end
+
+    it 'shows a failure icon (distinct from success) for a non-zero exit_code' do
+      described_class.new.human_render(
+        { exit_code: 1, command: 'false', duration_ms: 3.0, clean_output: '' }, io
+      )
+      success_io = StringIO.new
+      described_class.new.human_render({ exit_code: 0, command: 'true', duration_ms: 1.0, clean_output: '' },
+                                       success_io)
+
+      failure_icon = io.string[/\A(.*?)\e\[1m/, 1]
+      success_icon = success_io.string[/\A(.*?)\e\[1m/, 1]
+      expect(failure_icon).not_to eq(success_icon)
+    end
+  end
 end
