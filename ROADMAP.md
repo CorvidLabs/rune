@@ -116,7 +116,13 @@ passthrough), not scope creep.
       found by the same live retest with `RUNE_DEMO_DEBUG=1` tracing on: `examples/demo_tui.rb`'s
       menu redraw appeared to scroll/duplicate instead of updating in place, because its
       cursor-up-N-lines math only accounted for the menu's own lines, not the debug-trace lines
-      printed between redraws — now tracked and folded into the cursor-up count.
+      printed between redraws — now tracked and folded into the cursor-up count. A further live
+      retest (after both of the above were fixed and confirmed) showed the *within-round* redraw
+      math was correct but each *round* (menu → action → back to menu) still left the previous
+      round's banner/menu/output sitting in scrollback with a fresh block appended below —
+      technically working, but reading as an ever-growing pile of duplicate "Use ↑/↓..." headers
+      rather than a bug. `select_menu_action` now clears the screen and redraws the banner + menu
+      fresh each round instead, so it reads as one persistent app screen.
 - [x] **`rune watch`'s closing message reports duration and the event log path, not just the exit
       code** — `PTYWatcher`'s `Result#data` now includes `duration_ms` (matching `PTYRunner`'s
       convention), and `WatchCommand#call` folds the actual `log_path` used into the returned

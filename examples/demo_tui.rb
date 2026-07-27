@@ -49,6 +49,10 @@ MENU = [
   { label: 'Quit', action: :quit }
 ].freeze
 
+def clear_screen
+  print "\e[2J\e[H"
+end
+
 def banner
   puts "#{BOLD}#{CYAN}rune demo TUI#{RESET}"
   puts "#{CYAN}A small interactive program for dogfooding rune run / rune watch.#{RESET}"
@@ -129,12 +133,19 @@ def move_selection(selected, delta)
 end
 
 def select_menu_action
+  # Clears and redraws the banner + menu fresh every round, rather than
+  # leaving each round's action output in scrollback with a new menu block
+  # appended below it — real dogfooding showed the transcript style read as
+  # a redraw bug (an ever-growing pile of "Use ↑/↓..." headers) rather than
+  # a single persistent app screen.
+  clear_screen
+  banner
   selected = 0
   puts "Use #{BOLD}↑/↓#{RESET} and #{BOLD}Enter#{RESET} to choose (or press q to quit):"
   render_menu(selected)
-  # Any debug lines printed before this fresh menu (e.g. banner's one-time
-  # debug line) are already scrolled past and aren't part of this redraw
-  # region — don't let them inflate the first move_selection's cursor-up count.
+  # Any debug lines printed since the last full redraw (e.g. banner's
+  # one-time debug line) are already accounted for by the clear above —
+  # don't let them inflate the first move_selection's cursor-up count.
   @pending_debug_lines = 0
   loop do
     key = read_key
@@ -176,7 +187,6 @@ def ask_name
   puts "Hello, #{BOLD}#{name}#{RESET}!"
 end
 
-banner
 loop do
   case select_menu_action
   when :table then show_table
