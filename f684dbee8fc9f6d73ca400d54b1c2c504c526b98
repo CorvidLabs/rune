@@ -1,0 +1,1 @@
+{"commit":"f684dbee8fc9f6d73ca400d54b1c2c504c526b98","confidence":1,"humanApproved":false,"note":"Backfilled after confirming all Ruby 3.0-4.0, trust, and CodeQL checks succeeded on GitHub","reviewer":"agent:codex","testsPassed":true,"timestamp":1785277969,"verdict":"proceed"}
