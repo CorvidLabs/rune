@@ -322,14 +322,19 @@ RSpec.describe Rune::PTYWatcher do
     it 'kills and reaps the child if the output sink closes with EPIPE' do
       Dir.mktmpdir do |dir|
         pid_file = File.join(dir, 'pid')
+        ready_marker = 'rune-epipe-child-started-after-pid-write'
+        observed_output = +''
         broken_output = Object.new
         broken_output.define_singleton_method(:write) do |chunk|
-          raise Errno::EPIPE, 'closed output' if chunk.include?('ready')
+          observed_output << chunk
+          raise Errno::EPIPE, 'closed output' if observed_output.include?(ready_marker)
 
           chunk.bytesize
         end
         broken_output.define_singleton_method(:flush) { nil }
-        ruby_code = "File.write(#{pid_file.inspect}, Process.pid); puts 'ready'; sleep 10"
+        ruby_code = "$stdout.sync = true; warn 'already initialized'; " \
+                    "File.write(#{pid_file.inspect}, Process.pid); " \
+                    "puts #{ready_marker.inspect}; sleep 10"
         expect(PTY).to receive(:spawn).with(
           { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' },
           'ruby',
