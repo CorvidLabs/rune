@@ -1,0 +1,1 @@
+{"commit":"e37131c5abe762a952d84db6f52ca6f1f685b8dd","confidence":0.98,"humanApproved":false,"note":"Trust workflow provenance fetch verified by YAML parse, full 160-example lane, strict specs, and trust gate","reviewer":"agent:codex","testsPassed":true,"timestamp":1785251946,"verdict":"proceed"}
