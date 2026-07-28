@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785278957,
+      "digest": "9453803aa60c0703dc21ca77bee0ced298362471539ef22ae9936e5be44aa05d",
+      "note": "Approved in Codex task after reviewing the completed definition and acceptance criteria"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785279241,
+      "digest": "f63832a1bb2b345a728e7f6c9d8e182335d3c04f58dffb1242e51c343337a1c5",
+      "note": "Reapproved after converting tasks into completed definition obligations; scope and acceptance criteria unchanged"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785279451,
+      "digest": "165f5121a483db683f7a2b23784085148d95cb45ba735eca7df53b5e357fd024",
+      "note": "Closing approval granted in Codex after current verification evidence passed"
+    }
+  ],
+  "reopenings": []
+}

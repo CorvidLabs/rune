@@ -68,6 +68,8 @@ jobs:
         with:
           strict: "true"
           require-coverage: "100"
+          args: "--stale 1"
+          lifecycle-enforce: "true"
 
       - name: Augur Risk Gate
         uses: CorvidLabs/augur@1.0.0

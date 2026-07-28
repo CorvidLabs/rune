@@ -6,6 +6,8 @@ source_dirs = ["lib"]
 exclude_dirs = ["spec", "vendor", "bundle"]
 exclude_patterns = ["**/*_spec.rb"]
 required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+enforcement = "strict"
 
 [lifecycle]
-track_history = false
+track_history = true
+allowed_statuses = ["active", "stable"]

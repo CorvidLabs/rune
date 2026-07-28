@@ -1,0 +1,6 @@
+# SpecSync local and transactional state
+backup-3x/
+config.local.toml
+hashes.json
+change.lock
+change-transaction.json
