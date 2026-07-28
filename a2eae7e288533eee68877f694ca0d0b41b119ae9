@@ -1,0 +1,1 @@
+{"commit":"a2eae7e288533eee68877f694ca0d0b41b119ae9","confidence":1,"humanApproved":true,"note":"SpecSync CHG-0001 definition and closing approvals recorded by 0xLeif; release lane, installed gem, negative/positive drift controls, lifecycle, SDD, Augur review, and trust checks completed","reviewer":"agent:codex","testsPassed":true,"timestamp":1785279658,"verdict":"proceed"}
