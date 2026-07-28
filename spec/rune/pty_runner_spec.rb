@@ -58,7 +58,12 @@ RSpec.describe Rune::PTYRunner do
     end
 
     it 'handles array command arguments with shell escaping' do
-      runner = described_class.new(['ruby', '-e', 'puts ARGV[0]', 'hello world'])
+      command = ['ruby', '-e', 'puts ARGV[0]', 'hello world']
+      expect(PTY).to receive(:spawn).with(
+        { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' },
+        *command
+      ).and_call_original
+      runner = described_class.new(command)
       result = runner.run
 
       expect(result).to be_success

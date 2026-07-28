@@ -36,8 +36,8 @@ module Rune
         true
       end
 
-      def trap_signal(sig, &)
-        Signal.trap(sig, &)
+      def trap_signal(sig, &block)
+        Signal.trap(sig, &block)
       rescue StandardError
         nil
       end

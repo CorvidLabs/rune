@@ -8,6 +8,7 @@ require 'shellwords'
 # part of core IO (same issue fixed in pty_runner.rb).
 require 'io/wait'
 require_relative 'signal_handler'
+require_relative 'utf8_stream_decoder'
 
 # Needed so the *parent* process's own $stdin/$stdout gain #raw/#getch —
 # without this, with_raw_input's real raw-mode call was never reachable at
@@ -35,12 +36,16 @@ module Rune
   # mode: PTYRunner's "run, capture, return once" contract is frozen for
   # 0.2.0, and the execution model here (raw terminal mode, a background
   # input-forwarding thread) is different enough to not belong bolted on.
+  # rubocop:disable Metrics/ClassLength -- PTY lifecycle, terminal synchronization, and stream
+  # cleanup are deliberately kept together so every spawned-child exit path remains auditable.
   class PTYWatcher
     def initialize(command, log: $stderr, input: $stdin, output: $stdout)
       @command = command.is_a?(Array) ? Shellwords.join(command) : command.to_s
+      @spawn_arguments = command.is_a?(Array) ? command.map(&:to_s) : [@command]
       @log = log
       @input = input
       @output = output
+      @window_size = nil
     end
 
     def watch
@@ -59,8 +64,9 @@ module Rune
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
-      PTY.spawn(env, @command) do |r, w, pid|
+      PTY.spawn(env, *@spawn_arguments) do |r, w, pid|
         SignalHandler.with_traps(pid) do |forward_signal|
+          synchronize_window_size(w)
           log_event('start', command: @command, pid: pid)
           exit_code = with_raw_input { pump_session(r, w, pid, forward_signal) }
         end
@@ -111,7 +117,7 @@ module Rune
 
     def pump_session(reader, writer, pid, forward_signal)
       input_thread = forward_input(writer)
-      pump_output(reader, pid, forward_signal)
+      pump_output(reader, writer, pid, forward_signal)
     ensure
       input_thread&.kill
     end
@@ -131,18 +137,53 @@ module Rune
       thread
     end
 
-    def pump_output(reader, pid, forward_signal)
+    def pump_output(reader, writer, pid, forward_signal)
+      decoder = UTF8StreamDecoder.new
       loop do
         forward_signal.call
+        synchronize_window_size(writer)
         next unless reader.wait_readable(0.2)
 
-        chunk = reader.readpartial(4096).force_encoding(Encoding::UTF_8).scrub
-        @output.write(chunk)
-        @output.flush
-        log_event('output', bytes: chunk.bytesize, text: chunk)
+        emit_output(decoder.decode(reader.readpartial(4096)))
       end
     rescue Errno::EIO, EOFError, PTY::ChildExited
+      emit_output(decoder.finish)
       wait_for_exit_code(pid)
+    rescue Errno::EPIPE
+      terminate_child(pid)
+      raise
+    end
+
+    def emit_output(chunk)
+      return if chunk.empty?
+
+      @output.write(chunk)
+      @output.flush
+      log_event('output', bytes: chunk.bytesize, text: chunk)
+    end
+
+    def synchronize_window_size(writer)
+      return unless @input.respond_to?(:winsize) && writer.respond_to?(:winsize=)
+
+      size = @input.winsize
+      return if size == @window_size
+      return unless valid_window_size?(size)
+
+      writer.winsize = size
+      @window_size = size
+    rescue IOError, SystemCallError
+      nil
+    end
+
+    def valid_window_size?(size)
+      size.is_a?(Array) && size.size == 2 && size.all? { |value| value.is_a?(Integer) && value.positive? }
+    end
+
+    def terminate_child(pid)
+      Process.kill('KILL', pid)
+      Process.wait(pid)
+    rescue Errno::ESRCH, Errno::ECHILD
+      nil
     end
 
     def wait_for_exit_code(pid)
@@ -159,4 +200,5 @@ module Rune
       @log.flush
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

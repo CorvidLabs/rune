@@ -23,15 +23,33 @@ there.
 |------|------|-------------|
 | `PTYWatcher` | class | Constructor: `(command, log: $stderr, input: $stdin, output: $stdout)`. Method: `#watch` returns `Result`. The library default is `$stderr`; `WatchCommand` (the CLI) always passes an explicit `File` instead — see below. |
 | `WatchCommand` | class | Subcommand `rune watch [--log=PATH] <command...>`. Defaults the NDJSON event log to a temp file (`$stdin.tty?` is checked before anything else, so no file is created if it fails), announcing the path once via `warn`; `--log=PATH` writes it to a specific file instead. Only recognized before a `--` separator, same convention as `RunCommand`'s `--timeout`. |
+| `Rune` | module | Top-level rune namespace. |
+| `watch` | instance method | Validates terminal support and runs one live watched session. |
+| `build_result` | internal method | Logs session exit and constructs the duration/exit-code result. |
+| `with_raw_input` | internal method | Enters raw terminal mode with a narrow non-TTY fallback. |
+| `pump_session` | internal method | Runs output pumping while an input-forwarding thread is active. |
+| `forward_input` | internal method | Starts the disposable thread that copies terminal bytes to the child. |
+| `pump_output` | internal method | Polls, decodes, displays, logs, and reaps child output. |
+| `emit_output` | internal method | Writes and logs one non-empty decoded output chunk. |
+| `synchronize_window_size` | internal method | Copies changed terminal dimensions onto the child PTY. |
+| `valid_window_size?` | internal predicate | Accepts two positive integer terminal dimensions. |
+| `terminate_child` | internal method | Kills and reaps a child after an output-sink failure. |
+| `wait_for_exit_code` | internal method | Reaps the child and normalizes exit or signal status. |
+| `log_event` | internal method | Writes and flushes one timestamped NDJSON event. |
+| `Commands` | module | Namespace containing CLI command implementations. |
+| `call` | instance method | Validates watch arguments, opens the log securely, and runs `PTYWatcher`. |
+| `human_render` | instance method | Prints watched-session exit, duration, and log location. |
+| `attach_log_path` | internal method | Rebuilds a successful result with the concrete log path. |
+| `open_log` | internal method | Opens an explicit append log or creates a private collision-safe temporary log. |
+| `extract_log` | internal method | Extracts a non-empty `--log=PATH` before the first separator. |
 
 ## Invariants
 1. Refuses to run (returns `Result.failure`) unless `input` is a real TTY — live passthrough
    requires an actual terminal to put into raw mode; there is no meaningful non-interactive mode.
 2. Refuses to run (returns `Result.failure`) if the `pty` stdlib is unavailable, same check and
    message class as `PTYRunner.pty_available?`.
-3. Every output chunk is force-encoded to UTF-8 and scrubbed of invalid byte sequences before being
-   written or logged, same as `PTYRunner` — a wrapped command emitting non-UTF-8 bytes does not
-   crash the session.
+3. Output is decoded incrementally as UTF-8 before being written or logged, same as `PTYRunner`.
+   Incomplete multi-byte suffixes are retained across reads; genuinely invalid bytes are scrubbed.
 4. The NDJSON event log emits, in order: one `start` event (`command`, `pid`), zero or more
    `output` events (`bytes`, `text`) as chunks arrive, and exactly one `exit` event (`exit_code`)
    when the child exits. Every event carries a `ts` (float Unix timestamp).
@@ -68,11 +86,21 @@ there.
     doesn't need to restate. The exact-seconds suffix is a comma, not parentheses, and only
     appears on the two coarser (minute/hour) forms — not on the sub-minute cases, where it would
     just repeat the same number twice.
+12. The controlling terminal's valid row/column size is copied to the child PTY initially and
+    whenever it changes during output polling.
+13. The default event log is created atomically by `Tempfile` with owner-only `0600` permissions;
+    it does not use a predictable PID/timestamp path or follow a pre-created symlink.
+14. If the display output raises `EPIPE`, the watched child is killed and reaped before the error is
+    returned as a structured failure.
+15. Array commands are passed to `PTY.spawn` as distinct argv entries. The spawned PID therefore
+    belongs to the wrapped target rather than an intermediary shell, so output-sink cleanup,
+    signal forwarding, and reaping act on the correct process. The structured `command` field
+    remains a shell-escaped display string; explicit string commands retain shell semantics.
 
 ## Behavioral Examples
 - `rune watch -- ruby examples/demo_tui.rb` puts your terminal in raw mode, runs the demo TUI
   interactively exactly as if you'd run it directly, prints
-  `[rune watch] live event log: /tmp/rune-watch-<pid>-<ts>.ndjson` once via `warn`, and writes an
+  `[rune watch] live event log: /tmp/rune-watch-<unique>.ndjson` once via `warn`, and writes an
   NDJSON event per output chunk to that file — `tail -f` it from another pane to watch live.
   Deliberately *not* stderr by default: stderr shares the human's terminal with the live
   passthrough, interleaving JSON noise into an otherwise-clean interactive session (this was the
@@ -94,11 +122,13 @@ there.
 | No command argument | Returns `Result.failure("No command specified...")` |
 | `--log=` given with no value | Returns `Result.failure("--log requires a path...")` instead of silently smuggling the raw `--log=` token into the wrapped command's argv |
 | Wrapped command missing/non-executable | `Result` still succeeds (mirrors `PTYRunner`): `data[:exit_code]` is `127`/`126`, same convention as `rune run`, instead of collapsing to a generic failure |
+| Output sink closes with `EPIPE` | Kills and reaps the child, then returns a structured watcher failure |
 
 ## Dependencies
 - Ruby stdlib: `pty`, `io/console` (required unconditionally, rescued on `LoadError` the same way
   `pty_runner.rb` rescues `pty` — expected almost everywhere but not guaranteed on every platform),
-  `io/wait` (required explicitly for `IO#wait_readable`, same reasoning as `pty_runner.rb`), `json`
+  `io/wait` (required explicitly for `IO#wait_readable`, same reasoning as `pty_runner.rb`),
+  `json`, `tempfile`, `tmpdir`
 
 ## Change Log
 - v1: Active spec — initial `rune watch` / `PTYWatcher` contract
@@ -112,3 +142,6 @@ there.
   inside an already-running session (which previously could silently re-run the whole session a
   second time); switched `duration_ms` to a monotonic clock, matching `PTYRunner`; and added the
   missing/non-executable-command exit-code parity and empty-`--log=` error cases above.
+- v1: Added incremental UTF-8 decoding, terminal-size synchronization, secure default log creation,
+  explicit child cleanup after output `EPIPE`, and direct argv spawning for reliable process
+  ownership.

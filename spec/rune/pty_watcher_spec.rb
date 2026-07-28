@@ -23,6 +23,10 @@ class SuccessfullyEntersRawMode < SimpleDelegator
   def raw(&block) = block.call
 end
 
+class SizedFakeTerminal < FakeTerminal
+  def winsize = [41, 101]
+end
+
 RSpec.describe Rune::PTYWatcher do
   def fake_writer(buffer)
     Object.new.tap do |o|
@@ -296,6 +300,64 @@ RSpec.describe Rune::PTYWatcher do
       log_w.close
 
       expect(result).to be_success
+    end
+
+    it "copies the real terminal's window size to the child PTY" do
+      output = +''
+      ruby_code = "require 'io/console'; sleep 0.2; puts $stdout.winsize.inspect"
+      result = File.open(File::NULL, 'w') do |log|
+        watcher = described_class.new(
+          ['ruby', '-e', ruby_code],
+          log: log,
+          input: SizedFakeTerminal.new(IO.pipe.first),
+          output: fake_writer(output)
+        )
+        watcher.watch
+      end
+
+      expect(result).to be_success
+      expect(output).to include('[41, 101]')
+    end
+
+    it 'kills and reaps the child if the output sink closes with EPIPE' do
+      Dir.mktmpdir do |dir|
+        pid_file = File.join(dir, 'pid')
+        ready_marker = 'rune-epipe-child-started-after-pid-write'
+        observed_output = +''
+        broken_output = Object.new
+        broken_output.define_singleton_method(:write) do |chunk|
+          observed_output << chunk
+          raise Errno::EPIPE, 'closed output' if observed_output.include?(ready_marker)
+
+          chunk.bytesize
+        end
+        broken_output.define_singleton_method(:flush) { nil }
+        ruby_code = "$stdout.sync = true; warn 'already initialized'; " \
+                    "File.write(#{pid_file.inspect}, Process.pid); " \
+                    "puts #{ready_marker.inspect}; sleep 10"
+        expect(PTY).to receive(:spawn).with(
+          { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' },
+          'ruby',
+          '-e',
+          ruby_code
+        ).and_call_original
+        result = File.open(File::NULL, 'w') do |log|
+          watcher = described_class.new(
+            ['ruby', '-e', ruby_code],
+            log: log,
+            input: FakeTerminal.new(IO.pipe.first),
+            output: broken_output
+          )
+          watcher.watch
+        end
+        expect(File).to exist(pid_file)
+
+        child_pid = File.read(pid_file).to_i
+
+        expect(result).to be_failure
+        expect(result.error).to include('Broken pipe')
+        expect { Process.kill(0, child_pid) }.to raise_error(Errno::ESRCH)
+      end
     end
   end
 end

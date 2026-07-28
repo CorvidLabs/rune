@@ -6,9 +6,9 @@ module Rune
 
     attr_reader :steps
 
-    def initialize(&)
+    def initialize(&block)
       @steps = []
-      instance_eval(&) if block_given?
+      instance_eval(&block) if block
     end
 
     def wait_for(pattern)
@@ -24,7 +24,7 @@ module Rune
     end
 
     class << self
-      def define(&) = new(&)
+      def define(&block) = new(&block)
     end
   end
 end

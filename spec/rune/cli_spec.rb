@@ -58,7 +58,9 @@ RSpec.describe Rune::CLI do
     class SpecOnlyBoomCommand < Rune::Command # rubocop:disable Lint/ConstantDefinitionInBlock
       name 'spec-only-boom'
 
-      def call(_args, _options) = raise 'kaboom'
+      def call(_args, _options)
+        raise 'kaboom'
+      end
     end
 
     it 'is caught and turned into a structured failure instead of crashing the CLI' do
@@ -101,6 +103,26 @@ RSpec.describe Rune::CLI do
         described_class.run(['version', '--json'], io: io)
       end.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
       expect(JSON.parse(io.string, symbolize_names: true)[:data][:version]).to eq(Rune::VERSION)
+    end
+  end
+
+  describe 'global output flags' do
+    it 'preserves --json after the separator for the wrapped command' do
+      output = JSON.parse(
+        capture_cli('run', '--', 'ruby', '-e', 'puts ARGV.inspect', '--', '--json'),
+        symbolize_names: true
+      )
+
+      expect(output[:data][:clean_output]).to include('["--json"]')
+    end
+
+    it 'preserves --ndjson after the separator for the wrapped command' do
+      output = JSON.parse(
+        capture_cli('run', '--', 'ruby', '-e', 'puts ARGV.inspect', '--', '--ndjson'),
+        symbolize_names: true
+      )
+
+      expect(output[:data][:clean_output]).to include('["--ndjson"]')
     end
   end
 end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'tmpdir'
+require 'tempfile'
 require_relative '../pty_watcher'
 
 module Rune
@@ -24,9 +25,8 @@ module Rune
         # path once, up front, so a human (tail -f it from another pane) or
         # an agent knows where to watch. `--log=/dev/stderr` still works if
         # stderr is genuinely wanted (e.g. a wrapping process capturing it).
-        log_path ||= default_log_path
+        log_path, log = open_log(log_path)
         warn "[rune watch] live event log: #{log_path}"
-        log = File.open(log_path, 'a') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
         begin
           result = PTYWatcher.new(clean_args, log: log).watch
         ensure
@@ -77,8 +77,16 @@ module Rune
         Result.success(result.data.merge(log_path: log_path), exit_code: result.exit_code)
       end
 
-      def default_log_path
-        File.join(Dir.tmpdir, "rune-watch-#{Process.pid}-#{Time.now.to_i}.ndjson")
+      def open_log(log_path)
+        if log_path
+          log = File.open( # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+            log_path, File::WRONLY | File::CREAT | File::APPEND, 0o600
+          )
+          return [log_path, log]
+        end
+
+        log = Tempfile.create(['rune-watch-', '.ndjson'], Dir.tmpdir)
+        [log.path, log]
       end
 
       # --log=PATH: write the NDJSON event stream to a specific file instead

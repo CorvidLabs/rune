@@ -20,6 +20,24 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | `KeyValueParser` | class | Class method `.parse(text)` converts key-value text lines (`key: val`) into typed hashes. |
 | `TextSanitizer` | class | Class method `.strip_ansi(text)` strips ANSI escape codes and normalizes line endings. |
 | `PromptDetector` | class | Class method `.detect?(line)` reports whether a single line of (possibly ANSI-colored) output looks like an interactive prompt awaiting input — used by `PTYRunner`/`PTYWatcher` to set `prompt_detected` in their results. |
+| `Rune` | module | Top-level rune namespace. |
+| `Parsers` | module | Namespace for terminal-output parsing helpers. |
+| `parse` | class method | Parses the supplied text using the parser's documented format contract. |
+| `parse_pipe_table` | internal method | Builds rows from pipe-delimited headers and cells. |
+| `parse_space_table` | internal method | Builds rows from aligned whitespace-delimited columns. |
+| `find_headers_and_spans` | internal method | Derives normalized headers and source-column spans. |
+| `multi_space_spans` | internal method | Computes spans for headers separated by two or more spaces. |
+| `single_space_spans` | internal method | Computes fallback spans from individual non-space tokens. |
+| `set_span_ends` | internal method | Completes each detected column span using the following start offset. |
+| `extract_values` | internal method | Selects split-based or span-based value extraction for a row. |
+| `extract_by_spans` | internal method | Slices row values according to detected header positions. |
+| `normalize_header` | internal method | Converts a header to a lowercase underscored symbol. |
+| `build_row` | internal method | Zips normalized headers with values, filling missing cells with empty strings. |
+| `strip_ansi` | class method | Removes supported ANSI sequences and normalizes CRLF/CR line endings. |
+| `ANSI_REGEX` | constant | Escape-sequence pattern removed by `TextSanitizer`. |
+| `detect?` | class method | Reports whether a cleaned line resembles a supported interactive prompt. |
+| `PROMPT_PATTERNS` | constant | Positive prompt-detection patterns. |
+| `FALSE_POSITIVES` | constant | Exclusions applied before positive prompt matching. |
 
 ## Invariants
 1. `TableParser.parse` converts header titles to lowercase underscored symbols.

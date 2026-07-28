@@ -19,7 +19,7 @@ module Rune
       end
 
       def run(argv = ARGV, io: $stdout)
-        new(io:).run(argv)
+        new(io: io).run(argv)
       end
     end
 
@@ -31,8 +31,7 @@ module Rune
 
     def run(argv)
       args = argv.dup
-      @json_mode = args.delete('--json') ? true : false
-      @ndjson_mode = args.delete('--ndjson') ? true : false
+      args = extract_output_modes(args)
 
       command_name = resolve_command_name(args.shift)
       result = command_name == 'help' ? show_help : run_command(command_name, args)
@@ -42,6 +41,15 @@ module Rune
     end
 
     private
+
+    def extract_output_modes(args)
+      separator_index = args.index('--')
+      head = separator_index ? args[0...separator_index] : args
+      tail = separator_index ? args[separator_index..] : []
+      @json_mode = head.delete('--json') ? true : false
+      @ndjson_mode = head.delete('--ndjson') ? true : false
+      head + tail
+    end
 
     def resolve_command_name(name)
       return 'help' if name.nil? || name == 'help'

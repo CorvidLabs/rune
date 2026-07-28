@@ -35,7 +35,7 @@ def capture_cli(*argv, json: false, io: StringIO.new)
   args = argv.flatten
   args << '--json' if json
   begin
-    Rune::CLI.new(io:).run(args)
+    Rune::CLI.new(io: io).run(args)
   rescue SystemExit
     # expected — CLI calls exit
   end

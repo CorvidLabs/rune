@@ -18,6 +18,7 @@
 require_relative '../lib/rune'
 require 'json'
 require 'open3'
+require 'pty'
 require 'rbconfig'
 require 'stringio'
 require 'tmpdir'
@@ -60,15 +61,28 @@ end
 # Runs `ruby bin/rune <args>`, returns [stdout, exit_status]. Shells out to a
 # real subprocess (rather than calling Rune::CLI in-process) so this exercises
 # the exact same process-exit-code path a real caller would see.
-def run_cli(*)
-  out, status = Open3.capture2(RbConfig.ruby, RUNE_BIN, *)
+def run_cli(*args)
+  out, status = Open3.capture2(RbConfig.ruby, RUNE_BIN, *args)
   [out, status.exitstatus]
+end
+
+def run_cli_tty(*args)
+  output = +''
+  status = nil
+  PTY.spawn(RbConfig.ruby, RUNE_BIN, *args) do |reader, _writer, pid|
+    loop { output << reader.readpartial(4096) }
+  rescue Errno::EIO, EOFError, PTY::ChildExited
+    _, status = Process.wait2(pid)
+  end
+  [output, status&.exitstatus]
 end
 
 section('rune version — output modes') do
   check('human mode prints a version line') do
-    out, = run_cli('version')
+    out, status = run_cli_tty('version')
     assert(out.include?(Rune::VERSION), "expected version #{Rune::VERSION} in #{out.inspect}")
+    assert(out.include?('Ruby') && !out.include?('"status"'), "expected human TTY output, got #{out.inspect}")
+    assert(status&.zero?, "expected exit 0, got #{status.inspect}")
   end
 
   check('--json emits the {"status":"ok",...} envelope') do
@@ -146,6 +160,14 @@ section('rune run — argv passthrough') do
     data = JSON.parse(out)['data']
     assert(data['command'].include?('-- foo'), data.inspect)
     assert(data['clean_output'].include?("--\nfoo"), data.inspect)
+  end
+
+  check('--json and --ndjson after rune\'s -- separator reach the wrapped command') do
+    out, = run_cli(
+      'run', '--json', '--', 'ruby', '-e', 'puts ARGV.inspect', '--', '--json', '--ndjson'
+    )
+    data = JSON.parse(out)['data']
+    assert(data['clean_output'].include?('["--json", "--ndjson"]'), data.inspect)
   end
 end
 
