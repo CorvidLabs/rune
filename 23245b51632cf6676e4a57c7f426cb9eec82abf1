@@ -1,0 +1,1 @@
+{"commit":"23245b51632cf6676e4a57c7f426cb9eec82abf1","confidence":0.96,"humanApproved":false,"note":"Direct PTY argv and Ruby 3.0 compatibility verified by targeted specs, full 160-example lane, 30 smoke checks, strict specs, and trust gate","reviewer":"agent:codex","testsPassed":true,"timestamp":1785249551,"verdict":"proceed"}
