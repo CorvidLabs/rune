@@ -323,7 +323,11 @@ RSpec.describe Rune::PTYWatcher do
       Dir.mktmpdir do |dir|
         pid_file = File.join(dir, 'pid')
         broken_output = Object.new
-        broken_output.define_singleton_method(:write) { |_chunk| raise Errno::EPIPE, 'closed output' }
+        broken_output.define_singleton_method(:write) do |chunk|
+          raise Errno::EPIPE, 'closed output' if chunk.include?('ready')
+
+          chunk.bytesize
+        end
         broken_output.define_singleton_method(:flush) { nil }
         ruby_code = "File.write(#{pid_file.inspect}, Process.pid); puts 'ready'; sleep 10"
         result = File.open(File::NULL, 'w') do |log|
@@ -335,6 +339,8 @@ RSpec.describe Rune::PTYWatcher do
           )
           watcher.watch
         end
+        expect(File).to exist(pid_file)
+
         child_pid = File.read(pid_file).to_i
 
         expect(result).to be_failure
