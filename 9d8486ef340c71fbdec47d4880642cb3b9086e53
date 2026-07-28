@@ -1,0 +1,1 @@
+{"commit":"9d8486ef340c71fbdec47d4880642cb3b9086e53","confidence":0.97,"humanApproved":false,"note":"Ruby 4 CI stabilization verified by collision regression, workflow parse, full 160-example lane, strict specs, and trust gate","reviewer":"agent:codex","testsPassed":true,"timestamp":1785251353,"verdict":"proceed"}
