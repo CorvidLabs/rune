@@ -1,0 +1,1 @@
+{"commit":"1f264bbf419cfbb4ce918a4952a276cc89f9b305","confidence":0.95,"humanApproved":false,"note":"CI race fix verified by targeted spec, full 160-example lane, lint, strict specs, and trust gate","reviewer":"agent:codex","testsPassed":true,"timestamp":1785248748,"verdict":"proceed"}
