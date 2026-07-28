@@ -61,8 +61,8 @@ end
 # Runs `ruby bin/rune <args>`, returns [stdout, exit_status]. Shells out to a
 # real subprocess (rather than calling Rune::CLI in-process) so this exercises
 # the exact same process-exit-code path a real caller would see.
-def run_cli(*)
-  out, status = Open3.capture2(RbConfig.ruby, RUNE_BIN, *)
+def run_cli(*args)
+  out, status = Open3.capture2(RbConfig.ruby, RUNE_BIN, *args)
   [out, status.exitstatus]
 end
 

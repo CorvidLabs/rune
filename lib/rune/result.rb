@@ -14,8 +14,11 @@ module Rune
     def success? = status == :ok
     def failure? = status == :error
 
-    def self.success(data, exit_code: nil) = new(status: :ok, data:, exit_code:)
-    def self.failure(error, data: nil, exit_code: nil) = new(status: :error, data:, error:, exit_code:)
+    def self.success(data, exit_code: nil) = new(status: :ok, data: data, exit_code: exit_code)
+
+    def self.failure(error, data: nil, exit_code: nil)
+      new(status: :error, data: data, error: error, exit_code: exit_code)
+    end
 
     def to_h
       h = { status: status.to_s }

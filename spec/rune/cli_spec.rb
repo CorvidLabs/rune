@@ -58,7 +58,9 @@ RSpec.describe Rune::CLI do
     class SpecOnlyBoomCommand < Rune::Command # rubocop:disable Lint/ConstantDefinitionInBlock
       name 'spec-only-boom'
 
-      def call(_args, _options) = raise 'kaboom'
+      def call(_args, _options)
+        raise 'kaboom'
+      end
     end
 
     it 'is caught and turned into a structured failure instead of crashing the CLI' do

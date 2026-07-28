@@ -42,6 +42,7 @@ module Rune
 
     def initialize(command, input: nil, script: nil, timeout_seconds: 30, &on_output)
       @command = command.is_a?(Array) ? Shellwords.join(command) : command.to_s
+      @spawn_arguments = command.is_a?(Array) ? command.map(&:to_s) : [@command]
       @input = input
       @script = script
       @timeout_seconds = timeout_seconds
@@ -100,7 +101,7 @@ module Rune
       prompt_detected = false
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
-      PTY.spawn(env, command) do |r, w, pid|
+      PTY.spawn(env, *@spawn_arguments) do |r, w, pid|
         on_pid&.call(pid)
         SignalHandler.with_traps(pid) do |forward_signal|
           write_input(w, input) if input

@@ -92,6 +92,10 @@ there.
     it does not use a predictable PID/timestamp path or follow a pre-created symlink.
 14. If the display output raises `EPIPE`, the watched child is killed and reaped before the error is
     returned as a structured failure.
+15. Array commands are passed to `PTY.spawn` as distinct argv entries. The spawned PID therefore
+    belongs to the wrapped target rather than an intermediary shell, so output-sink cleanup,
+    signal forwarding, and reaping act on the correct process. The structured `command` field
+    remains a shell-escaped display string; explicit string commands retain shell semantics.
 
 ## Behavioral Examples
 - `rune watch -- ruby examples/demo_tui.rb` puts your terminal in raw mode, runs the demo TUI
@@ -139,4 +143,5 @@ there.
   second time); switched `duration_ms` to a monotonic clock, matching `PTYRunner`; and added the
   missing/non-executable-command exit-code parity and empty-`--log=` error cases above.
 - v1: Added incremental UTF-8 decoding, terminal-size synchronization, secure default log creation,
-  and explicit child cleanup after output `EPIPE`.
+  explicit child cleanup after output `EPIPE`, and direct argv spawning for reliable process
+  ownership.

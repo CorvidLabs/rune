@@ -330,6 +330,12 @@ RSpec.describe Rune::PTYWatcher do
         end
         broken_output.define_singleton_method(:flush) { nil }
         ruby_code = "File.write(#{pid_file.inspect}, Process.pid); puts 'ready'; sleep 10"
+        expect(PTY).to receive(:spawn).with(
+          { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' },
+          'ruby',
+          '-e',
+          ruby_code
+        ).and_call_original
         result = File.open(File::NULL, 'w') do |log|
           watcher = described_class.new(
             ['ruby', '-e', ruby_code],

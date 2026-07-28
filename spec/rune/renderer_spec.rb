@@ -6,7 +6,7 @@ RSpec.describe Rune::Renderer do
   let(:io) { StringIO.new }
 
   describe 'agent mode (JSON)' do
-    subject(:renderer) { described_class.new(io:, json_mode: true) }
+    subject(:renderer) { described_class.new(io: io, json_mode: true) }
 
     it 'outputs JSON for success results' do
       result = Rune::Result.success({ name: 'rune' })
@@ -30,7 +30,7 @@ RSpec.describe Rune::Renderer do
   end
 
   describe 'ndjson mode (streaming JSON lines)' do
-    subject(:renderer) { described_class.new(io:, ndjson_mode: true) }
+    subject(:renderer) { described_class.new(io: io, ndjson_mode: true) }
 
     it 'outputs NDJSON event lines' do
       result = Rune::Result.success({ status: 'active' })

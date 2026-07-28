@@ -41,6 +41,7 @@ module Rune
   class PTYWatcher
     def initialize(command, log: $stderr, input: $stdin, output: $stdout)
       @command = command.is_a?(Array) ? Shellwords.join(command) : command.to_s
+      @spawn_arguments = command.is_a?(Array) ? command.map(&:to_s) : [@command]
       @log = log
       @input = input
       @output = output
@@ -63,7 +64,7 @@ module Rune
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
-      PTY.spawn(env, @command) do |r, w, pid|
+      PTY.spawn(env, *@spawn_arguments) do |r, w, pid|
         SignalHandler.with_traps(pid) do |forward_signal|
           synchronize_window_size(w)
           log_event('start', command: @command, pid: pid)

@@ -33,7 +33,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `process_script_steps` | internal method | Advances ready `wait_for`, `send_keys`, and `pause` steps. |
 | `PTY_LOAD_ERROR` | constant | Captured `LoadError` when PTY support is unavailable. |
 | `PTY_ALLOCATION_ERRORS` | constant | OS errors treated as rune-level PTY allocation failures. |
-| `command` | reader | Shell-escaped command string that will be executed. |
+| `command` | reader | Shell-escaped display string. Array commands retain their original argv separately for direct execution. |
 | `input` | reader | Optional eager input written after spawn. |
 | `script` | reader | Optional interactive `Script`. |
 | `timeout_seconds` | reader | Maximum execution duration. |
@@ -94,6 +94,10 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
     abandoned — `Timeout.timeout` only interrupts rune's own Ruby control flow, so without this the
     wrapped process kept running as an orphan after `rune run` had already reported exit code 124
     (found via a real `ps aux` check after `rune run --timeout=1 -- sleep 30`).
+13. Array commands are passed to `PTY.spawn` as distinct argv entries instead of being collapsed
+    into a shell command string. This keeps the spawned PID attached to the actual target process
+    for signal, timeout, and cleanup handling while `command` remains the shell-escaped display
+    value returned in structured results. String commands retain their explicit shell semantics.
 
 ## Behavioral Examples
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.

@@ -19,7 +19,7 @@ module Rune
       end
 
       def run(argv = ARGV, io: $stdout)
-        new(io:).run(argv)
+        new(io: io).run(argv)
       end
     end
 
