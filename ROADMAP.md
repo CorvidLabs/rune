@@ -1,4 +1,18 @@
-# rune 0.2.0 milestone
+# rune release roadmap
+
+## 0.2.1 release prep
+
+`v0.2.0` shipped on 2026-07-27. The follow-up `v0.2.1` patch packages the PTY, UTF-8, watch-log,
+Ruby compatibility, documentation, and trust-gate fixes already merged to `main`.
+
+- [x] Synchronize `Rune::VERSION` and `plugin.toml` at `0.2.1`.
+- [x] Add an automated version/tag parity check to local verification, CI, and package publishing.
+- [x] Require strict Attest verification from the previous tag through the release tag.
+- [x] Add a release lane covering version parity, lint, tests, spec-sync, smoke tests, and gem build.
+- [ ] Merge the release-prep PR after its CI and review gates pass.
+- [ ] Attest the resulting commit on `main`, verify `v0.2.0..HEAD`, then create and publish `v0.2.1`.
+
+## 0.2.0 release record
 
 Tracking issue for the next `rune` release. Scope was originally deliberately narrow: harden the
 PTY runner and parser APIs that shipped in 0.1.x, close the documentation gap, and keep the
@@ -171,7 +185,7 @@ passthrough), not scope creep.
       SimpleCov can't see inside, real raw-terminal-mode ioctls (same class of limitation as the
       Ctrl+C verification above — needs an actual controlling terminal), and a couple of
       `Errno::ECHILD`/`PTY::ChildExited` process-reaping races.
-- [ ] **Trust toolchain verification** — Run and pass the full trust gate ahead of tagging 0.2.0:
+- [x] **Trust toolchain verification** — Ran and passed the full trust gate ahead of tagging 0.2.0:
       `fledge run test`, `fledge run lint`, `fledge run spec-check`, `fledge trust verify`. Treat
       an Augur `block` verdict or a failed Attest provenance check as a hard stop per `AGENTS.md`.
 
@@ -186,11 +200,11 @@ passthrough), not scope creep.
 
 ---
 
-# Release checklist
+# 0.2.0 release checklist
 
-Gates that must all be green before `rune` 0.2.0 is tagged and published:
+Historical gates completed before `rune` 0.2.0 was tagged and published:
 
-- [ ] **Stable API freeze** — `PTYRunner`, `PTYWatcher`, `TableParser`, `KeyValueParser`,
+- [x] **Stable API freeze** — `PTYRunner`, `PTYWatcher`, `TableParser`, `KeyValueParser`,
       `TextSanitizer`, `Result`, and the `rune run`/`rune version`/`rune watch` CLI surface are
       frozen for 0.2.0. Any further change before tagging requires updating the relevant
       `specs/*.spec.md` contract in the same change.

@@ -13,14 +13,20 @@ spec-check = "if command -v specsync >/dev/null 2>&1; then specsync check --forc
 trust = "fledge trust verify"
 clean = "rm -f *.gem"
 smoke-test = "ruby examples/smoke_test.rb"
+set-version = "ruby scripts/set_release_version.rb \"$1\""
+version-check = "ruby scripts/check_release_version.rb"
 
 [lanes.verify]
-description = "Full CI gate: lint, tests, and spec-sync."
-steps = ["fmt-check", "lint", "test", "spec-check"]
+description = "Full CI gate: version parity, lint, tests, and spec-sync."
+steps = ["version-check", "fmt-check", "lint", "test", "spec-check"]
 
 [lanes.check]
 description = "Fast quality check: lint + tests."
 steps = ["lint", "test"]
+
+[lanes.release]
+description = "Release gate: full verification, smoke tests, and gem build."
+steps = ["version-check", "fmt-check", "lint", "test", "spec-check", "smoke-test", "build"]
 
 [lanes.fix]
 description = "Auto-fix: format, then lint to show remaining issues."

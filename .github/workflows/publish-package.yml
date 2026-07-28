@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish
+        required: true
+        type: string
 permissions:
   contents: read
 
@@ -14,13 +19,36 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Fetch Attest Notes
+        run: git fetch origin refs/notes/attest:refs/notes/attest
+
+      - name: Resolve Release Range
+        id: release-range
+        run: |
+          previous_tag="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^")"
+          echo "range=${previous_tag}..${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Release Provenance
+        uses: CorvidLabs/attest@1.0.0
+        with:
+          policy: .attest.json
+          range: ${{ steps.release-range.outputs.range }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
+
+      - name: Verify Release Version
+        run: ruby scripts/check_release_version.rb "$RELEASE_TAG"
 
       - name: Build Gem Package
         run: gem build rune.gemspec
@@ -40,8 +68,28 @@ jobs:
     name: Publish to RubyGems.org
     runs-on: ubuntu-latest
     if: false # Enable by setting RUBYGEMS_AUTH_TOKEN secret in GitHub repository settings
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Fetch Attest Notes
+        run: git fetch origin refs/notes/attest:refs/notes/attest
+
+      - name: Resolve Release Range
+        id: rubygems-release-range
+        run: |
+          previous_tag="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^")"
+          echo "range=${previous_tag}..${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Release Provenance
+        uses: CorvidLabs/attest@1.0.0
+        with:
+          policy: .attest.json
+          range: ${{ steps.rubygems-release-range.outputs.range }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -57,5 +105,6 @@ jobs:
           chmod 0600 ~/.gem/credentials
           echo "---" > ~/.gem/credentials
           echo ":rubygems: ${GEM_HOST_API_KEY}" >> ~/.gem/credentials
+          ruby scripts/check_release_version.rb "$RELEASE_TAG"
           gem build rune.gemspec
           gem push *.gem
