@@ -6,6 +6,8 @@ files:
   - lib/rune/pty_runner.rb
   - lib/rune/commands/run_command.rb
   - lib/rune/script.rb
+  - lib/rune/signal_handler.rb
+  - lib/rune/utf8_stream_decoder.rb
 ---
 # PTY Runner
 
@@ -18,6 +20,42 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, script: nil, timeout_seconds: 30, &on_output)`. Method: `#run` returns `Result`. Class method: `.pty_available?` reports whether the `pty` stdlib loaded successfully. |
 | `RunCommand` | class | Subcommand `rune run [--timeout=SECONDS] <command...>` exposing PTY process runner to humans and agents. `--timeout` overrides the default 30s PTYRunner timeout; only recognized before a `--` separator; must be a positive integer or the command fails with a clear error instead of leaking the raw flag into the executed command. |
 | `Script` | class | Interactive step DSL passed to `PTYRunner.new(script:)`. Constructor: `Script.new(&block)` (or `Script.define(&block)`, an alias) evaluates the block via `instance_eval`, so DSL methods can be called bare inside it. DSL methods: `wait_for(pattern)`, `send_keys(keys)`, `pause(seconds)` — each appends a `Step` to `#steps` (read via `attr_reader`); no I/O happens until `PTYRunner#run` actually executes the steps against the live PTY. |
+| `Rune` | module | Top-level rune namespace. |
+| `pty_available?` | class predicate | Reports whether Ruby's PTY stdlib loaded successfully. |
+| `run` | instance method | Executes, captures, sanitizes, and returns one PTY-backed command result. |
+| `detect_prompt?` | instance predicate | Delegates prompt recognition to `PromptDetector`. |
+| `spawn_and_stream` | internal method | Spawns the PTY and coordinates input, output, signals, and child reaping. |
+| `kill_orphaned_child` | internal method | Kills and reaps a timed-out direct child. |
+| `wait_for_process` | internal method | Reaps the child and normalizes exit or signal status. |
+| `write_input` | internal method | Performs a bounded non-blocking PTY input write. |
+| `read_pty_stream` | internal method | Polls the PTY, incrementally decodes output, and drives script steps. |
+| `consume_output_chunk` | internal method | Appends one decoded chunk and updates prompt/script state. |
+| `process_script_steps` | internal method | Advances ready `wait_for`, `send_keys`, and `pause` steps. |
+| `PTY_LOAD_ERROR` | constant | Captured `LoadError` when PTY support is unavailable. |
+| `PTY_ALLOCATION_ERRORS` | constant | OS errors treated as rune-level PTY allocation failures. |
+| `command` | reader | Shell-escaped command string that will be executed. |
+| `input` | reader | Optional eager input written after spawn. |
+| `script` | reader | Optional interactive `Script`. |
+| `timeout_seconds` | reader | Maximum execution duration. |
+| `on_output` | reader | Optional decoded-output callback. |
+| `Commands` | module | Namespace containing CLI command implementations. |
+| `call` | instance method | Validates CLI arguments and delegates to `PTYRunner`. |
+| `human_render` | instance method | Prints a concise command summary and captured clean output. |
+| `parse_timeout_value` | internal method | Accepts positive integer seconds and rejects every other value. |
+| `wait_for` | DSL method | Appends an output-pattern wait step. |
+| `send_keys` | DSL method | Appends a PTY input step. |
+| `pause` | DSL method | Appends a timed delay step. |
+| `define` | class method | Constructs a `Script` from the DSL block. |
+| `Step` | data type | Immutable step record containing `type` and `payload`. |
+| `steps` | reader | Ordered script steps. |
+| `SignalHandler` | class | Temporarily traps and safely forwards INT/TERM to a child process. |
+| `with_traps` | class method | Installs traps for a block and yields a polling forward callable. |
+| `UTF8StreamDecoder` | class | Incrementally decodes chunks while retaining incomplete UTF-8 suffix bytes. |
+| `decode` | instance method | Returns complete scrubbed UTF-8 text and buffers any incomplete suffix. |
+| `finish` | instance method | Flushes a final incomplete suffix using replacement-character semantics. |
+| `sequence_length` | internal method | Maps a valid leading byte to its UTF-8 sequence length. |
+| `continuation_bytes?` | internal predicate | Validates that bytes are UTF-8 continuation bytes. |
+| `scrub` | internal method | Force-encodes bytes as UTF-8 and replaces invalid sequences. |
 
 ## Invariants
 1. Executed commands run inside a PTY session so TTY-dependent CLIs behave naturally.
@@ -40,10 +78,11 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
    raised by exec'ing the *target* command, which remain ordinary exit codes (127/126) in
    `data[:exit_code]` on a successful `Result`, since those describe the wrapped command, not rune's
    own environment.
-9. Raw PTY output is force-encoded to UTF-8 and scrubbed of invalid byte sequences as soon as it's
-   read, before any regex runs against it (prompt detection, ANSI stripping, script `wait_for`). A
-   wrapped command emitting non-UTF-8 bytes (found via real dogfooding: `swift test`'s output could
-   trigger it) does not crash `rune run` with `Encoding::CompatibilityError`.
+9. Raw PTY output is decoded incrementally as UTF-8 before any regex runs against it (prompt
+   detection, ANSI stripping, script `wait_for`). An incomplete multi-byte suffix is retained for
+   the next read instead of being corrupted at a chunk boundary; genuinely invalid or final
+   incomplete sequences are scrubbed. A wrapped command emitting non-UTF-8 bytes does not crash
+   `rune run` with `Encoding::CompatibilityError`.
 10. Only rune's own leading `--` separator is stripped from the wrapped command's argv — any
     further `--` tokens the wrapped command uses itself (cargo, npm, git, and others use `--` to
     separate their own flags from pass-through args, e.g. `cargo clippy --tests -- -D warnings`)
@@ -77,6 +116,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `pty` stdlib failed to load | `PTYRunner#run` returns `Result.failure("PTY unavailable: ...")` |
 | OS refuses pty allocation at runtime (sandbox/container/exhaustion) | `PTYRunner#run` returns `Result.failure("PTY allocation failed at runtime: ...")` |
 | Wrapped command emits bytes that are not valid UTF-8 | Bytes are force-encoded + scrubbed; `Result` still succeeds, no `Encoding::CompatibilityError` |
+| A valid UTF-8 character is split across reads | The incomplete suffix is buffered and combined with the following chunk without replacement corruption |
 
 ## Dependencies
 - Ruby stdlib: `pty`, `timeout`, `io/wait` (required explicitly — `IO#wait_readable` isn't
@@ -88,3 +128,4 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
   despite being public since `PTYRunner`'s `script:` constructor option shipped); documented the
   explicit `io/wait` require and the timeout-triggered SIGKILL/reap fix for orphaned child
   processes.
+- v1: Added boundary-safe incremental UTF-8 decoding shared by `PTYRunner` and `PTYWatcher`.

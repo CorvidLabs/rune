@@ -23,6 +23,7 @@ require 'io/wait'
 require_relative 'parsers/text_sanitizer'
 require_relative 'parsers/prompt_detector'
 require_relative 'signal_handler'
+require_relative 'utf8_stream_decoder'
 
 module Rune
   # rubocop:disable Metrics/ClassLength -- grew past the limit from the timeout-kill and io/wait
@@ -146,23 +147,31 @@ module Rune
     def read_pty_stream(reader, writer, output_buffer, forward_signal)
       prompt_found = false
       script_step_index = 0
+      decoder = UTF8StreamDecoder.new
       loop do
         forward_signal.call
         next unless reader.wait_readable(0.2)
 
-        # Raw PTY reads aren't reliably tagged as valid UTF-8 (wrapped tools can
-        # emit binary-ish bytes or bytes Ruby reads back as ASCII-8BIT), and
-        # every downstream regex (prompt detection, ANSI stripping, script
-        # wait_for) is UTF-8. Force + scrub once, at the source, rather than
-        # risk an Encoding::CompatibilityError deep in a regex match later.
-        chunk = reader.readpartial(4096).force_encoding(Encoding::UTF_8).scrub
-        output_buffer << chunk
-        on_output&.call(chunk)
-        prompt_found ||= chunk.split("\n").any? { |line| detect_prompt?(line) }
-        script_step_index = process_script_steps(script_step_index, output_buffer, writer) if script
+        chunk = decoder.decode(reader.readpartial(4096))
+        prompt_found, script_step_index = consume_output_chunk(
+          chunk, output_buffer, writer, prompt_found, script_step_index
+        )
       end
     rescue Errno::EIO, EOFError, PTY::ChildExited, Errno::EPIPE
+      prompt_found, = consume_output_chunk(
+        decoder.finish, output_buffer, writer, prompt_found, script_step_index
+      )
       prompt_found
+    end
+
+    def consume_output_chunk(chunk, output_buffer, writer, prompt_found, script_step_index)
+      return [prompt_found, script_step_index] if chunk.empty?
+
+      output_buffer << chunk
+      on_output&.call(chunk)
+      prompt_found ||= chunk.split("\n").any? { |line| detect_prompt?(line) }
+      script_step_index = process_script_steps(script_step_index, output_buffer, writer) if script
+      [prompt_found, script_step_index]
     end
 
     def process_script_steps(current_index, buffer, writer)

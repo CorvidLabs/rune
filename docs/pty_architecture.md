@@ -132,6 +132,15 @@ The `entered` flag matters: once raw mode is genuinely engaged, an unrelated exc
 
 Unlike `PTYRunner`'s single read loop, `PTYWatcher` runs two things concurrently: a background thread forwards the human's real keystrokes into the child's PTY as they arrive (`forward_input`), while the main thread polls the child's output and streams it to the screen immediately (`pump_output`), rather than accumulating it into a buffer returned only at the end.
 
+Both paths decode with `UTF8StreamDecoder`, which retains an incomplete UTF-8 suffix between
+`readpartial` calls. A valid multi-byte character is therefore preserved even when the kernel
+splits it across chunks; genuinely invalid or final incomplete sequences still become replacement
+characters.
+
+`PTYWatcher` also mirrors the controlling terminal's current row/column size onto the child PTY.
+It rechecks during the output poll loop, so a resized terminal reaches the child without unsafe
+work inside a signal trap.
+
 ```
 +------------------+   keystrokes    +------------------+   output    +-------------------+
 |  Human terminal  | --------------> |  PTYWatcher       | ----------> |  Real terminal      |
@@ -141,7 +150,9 @@ Unlike `PTYRunner`'s single read loop, `PTYWatcher` runs two things concurrently
 
 ### NDJSON event log
 
-Every chunk that reaches the screen is also written as an NDJSON event to a log file (an announced temp file by default, or `--log=PATH`), so an AI agent can `tail -f` the session live without any JSON noise landing in the human's own terminal:
+Every chunk that reaches the screen is also written as an NDJSON event to a log file (an announced,
+collision-safe `0600` temp file by default, or `--log=PATH`), so an AI agent can `tail -f` the
+session live without any JSON noise landing in the human's own terminal:
 
 ```json
 {"event":"start","command":"...","pid":12345}
@@ -150,6 +161,9 @@ Every chunk that reaches the screen is also written as an NDJSON event to a log 
 ```
 
 Deliberately not stderr by default: stderr shares the human's terminal with the live passthrough, and real usage immediately showed that interleaving JSON into an interactive session made it unreadable.
+
+If the output sink closes with `EPIPE`, `PTYWatcher` kills and reaps the child before returning a
+structured failure, preventing a detached interactive process from surviving the watcher.
 
 ---
 
@@ -172,7 +186,7 @@ Both `PTYRunner` and `PTYWatcher` standardize Unix exit codes across edge cases:
 `rune` combines:
 1. `PTY.spawn` for real terminal emulation.
 2. `readpartial` for zero-deadlock stream reading.
-3. `TextSanitizer` for clean agent JSON.
+3. `UTF8StreamDecoder` plus `TextSanitizer` for boundary-safe, clean agent JSON.
 4. `PromptDetector` for smart interactivity checks.
 5. `Script` DSL for step-by-step automated input.
 6. `PTYWatcher` + `io/console` raw mode for live, bidirectional human-driven sessions with an agent-tailable NDJSON log.

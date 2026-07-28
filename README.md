@@ -4,7 +4,9 @@ A Ruby CLI tool and library designed from the ground up to be **human & AI agent
 
 `rune` serves as a universal pseudo-terminal (PTY) runner and structured data bridge for any CLI command or interactive TUI application.
 
-Every command produces formatted, colored terminal output for humans — and structured JSON or live streaming NDJSON for AI agents. Same tool, same commands, dual interface.
+Every command produces formatted, colored terminal output for humans and structured JSON for AI
+agents. `rune watch` additionally writes a live NDJSON event stream while the human drives the
+session. Same tool, same commands, dual interface.
 
 📖 New here? Start with the **[Getting Started guide](docs/getting_started.md)**.
 
@@ -15,7 +17,7 @@ Every command produces formatted, colored terminal output for humans — and str
 1. **Dual Output (Human TTY / Agent JSON & NDJSON)**
    - Terminal mode: formatted colored output (`rune version`)
    - Agent JSON mode: `--json` or automatic pipe detection (`rune version | cat`)
-   - Agent Streaming mode: `--ndjson` for live event streams (`rune version --ndjson`)
+   - Agent NDJSON mode: `--ndjson` for a consistent result envelope (`rune version --ndjson`)
 2. **Universal PTY Process Runner (`rune run`)**
    - Spawns any CLI tool or TUI inside a pseudo-terminal session
    - Strips ANSI escape codes, cursor movements, and control sequences automatically
@@ -70,13 +72,16 @@ rune run --json git status
 }
 ```
 
-### 2. Live NDJSON Streaming Mode
+### 2. NDJSON Result Envelope
 ```sh
 rune run --ndjson fledge lanes run check
 ```
 ```json
 {"event":"result","status":"ok","data":{"command":"fledge lanes run check","exit_code":0,"clean_output":"...","duration_ms":1652.8}}
 ```
+
+`rune run --ndjson` emits that single envelope when the command finishes. Use `rune watch` for a
+live stream of output events.
 
 ### 3. Parse Tabular CLI Output to Hashes
 ```ruby
@@ -143,9 +148,9 @@ rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
 ## Development & Verification
 
 ```sh
-fledge run test         # Run RSpec test suite (153 examples, 98%+ line coverage)
+fledge run test         # Run RSpec test suite (160 examples, 98%+ line coverage)
 fledge run lint         # Run RuboCop linter (0 offenses)
-fledge lanes run verify # Full CI gate (lint + tests + spec-sync)
+fledge lanes run verify # Full CI gate (lint + tests + strict 100%-coverage spec-sync)
 fledge run smoke-test   # Runnable, assertion-based tour of real behavior (examples/smoke_test.rb)
 COVERAGE=1 bundle exec rspec  # Same suite, plus an HTML coverage report at coverage/index.html
 ```

@@ -65,6 +65,9 @@ $ ruby bin/rune version | cat
 Every JSON response has the same envelope: `{"status": "ok"|"error", "data": {...}}` (or
 `{"status": "error", "error": "..."}` on failure).
 
+Global output flags are recognized only before the first `--` separator. Tokens after it belong to
+the wrapped command and are preserved, so `rune run -- tool --json` passes `--json` to `tool`.
+
 ### 3. Agent NDJSON envelope mode (`--ndjson`)
 
 `--ndjson` wraps the same result in an `{"event": "result"|"error", ...}` envelope instead of the
@@ -122,12 +125,13 @@ an AI agent can tail the session in real time while a human drives it.
 rune watch -- ruby examples/demo_tui.rb
 ```
 
-The event log defaults to a temp file, not stderr — mixing NDJSON events into the same terminal as
-the live passthrough was the original design, and real usage immediately showed it was the wrong
-default (the interleaved JSON made the session unreadable). The path is announced once, up front:
+The event log defaults to a collision-safe, owner-only (`0600`) temp file, not stderr — mixing
+NDJSON events into the same terminal as the live passthrough was the original design, and real
+usage immediately showed it was the wrong default (the interleaved JSON made the session
+unreadable). The path is announced once, up front:
 
 ```
-[rune watch] live event log: /tmp/rune-watch-12345-1700000000.ndjson
+[rune watch] live event log: /tmp/rune-watch-20260728-12345-abcd.ndjson
 ```
 
 `tail -f` that path from another pane (or have an agent tail it) to watch the session live, with

@@ -259,34 +259,22 @@ Gates that must all be green before `rune` 0.2.0 is tagged and published:
       Each fix has a dedicated regression test reproducing the original failure mode. The
       remaining 7 findings are real but larger in scope and deferred — see Known Limitations below.
 
-## Known Limitations (deferred to 0.2.1)
+## Remaining Known Limitations
 
 - **`rune run --ndjson` is an envelope choice, not incremental streaming.** `PTYRunner` buffers
   the whole run and returns one `Result`; `--ndjson` wraps it in an `{"event": "result"|"error"}`
   shape but still emits exactly one line, once the command finishes. Only `rune watch` streams
   live, one NDJSON line per output chunk. `docs/getting_started.md` now describes this accurately
   instead of over-promising incremental output for `rune run`.
-- **Multi-byte UTF-8 sequences split across a `readpartial(4096)` chunk boundary can be corrupted.**
-  Both `PTYRunner` and `PTYWatcher` scrub each chunk independently; a character straddling two
-  reads can turn into replacement characters. Fixing this needs cross-chunk buffering of a
-  trailing partial multi-byte sequence in both files.
-- **`rune watch` doesn't inherit the real terminal's window size (`TIOCGWINSZ`) onto the child
-  PTY.** Full-screen TUIs wrapped via `rune watch` get whatever default size the pty allocator
-  picks rather than the human's actual terminal dimensions.
-- **`--json`/`--ndjson` are stripped from argv globally, without regard to a `--` separator.**
-  `rune watch -- tool --json` (a flag meant for the wrapped tool) currently has it silently
-  stripped and rune's own rendering mode changed instead, since `CLI#run` deletes every occurrence
-  of those tokens before any `--` is considered.
-- **`rune watch`'s default log file has no explicit permission mode or symlink protection.**
-  `File.open(path, 'a')` in a shared temp directory relies on the process umask (commonly
-  world-readable `0644`) and doesn't guard against a pre-existing symlink at the predictable
-  PID-and-timestamp path.
-- **`examples/smoke_test.rb`'s "human output" check runs through a pipe (`Open3.capture2`), not a
-  real TTY**, so `Renderer#agent_mode?` selects JSON automatically and the check never actually
-  exercises `VersionCommand#human_render` — it passes only because the version string also appears
-  inside the JSON payload.
-- **`PTYWatcher` doesn't reap the child if the output sink itself fails (`EPIPE`)** — e.g. stdout
-  piped to a consumer that exits early. The rescue in `pump_output` doesn't catch `Errno::EPIPE`,
-  so it propagates to `#watch`'s generic rescue and returns a failure without an explicit
-  `Process.kill`/`wait`, the same orphaned-child risk the timeout fix above addressed for
-  `PTYRunner`.
+
+## Resolved after 0.2.0
+
+- Global `--json`/`--ndjson` parsing now stops at the first `--`, preserving wrapped-command flags.
+- `UTF8StreamDecoder` preserves valid multi-byte characters split across PTY reads.
+- `rune watch` mirrors terminal dimensions to the child and tracks later changes while polling.
+- Default watch logs are collision-safe, symlink-resistant, owner-only `0600` temporary files.
+- The smoke suite's human renderer check now runs inside a real PTY.
+- `PTYWatcher` kills and reaps its child when the output sink fails with `EPIPE`.
+- Spec-sync is a forced strict 100%-coverage gate locally and in CI; risk and provenance actions
+  are no longer allowed to fail silently.
+- CI tests every declared Ruby minor from 3.0 through 4.0 before the single trust job runs.

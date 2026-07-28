@@ -10,46 +10,57 @@ permissions:
 
 jobs:
   verify:
+    name: Ruby ${{ matrix.ruby }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.0', '3.1', '3.2', '3.3', '3.4', '4.0']
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # augur and attest need full git history
 
-      - name: Set up Ruby
+      - name: Set up Ruby ${{ matrix.ruby }}
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.3'
+          ruby-version: ${{ matrix.ruby }}
+          bundler: '2.4.22'
           bundler-cache: true
 
       - name: Install Fledge
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash || true
+          curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Run Fledge Verification Lane
+      - name: Run Fledge checks
         run: |
-          bundle exec rspec
-          bundle exec rubocop
+          fledge run test
+          fledge run lint
+
+  trust:
+    name: Trust gate
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Spec Sync Contract Check
         uses: CorvidLabs/spec-sync@v5.2.0
         with:
           strict: "true"
-        continue-on-error: true
+          require-coverage: "100"
 
       - name: Augur Risk Gate
         uses: CorvidLabs/augur@1.0.0
         with:
           threshold: block
-        continue-on-error: true
 
       - name: Attest Provenance Check
         uses: CorvidLabs/attest@1.0.0
         with:
           policy: .attest.json
-        continue-on-error: true
 
       - name: Verify Trust Block Present
         run: |

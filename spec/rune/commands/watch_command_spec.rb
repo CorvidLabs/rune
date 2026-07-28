@@ -65,6 +65,7 @@ RSpec.describe Rune::Commands::WatchCommand do
         expect(command).to eq(%w[echo hi])
         expect(log).to be_a(File)
         expect(log.path).to include(Dir.tmpdir).and include('rune-watch-')
+        expect(File.stat(log.path).mode & 0o777).to eq(0o600)
       end
     end
 

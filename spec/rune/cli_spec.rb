@@ -103,4 +103,24 @@ RSpec.describe Rune::CLI do
       expect(JSON.parse(io.string, symbolize_names: true)[:data][:version]).to eq(Rune::VERSION)
     end
   end
+
+  describe 'global output flags' do
+    it 'preserves --json after the separator for the wrapped command' do
+      output = JSON.parse(
+        capture_cli('run', '--', 'ruby', '-e', 'puts ARGV.inspect', '--', '--json'),
+        symbolize_names: true
+      )
+
+      expect(output[:data][:clean_output]).to include('["--json"]')
+    end
+
+    it 'preserves --ndjson after the separator for the wrapped command' do
+      output = JSON.parse(
+        capture_cli('run', '--', 'ruby', '-e', 'puts ARGV.inspect', '--', '--ndjson'),
+        symbolize_names: true
+      )
+
+      expect(output[:data][:clean_output]).to include('["--ndjson"]')
+    end
+  end
 end
