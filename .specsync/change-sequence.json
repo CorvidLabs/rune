@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 12,
-  "id": "CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant",
+  "sequence": 13,
+  "id": "CHG-0013-finalize-commit-anchored-exact-cli-spec-coverage-for-the-accepted-help-stack",
   "acknowledged_collisions": []
 }

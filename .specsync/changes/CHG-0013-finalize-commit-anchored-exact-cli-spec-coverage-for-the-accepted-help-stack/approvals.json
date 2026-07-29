@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785335021,
+      "digest": "8982af537f90a65a4cebc66d4667746d5c6ca11c53beea42ad23fa55d933c071",
+      "note": "Approve commit-anchored exact coverage for the fully accepted help stack."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785335061,
+      "digest": "275571aea54f10dc7719c6780f8088e4c4ab47c47f499d81a373a4e2a48aa0f1",
+      "note": "Commit-anchored exact coverage accepted; final contract unchanged and full lane passing."
+    }
+  ],
+  "reopenings": []
+}
