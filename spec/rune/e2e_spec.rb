@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'pty'
 require 'io/wait'
 require 'shellwords'
 require 'tmpdir'
@@ -31,6 +30,8 @@ RSpec.describe 'rune binary E2E' do
   end
 
   it 'executes git status via rune run in JSON mode' do
+    skip 'pty stdlib unavailable on this platform' unless Rune::PTYRunner.pty_available?
+
     output = `ruby #{bin_path} run --json git status`
     parsed = JSON.parse(output, symbolize_names: true)
     expect(parsed[:status]).to eq('ok')

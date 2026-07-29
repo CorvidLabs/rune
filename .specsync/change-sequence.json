@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 8,
-  "id": "CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o",
+  "sequence": 9,
+  "id": "CHG-0009-address-pr-9-review-findings-by-covering-every-commit-in-multi-commit-push-trus",
   "acknowledged_collisions": []
 }
