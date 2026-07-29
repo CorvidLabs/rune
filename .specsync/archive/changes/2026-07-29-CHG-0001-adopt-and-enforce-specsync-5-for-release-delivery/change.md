@@ -1,6 +1,6 @@
 ---
 id: CHG-0001-adopt-and-enforce-specsync-5-for-release-delivery
-state: accepted
+state: archived
 type: migration
 base_commit: 196f7789c01d03a3f23769d2bb417553230173ef
 ---

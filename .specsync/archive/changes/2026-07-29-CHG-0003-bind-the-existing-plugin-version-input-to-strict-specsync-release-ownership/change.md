@@ -1,6 +1,6 @@
 ---
 id: CHG-0003-bind-the-existing-plugin-version-input-to-strict-specsync-release-ownership
-state: accepted
+state: archived
 type: operations
 base_commit: bc21bf21dca0e2458dab2a0c6950031676fd7108
 ---

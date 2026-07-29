@@ -1,6 +1,6 @@
 ---
 id: CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 44c9a14d6dc393f620dc2b3080bf3e83da707d63
 ---

@@ -1,6 +1,6 @@
 ---
 id: CHG-0005-restrict-release-version-matching-to-the-plugin-toml-table
-state: accepted
+state: archived
 type: bug_fix
 base_commit: dd3a968da0fca38384f9dee153a0e142007409fa
 ---
