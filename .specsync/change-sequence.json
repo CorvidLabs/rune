@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 4,
-  "id": "CHG-0004-restrict-release-provenance-ranges-to-semantic-release-tags",
+  "sequence": 5,
+  "id": "CHG-0005-restrict-release-version-matching-to-the-plugin-toml-table",
   "acknowledged_collisions": []
 }

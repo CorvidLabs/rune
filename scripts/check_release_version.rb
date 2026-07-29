@@ -4,14 +4,25 @@
 require_relative '../lib/rune/version'
 
 module ReleaseVersionCheck
+  PLUGIN_HEADER_PATTERN = /^\s*\[plugin\]\s*(?:#.*)?$/
+  TABLE_HEADER_PATTERN = /^\s*\[{1,2}[^\]]+\]{1,2}\s*(?:#.*)?$/
+  VERSION_PATTERN = /^\s*version\s*=\s*["']([^"']+)["'](?:\s*#.*)?\s*$/
+
   module_function
 
   def plugin_version
     plugin_toml = File.read(File.expand_path('../plugin.toml', __dir__))
-    match = plugin_toml.match(/^\s*version\s*=\s*["']([^"']+)["']/)
-    raise 'plugin.toml does not contain a version' unless match
+    lines = plugin_toml.lines
+    header_index = lines.index { |line| line.match?(PLUGIN_HEADER_PATTERN) }
+    raise 'plugin.toml does not contain a [plugin] table' unless header_index
 
-    match[1]
+    table_end = ((header_index + 1)...lines.length).find do |index|
+      lines[index].match?(TABLE_HEADER_PATTERN)
+    end || lines.length
+    matches = lines[(header_index + 1)...table_end].filter_map { |line| line.match(VERSION_PATTERN) }
+    raise 'plugin.toml [plugin] table must contain exactly one version' unless matches.one?
+
+    matches.first[1]
   end
 
   def normalize_expected_version(value)

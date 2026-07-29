@@ -63,6 +63,26 @@ RSpec.describe 'release version check' do
     end
   end
 
+  it 'rejects a version from a TOML table after a malformed plugin table' do
+    Dir.mktmpdir do |root|
+      fixture_script = write_setter_fixture(
+        root,
+        rune_version: '0.2.0',
+        plugin_version: nil,
+        later_version: '0.2.0'
+      )
+      check_fixture = File.join(root, 'scripts/check_release_version.rb')
+      check_output, check_status = Open3.capture2e(RbConfig.ruby, check_fixture, 'v0.2.0')
+      _set_output, set_status = Open3.capture2e(RbConfig.ruby, fixture_script, '0.2.1')
+
+      expect(check_status).not_to be_success
+      expect(check_output).to include('[plugin] table must contain exactly one version')
+      expect(set_status).not_to be_success
+      expect(File.read(File.join(root, 'lib/rune/version.rb'))).to include("VERSION = '0.2.0'")
+      expect(File.read(File.join(root, 'plugin.toml'))).to include('version = "0.2.0"')
+    end
+  end
+
   it 'requires both publish jobs to validate an exact tag on origin main' do
     exact_tag_check = 'git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"'
     checked_out_tag_check = 'git rev-parse "refs/tags/${RELEASE_TAG}^{commit}"'
@@ -82,15 +102,17 @@ RSpec.describe 'release version check' do
     expect(publish_workflow).not_to include('git describe --tags --abbrev=0')
   end
 
-  def write_setter_fixture(root, rune_version:, plugin_version:)
+  def write_setter_fixture(root, rune_version:, plugin_version:, later_version: nil)
     scripts = File.join(root, 'scripts')
     version_file = File.join(root, 'lib/rune/version.rb')
     plugin_file = File.join(root, 'plugin.toml')
     FileUtils.mkdir_p(scripts)
     FileUtils.mkdir_p(File.dirname(version_file))
     FileUtils.cp(set_script, scripts)
+    FileUtils.cp(check_script, scripts)
     File.write(version_file, "module Rune\n  VERSION = '#{rune_version}'\nend\n")
     plugin_content = plugin_version ? "[plugin]\nversion = \"#{plugin_version}\"\n" : "[plugin]\nname = \"rune\"\n"
+    plugin_content += "\n[command.rune]\nversion = \"#{later_version}\"\n" if later_version
     File.write(plugin_file, plugin_content)
     File.join(scripts, 'set_release_version.rb')
   end

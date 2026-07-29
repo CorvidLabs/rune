@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785288495,
+      "digest": "b7b475788df11dac230b262998f6ddc17bea1122d5c90874301595b5faa210dd",
+      "note": "Definition approved in Codex for plugin-table-bounded version matching"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785288849,
+      "digest": "f0da33cf07d976171ec90649ea91e5a58fdf4c64cced462e30577a47bd5262a8",
+      "note": "Closing approval granted in Codex after the plugin-table-bounded release version fix passed 168 specs and 30 smoke checks"
+    }
+  ],
+  "reopenings": []
+}

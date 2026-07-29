@@ -1,28 +1,38 @@
 {
-  "timestamp": 1785288782,
+  "timestamp": 1785288809,
   "commit": "dd3a968da0fca38384f9dee153a0e142007409fa",
-  "contract_digest": "0af699611a09b1dfbe2357a2eab3c1457a787ea17a7d2f07e7d6819b13c56a2d",
+  "contract_digest": "b7b475788df11dac230b262998f6ddc17bea1122d5c90874301595b5faa210dd",
   "workspace_digest": "5ef1714af2971203b5a1516f9b704965d31f0c400c5166bcd20353b1c9ba9f80",
-  "acceptance_input_digest": "ef01aa2aae9019c42baba9dc1df95f02a90b95ad9056d57023905a1f86ed7efa",
+  "acceptance_input_digest": "4e81a9b8ca8ddec97669b1f86e9f240324cbd22a21ce8959b52a76cdac59837b",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
       {
-        "path": ".github/workflows/publish-package.yml",
+        "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "95e19279f3d913015ba93d17b11833d6cab4a4c6934d0da6cbf1a8b244866211",
-        "entry_digest": "d449aebae4f8ef635e7446b049a318275555adf05997cffe07759f5e30ddd2d1",
+        "payload_digest": "4563883be51752b8d43c71d5dfdaf4c7eac68fb64d476bb812a2e4e18da0fb5f",
+        "entry_digest": "e63f698d95c5ecc269f4a4024b8123b5aedf1c42efa1064e34c32e5dbb49041f",
         "owners": [
           "@exact:delivery"
         ]
       },
       {
-        "path": ".specsync/change-sequence.json",
+        "path": "scripts/check_release_version.rb",
         "kind": "file",
-        "mode": 33188,
-        "payload_digest": "78c6795e670e6bf27a5e1f15516f5fd5dbed1e39a3bddb8a705401b7a166084c",
-        "entry_digest": "7fe8d1cfccdc1bfeeb1065e7a8db00142cf01a83e24c6c6ee77b27f7ce3dd4ba",
+        "mode": 33261,
+        "payload_digest": "3b3607524859a812b30f952de959311fd00001d6fd6117798eb4431bf3ba0fab",
+        "entry_digest": "731b09f9fa4752790366a337ab67e96380a7a1513e8b356adeea843563b21894",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "scripts/set_release_version.rb",
+        "kind": "file",
+        "mode": 33261,
+        "payload_digest": "b8e8d1c82c6f3b69961410e2670ce2d6989c8a2895611bae2f9a2857ea287dfd",
+        "entry_digest": "ab7496ff5cf9851dbcd22a124af8dbf8fd67b1e3ff0cb439bb9462f58ad16e96",
         "owners": [
           "@exact:delivery"
         ]
