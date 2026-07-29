@@ -1,6 +1,6 @@
 ---
 id: CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant
-state: accepted
+state: archived
 type: documentation
 base_commit: ef897af980c1b85b0a6b343e9e70b3bdb8ff1ed7
 ---

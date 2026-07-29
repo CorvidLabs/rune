@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0015-record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r",
+  "slug": "record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r",
+  "title": "Finalize the committed CLI help contract and document CLI reuse recovery",
+  "description": "Finalize the committed CLI help contract and document CLI reuse recovery",
+  "kind": "documentation",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "e433ab7d590e01f8acfb6d8c27fbabcfca35fdf4",
+  "created_at": 1785335341,
+  "updated_at": 1785366594,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "specs/cli/cli.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "1. The CLI error-case table states that a reused CLI after help resets modes and dispatches normally. 2. The final CLI contract preserves every previously accepted help and stdout-purity guarantee. 3. Strict SpecSync and the unified trust gate pass with no stale evidence after overlapping accepted records are freshly reverified."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "requirements",
+    "tasks",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}
