@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 13,
-  "id": "CHG-0013-finalize-commit-anchored-exact-cli-spec-coverage-for-the-accepted-help-stack",
+  "sequence": 14,
+  "id": "CHG-0014-clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr",
   "acknowledged_collisions": []
 }

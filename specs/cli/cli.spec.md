@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 7
+version: 8
 status: active
 files:
   - lib/rune.rb
@@ -109,7 +109,8 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
     forms such as `rune --help -h` and `rune --help --help` remain help requests and do not leave
     an alias behind to be resolved as a command.
 15. Rendering modes are invocation-local. Reusing one `CLI` instance for help and then a normal
-    command resets help, JSON, and NDJSON selection before the second dispatch.
+    command resets help, JSON, and NDJSON selection before the second dispatch; no help or output
+    flag from an earlier run may affect a later run.
 
 ## Behavioral Examples
 
@@ -139,6 +140,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | Command raises exception | Caught and wrapped in `Result.failure`, exit code 1 |
 | No command given | Shows help output |
 | Help requested for an unknown command | Returns `Result.failure` with descriptive error, exit code 1 |
+| Mixed or repeated help aliases | Consumes every alias, returns help, and exits 0 |
 
 ## Dependencies
 
@@ -155,3 +157,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |
 | 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
 | 2026-07-29 | CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant: Restore full CLI contract detail after the help delta and establish exact semantic successor coverage |
+| 2026-07-29 | CHG-0014-clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr: Clarify mixed help aliases and invocation-local CLI modes in the exact CLI contract |

@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785335165,
+      "digest": "399da422e0641682e073bc6e9cc27a0dd41e277c5ad3a68ee5ed85ac824a26ea",
+      "note": "Approve final commit-anchored semantic clarification for both review regressions."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785335211,
+      "digest": "f93f2e3df0bc3019ead4bb388ee03872c6d033e4d73f7c942fc64c4c45f861d8",
+      "note": "Final exact CLI semantic successor accepted from a commit containing all predecessor evidence; full lane passing."
+    }
+  ],
+  "reopenings": []
+}
