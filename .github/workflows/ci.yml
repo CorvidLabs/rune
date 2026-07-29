@@ -63,6 +63,19 @@ jobs:
       - name: Fetch Attest Notes
         run: git fetch origin refs/notes/attest:refs/notes/attest
 
+      - name: Set up Ruby 3.3
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler: '2.4.22'
+          bundler-cache: true
+
+      - name: Install Fledge
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Spec Sync Contract Check
         uses: CorvidLabs/spec-sync@v5.2.0
         with:
