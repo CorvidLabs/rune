@@ -1,0 +1,1 @@
+{"commit":"5ebf2a50a39838d994f6370a78fb47c9bc1deade","confidence":0.99,"humanApproved":true,"note":"Homebrew distribution docs and SpecSync definition validated; 170 tests, lint, smoke tests, strict SpecSync, and formula end-to-end checks passed.","reviewer":"agent:codex","testsPassed":true,"timestamp":1785296584,"verdict":"proceed"}
