@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 2,
-  "id": "CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and",
+  "sequence": 3,
+  "id": "CHG-0003-bind-the-existing-plugin-version-input-to-strict-specsync-release-ownership",
   "acknowledged_collisions": []
 }

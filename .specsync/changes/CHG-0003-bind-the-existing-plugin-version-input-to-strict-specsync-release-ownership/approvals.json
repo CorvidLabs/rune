@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785287050,
+      "digest": "308496949ed1b3444544f3aa773540ebff50223023d6ffaa22a3860f9c08e7f2",
+      "note": "Definition approved in Codex to bind the existing plugin version bump to strict SDD ownership"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785287121,
+      "digest": "f0a12823d8dfb385f6be857c3f92ad111ff105c95f2fea02484fade9dfcd0684",
+      "note": "Final closing approval granted in Codex after strict ownership and verification passed"
+    }
+  ],
+  "reopenings": []
+}
