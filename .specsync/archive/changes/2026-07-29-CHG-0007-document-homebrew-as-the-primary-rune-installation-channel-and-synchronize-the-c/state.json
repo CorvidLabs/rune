@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0007-document-homebrew-as-the-primary-rune-installation-channel-and-synchronize-the-c",
+  "slug": "document-homebrew-as-the-primary-rune-installation-channel-and-synchronize-the-c",
+  "title": "Document Homebrew as the primary Rune installation channel and synchronize the completed v0.2.1 release record",
+  "description": "Document Homebrew as the primary Rune installation channel and synchronize the completed v0.2.1 release record",
+  "kind": "documentation",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "fc5f70a179be38bb1c5d9e640d1b49d668ea6676",
+  "created_at": 1785295473,
+  "updated_at": 1785298235,
+  "affected_specs": [],
+  "affected_paths": [
+    "README.md",
+    "docs/getting_started.md",
+    "docs/releasing.md",
+    "ROADMAP.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "This change updates installation and release documentation only; it does not alter files under lib/ or any public runtime contract.",
+  "acceptance_criteria": [
+    "README and getting-started documentation recommend brew install corvidlabs/tap/rune, release documentation explains Homebrew formula update ownership and verification, ROADMAP records v0.2.1 as completed, strict SpecSync and Fledge trust verification pass"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}
