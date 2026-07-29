@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 15,
-  "id": "CHG-0015-record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r",
+  "sequence": 17,
+  "id": "CHG-0017-cover-ndjson-error-dispatch-at-the-cli-integration-boundary",
   "acknowledged_collisions": []
 }

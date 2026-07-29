@@ -1,0 +1,33 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785367596,
+      "digest": "c783a79cdfb957946b6f0242a2b1c549d6e8b54dec232edb4f84f5ed36387638",
+      "note": "Approved coordinated fixes for Rune issues #11, #16, #17, and the remaining #18 contract gaps."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785368117,
+      "digest": "39aa26b81f540fe9071211aa5e0901e39a976cbcb8d789a5b962a8e66f42b0b6",
+      "note": "Re-approved the completed task and test-evidence artifacts without changing scope or acceptance criteria."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785368551,
+      "digest": "ca700cfc50686614fb70eba1f068bf4858b2fe6e9d1c60e76adb1f9b7a03c933",
+      "note": "Re-approved full-fidelity semantic deltas after expanding them to preserve every canonical contract section."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785368600,
+      "digest": "57ded10ed41a62abacd8de84fc4c61393da8965f1ed7f22726de55f7a4f3cfd5",
+      "note": "Accepted fixes for issues #11, #16, #17, and the remaining #18 contract gaps after 206 tests, lint, smoke, and strict verification passed."
+    }
+  ],
+  "reopenings": []
+}

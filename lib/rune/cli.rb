@@ -8,12 +8,8 @@ module Rune
       attr_reader :commands
 
       def register(command_class)
-        TracePoint.new(:end) do |tp|
-          if tp.self == command_class && command_class.command_name
-            @commands[command_class.command_name] = command_class
-            tp.disable
-          end
-        end.enable
+        command_name = command_class.command_name
+        @commands[command_name] = command_class if command_name
       end
 
       def run(argv = ARGV, io: $stdout)

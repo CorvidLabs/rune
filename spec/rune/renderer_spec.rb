@@ -40,6 +40,13 @@ RSpec.describe Rune::Renderer do
       expect(parsed[:status]).to eq('ok')
     end
 
+    it 'labels failure envelopes as error events' do
+      renderer.render(Rune::Result.failure('bad input'))
+
+      parsed = JSON.parse(io.string, symbolize_names: true)
+      expect(parsed).to include(event: 'error', status: 'error', error: 'bad input')
+    end
+
     it 'renders custom events' do
       renderer.render_event(:progress, { percent: 50 })
       parsed = JSON.parse(io.string, symbolize_names: true)

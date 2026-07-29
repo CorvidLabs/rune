@@ -5,7 +5,14 @@ module Rune
     class << self
       attr_reader :command_name, :command_summary, :command_usage
 
-      def name(cmd_name) = @command_name = cmd_name
+      def name(cmd_name = nil)
+        return super() if cmd_name.nil?
+
+        @command_name = cmd_name
+        CLI.register(self)
+        cmd_name
+      end
+
       def summary(text) = @command_summary = text
 
       # One-line invocation shape shown by `rune <cmd> --help`, e.g.
@@ -21,11 +28,6 @@ module Rune
       end
 
       def command_flags = @command_flags ||= []
-
-      def inherited(subclass)
-        super
-        CLI.register(subclass) if subclass.is_a?(Class)
-      end
     end
 
     # Override in subclasses

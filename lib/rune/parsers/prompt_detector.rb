@@ -9,10 +9,17 @@ module Rune
         %r{\[[yY]/[nN]\]\s*\z},
         %r{\(y/n\)\??\s*\z}i,
         /\A\s*(?:Password|Passphrase|Select|Choice|Confirm):\s*\z/i,
-        /\?\s+[A-Z0-9]/i,
+        /\A\s*\?\s+(?:Select|Choose|Pick|Confirm|Enter)\b/i,
         /\A\s*[➜❯›]/,
-        %r{\A\s*[\w@:~./\-()|+ \t]+[>$%#❯›➜]\s*\z},
-        /[>$%#❯›➜]\s*\z/
+        %r{
+          \A\s*
+          (?:
+            [\w.-]+@[\w.-]+(?::[~./\w()|+-]+)?
+            |
+            (?:ba|z|fi|t?c)?sh(?:-[\d.]+)?
+          )
+          [>$%#]\s*\z
+        }x
       ].freeze
 
       FALSE_POSITIVES = [

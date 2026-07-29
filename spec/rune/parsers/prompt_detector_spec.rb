@@ -28,7 +28,7 @@ RSpec.describe Rune::Parsers::PromptDetector do
       expect(described_class.detect?('Confirm: ')).to be true
     end
 
-    it 'detects a question mark followed by a capitalized word or digit (interactive wizard style)' do
+    it 'detects anchored interactive-wizard markers with a supported action' do
       expect(described_class.detect?('? Select target environment: ')).to be true
       expect(described_class.detect?('? Pick a number 1-5')).to be true
     end
@@ -86,6 +86,15 @@ RSpec.describe Rune::Parsers::PromptDetector do
       expect(described_class.detect?('just plain output text')).to be false
       expect(described_class.detect?('npm WARN deprecated foo@1.0')).to be false
       expect(described_class.detect?('Server started on port 3000')).to be false
+    end
+
+    it 'ignores ordinary output ending in shell punctuation or containing a prose question' do
+      expect(described_class.detect?('##')).to be false
+      expect(described_class.detect?('TODO: fix #')).to be false
+      expect(described_class.detect?('comparison result >')).to be false
+      expect(described_class.detect?('price is $')).to be false
+      expect(described_class.detect?('coverage pending %')).to be false
+      expect(described_class.detect?('Is it ok? Yes')).to be false
     end
   end
 end

@@ -1,24 +1,6 @@
----
-module: cli
-version: 10
-status: active
-files:
-  - lib/rune.rb
-  - lib/rune/cli.rb
-  - lib/rune/command.rb
-  - lib/rune/result.rb
-  - lib/rune/renderer.rb
-  - lib/rune/help.rb
-  - lib/rune/version.rb
-  - lib/rune/commands/version_command.rb
----
-# CLI
+## MODIFIED
 
-## Purpose
-Core CLI framework for rune. Provides command registration, argument parsing, dual-mode output (human-pretty for terminals, structured JSON for agents, streaming NDJSON), and the base `Command` class that all commands extend. Designed so that every interaction is first-class for both humans and AI agents.
-
-## Public API
-
+### SPEC SECTION Public API
 | Name | Type | Description |
 |------|------|-------------|
 | `CLI` | class | CLI router. Class methods: `run(argv)`, `register(command_class)`, `commands`. Instance: `run(argv)`. |
@@ -67,8 +49,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | `render_command` | internal method | Renders one command's usage and flag list for a terminal. |
 | `render_flags` | internal method | Renders an aligned flag/description list. |
 
-## Invariants
-
+### SPEC SECTION Invariants
 1. Commands never print directly to stdout — they return a `Result`
 2. `Result#to_h` always includes a `status` key ("ok" or "error")
 3. Non-TTY stdout automatically triggers JSON output (agent mode)
@@ -119,8 +100,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
     Rune-level errors. Stderr is reserved for operational announcements and live passthrough that
     must not corrupt structured stdout.
 
-## Behavioral Examples
-
+### SPEC SECTION Behavioral Examples
 - Running `rune version` in a terminal prints human-formatted version info
 - Running `rune version --json` reports the current `Rune::VERSION` in the success envelope
 - Running `rune version --ndjson` prints `{"event":"result","status":"ok",...}`
@@ -142,33 +122,3 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 - Running `rune run -- mytool --help` passes `--help` to `mytool` instead of showing Rune's help
 - Running `rune --help -h` returns the overview rather than treating `-h` as a command
 - Reusing a `CLI` object for `run --help` and then `version` renders version output normally
-
-## Error Cases
-
-| Condition | Behavior |
-|-----------|----------|
-| Unknown command | Returns `Result.failure` with descriptive error, exit code 1 |
-| Command raises exception | Caught and wrapped in `Result.failure`, exit code 1 |
-| No command given | Shows help output |
-| Help requested for an unknown command | Returns `Result.failure` with descriptive error, exit code 1 |
-| Mixed or repeated help aliases | Consumes every alias, returns help, and exits 0 |
-| Reused CLI after help | Resets help and output modes, then dispatches and renders normally |
-
-## Dependencies
-
-- Ruby stdlib: `json`
-- No external runtime dependencies
-
-## Change Log
-- v1: Active spec — CLI framework with dual-mode output and NDJSON envelopes
-- v1: Restricted global output-flag extraction to arguments before the first `--`, preserving
-  identically named flags for wrapped commands.
-| 2026-07-28 | CHG-0001-adopt-and-enforce-specsync-5-for-release-delivery: Adopt and enforce SpecSync 5 for release delivery |
-| 2026-07-29 | CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and: Address PR review findings in release synchronization, SDD package coverage, and publish ref validation |
-| 2026-07-29 | CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o: Keep rune watch stdout parseable in agent mode and stop the trust gate passing on an empty commit range |
-| 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |
-| 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
-| 2026-07-29 | CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant: Restore full CLI contract detail after the help delta and establish exact semantic successor coverage |
-| 2026-07-29 | CHG-0014-clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr: Clarify mixed help aliases and invocation-local CLI modes in the exact CLI contract |
-| 2026-07-29 | CHG-0015-record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r: Finalize the committed CLI help contract and document CLI reuse recovery |
-| 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |
