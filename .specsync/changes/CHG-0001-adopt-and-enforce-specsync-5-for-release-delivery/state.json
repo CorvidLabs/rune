@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0001-adopt-and-enforce-specsync-5-for-release-delivery",
+  "slug": "adopt-and-enforce-specsync-5-for-release-delivery",
+  "title": "Adopt and enforce SpecSync 5 for release delivery",
+  "description": "Adopt and enforce SpecSync 5 for release delivery",
+  "kind": "migration",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "196f7789c01d03a3f23769d2bb417553230173ef",
+  "created_at": 1785278809,
+  "updated_at": 1785289433,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/publish-package.yml",
+    ".specsync/config.toml",
+    ".specsync/sdd.json",
+    "fledge.toml",
+    "lib/rune/version.rb",
+    "scripts/check_release_version.rb",
+    "scripts/set_release_version.rb",
+    "specs/cli/cli.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A source-only change to a mapped module fails local and CI SpecSync drift gates",
+    "Updating the CLI source and canonical spec together passes strict 100% coverage and lifecycle enforcement",
+    "SpecSync 5 SDD policy rejects meaningful delivery changes not covered by an approved active change",
+    "The release lane, installed gem, trust gate, and strict provenance remain green"
+  ],
+  "selected_artifacts": [
+    "context",
+    "research",
+    "design",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

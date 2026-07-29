@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 1
+version: 3
 status: active
 files:
   - lib/rune.rb
@@ -55,6 +55,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | `Commands` | module | Namespace containing concrete CLI command implementations. |
 
 ## Invariants
+
 1. Commands never print directly to stdout — they return a `Result`
 2. `Result#to_h` always includes a `status` key ("ok" or "error")
 3. Non-TTY stdout automatically triggers JSON output (agent mode)
@@ -70,14 +71,19 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 8. Unknown commands return a structured error, never crash
 9. `--json` and `--ndjson` are rune-global only before the first `--` separator. Identical tokens
    after the separator are preserved as wrapped-command arguments.
+10. `Rune::VERSION`, `plugin.toml`, and the release tag identify the same semantic version before a
+    package can be published. The release ref is an exact Git tag whose commit is reachable from
+    `origin/main`.
 
 ## Behavioral Examples
+
 - Running `rune version` in a terminal prints human-formatted version info
-- Running `rune version --json` prints `{"status":"ok","data":{"version":"0.1.0",...}}`
+- Running `rune version --json` reports the current `Rune::VERSION` in the success envelope
 - Running `rune version --ndjson` prints `{"event":"result","status":"ok",...}`
 - Running `rune run -- tool --json` passes `--json` to `tool` instead of consuming it globally
 - Piping `rune version | cat` automatically outputs JSON
 - Running `rune nonexistent` returns exit code 1 and an error message
+- Running the release-version setter repairs one stale version source when the other already matches
 
 ## Error Cases
 | Condition | Behavior |
@@ -94,3 +100,5 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 - v1: Active spec — CLI framework with dual-mode output and NDJSON envelopes
 - v1: Restricted global output-flag extraction to arguments before the first `--`, preserving
   identically named flags for wrapped commands.
+| 2026-07-28 | CHG-0001-adopt-and-enforce-specsync-5-for-release-delivery: Adopt and enforce SpecSync 5 for release delivery |
+| 2026-07-29 | CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and: Address PR review findings in release synchronization, SDD package coverage, and publish ref validation |

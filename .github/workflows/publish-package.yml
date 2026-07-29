@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish
+        required: true
+        type: string
 permissions:
   contents: read
 
@@ -14,13 +19,65 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Verify Release Tag Is on Main
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"; then
+            echo "Release ref must be an existing tag: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          tag_commit="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          if [ "$(git rev-parse HEAD)" != "$tag_commit" ]; then
+            echo "Checked-out commit does not match release tag ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$tag_commit" origin/main; then
+            echo "Release tag ${RELEASE_TAG} is not reachable from origin/main" >&2
+            exit 1
+          fi
+
+      - name: Fetch Attest Notes
+        run: git fetch origin refs/notes/attest:refs/notes/attest
+
+      - name: Resolve Release Range
+        id: release-range
+        run: |
+          release_tag_args=()
+          while IFS= read -r release_tag; do
+            release_tag_args+=(--match "$release_tag")
+          done < <(git tag --merged "${RELEASE_TAG}^" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
+          if [ "${#release_tag_args[@]}" -eq 0 ]; then
+            echo "No prior semantic release tag found for ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          previous_tag="$(git describe --tags "${release_tag_args[@]}" --abbrev=0 "${RELEASE_TAG}^")"
+          echo "range=${previous_tag}..${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Release Provenance
+        uses: CorvidLabs/attest@1.0.0
+        with:
+          policy: .attest.json
+          range: ${{ steps.release-range.outputs.range }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
+
+      - name: Verify Release Version
+        run: ruby scripts/check_release_version.rb "$RELEASE_TAG"
 
       - name: Build Gem Package
         run: gem build rune.gemspec
@@ -40,8 +97,57 @@ jobs:
     name: Publish to RubyGems.org
     runs-on: ubuntu-latest
     if: false # Enable by setting RUBYGEMS_AUTH_TOKEN secret in GitHub repository settings
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Verify Release Tag Is on Main
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"; then
+            echo "Release ref must be an existing tag: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          tag_commit="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          if [ "$(git rev-parse HEAD)" != "$tag_commit" ]; then
+            echo "Checked-out commit does not match release tag ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$tag_commit" origin/main; then
+            echo "Release tag ${RELEASE_TAG} is not reachable from origin/main" >&2
+            exit 1
+          fi
+
+      - name: Fetch Attest Notes
+        run: git fetch origin refs/notes/attest:refs/notes/attest
+
+      - name: Resolve Release Range
+        id: rubygems-release-range
+        run: |
+          release_tag_args=()
+          while IFS= read -r release_tag; do
+            release_tag_args+=(--match "$release_tag")
+          done < <(git tag --merged "${RELEASE_TAG}^" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
+          if [ "${#release_tag_args[@]}" -eq 0 ]; then
+            echo "No prior semantic release tag found for ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          previous_tag="$(git describe --tags "${release_tag_args[@]}" --abbrev=0 "${RELEASE_TAG}^")"
+          echo "range=${previous_tag}..${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Release Provenance
+        uses: CorvidLabs/attest@1.0.0
+        with:
+          policy: .attest.json
+          range: ${{ steps.rubygems-release-range.outputs.range }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -57,5 +163,6 @@ jobs:
           chmod 0600 ~/.gem/credentials
           echo "---" > ~/.gem/credentials
           echo ":rubygems: ${GEM_HOST_API_KEY}" >> ~/.gem/credentials
+          ruby scripts/check_release_version.rb "$RELEASE_TAG"
           gem build rune.gemspec
           gem push *.gem

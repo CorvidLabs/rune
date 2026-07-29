@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0005-restrict-release-version-matching-to-the-plugin-toml-table",
+  "slug": "restrict-release-version-matching-to-the-plugin-toml-table",
+  "title": "Restrict release version matching to the plugin TOML table",
+  "description": "Restrict release version matching to the plugin TOML table",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "dd3a968da0fca38384f9dee153a0e142007409fa",
+  "created_at": 1785288416,
+  "updated_at": 1785289463,
+  "affected_specs": [],
+  "affected_paths": [
+    "scripts/check_release_version.rb",
+    "scripts/set_release_version.rb",
+    "spec/release_version_check_spec.rb",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The CLI v3 contract already requires plugin version parity; this fix makes the existing invariant reject malformed manifests instead of reading another table",
+  "acceptance_criteria": [
+    "The setter and release checker reject a plugin table without its own version even when a later table defines version and neither file is partially rewritten"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

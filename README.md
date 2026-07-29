@@ -142,6 +142,7 @@ rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
 
 - 📖 **[Getting Started guide](docs/getting_started.md)** — Output modes, `rune run` usage, timeouts, and parsers with real command output.
 - 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — How pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, script execution, and `rune watch`'s live bidirectional passthrough work under the hood in Ruby.
+- 📖 **[Release guide](docs/releasing.md)** — Version synchronization, verification, provenance, tagging, and package publication.
 
 ---
 
@@ -151,6 +152,7 @@ rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
 fledge run test         # Run RSpec test suite (160 examples, 98%+ line coverage)
 fledge run lint         # Run RuboCop linter (0 offenses)
 fledge lanes run verify # Full CI gate (lint + tests + strict 100%-coverage spec-sync)
+fledge lanes run release # Verify, smoke-test, and build the release gem
 fledge run smoke-test   # Runnable, assertion-based tour of real behavior (examples/smoke_test.rb)
 COVERAGE=1 bundle exec rspec  # Same suite, plus an HTML coverage report at coverage/index.html
 ```

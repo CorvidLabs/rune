@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0004-restrict-release-provenance-ranges-to-semantic-release-tags",
+  "slug": "restrict-release-provenance-ranges-to-semantic-release-tags",
+  "title": "Restrict release provenance ranges to semantic release tags",
+  "description": "Restrict release provenance ranges to semantic release tags",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "24c591c9b366cb7a6aebb653f7ab9d29a687f00d",
+  "created_at": 1785287570,
+  "updated_at": 1785289454,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/publish-package.yml",
+    "spec/release_version_check_spec.rb",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The CLI v3 contract already mandates release provenance; this fix narrows prior-tag discovery so that existing invariant cannot be bypassed by unrelated tags",
+  "acceptance_criteria": [
+    "Both publish jobs select the previous tag only from the semantic release-tag convention and regression coverage prevents unrestricted git describe --tags from returning"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

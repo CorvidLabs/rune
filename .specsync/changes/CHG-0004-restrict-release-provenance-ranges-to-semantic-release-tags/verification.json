@@ -1,0 +1,66 @@
+{
+  "timestamp": 1785289344,
+  "commit": "772dddacd43b01c79c702f6dd3932ad5ccf72a4d",
+  "contract_digest": "0af699611a09b1dfbe2357a2eab3c1457a787ea17a7d2f07e7d6819b13c56a2d",
+  "workspace_digest": "29368152269668c8eb80c4ff19b1db070e698719d94cdc5ec559795306e08bfa",
+  "acceptance_input_digest": "ec2eddcff4bef160461686c2060ed973edcf75b41e874ebbbbdc8088fec0d170",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/workflows/publish-package.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "03d78e14fbc2309f3d64fce15787ebc6a00660cd9cfc6fa883668006c907dce2",
+        "entry_digest": "06b1600762023cbe2b12830be6995012aa5567a8fc4fd1f20c015e4ccfe2face",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "78c6795e670e6bf27a5e1f15516f5fd5dbed1e39a3bddb8a705401b7a166084c",
+        "entry_digest": "7fe8d1cfccdc1bfeeb1065e7a8db00142cf01a83e24c6c6ee77b27f7ce3dd4ba",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/release_version_check_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "575769f40ed603139596dbd43927cabfe7df04aef764361e5e884c31e649ce52",
+        "entry_digest": "79618b44028cd18026214003f6c4bfaa80a16e4505d14cf21a48c3bbf0753df6",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

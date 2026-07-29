@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and",
+  "slug": "address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and",
+  "title": "Address PR review findings in release synchronization, SDD package coverage, and publish ref validation",
+  "description": "Address PR review findings in release synchronization, SDD package coverage, and publish ref validation",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "44c9a14d6dc393f620dc2b3080bf3e83da707d63",
+  "created_at": 1785286096,
+  "updated_at": 1785289445,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "scripts/set_release_version.rb",
+    "spec/release_version_check_spec.rb",
+    ".specsync/sdd.json",
+    ".github/workflows/publish-package.yml",
+    "specs/cli/cli.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The version setter repairs either source when the other already matches without partial writes,package and test inputs require an approved SDD change,publishing rejects a branch masquerading as a release tag,publishing rejects a tag not reachable from origin/main,the release lane and trust gate remain green"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

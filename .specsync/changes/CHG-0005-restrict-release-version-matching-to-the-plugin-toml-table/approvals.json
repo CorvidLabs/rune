@@ -1,0 +1,121 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785288495,
+      "digest": "b7b475788df11dac230b262998f6ddc17bea1122d5c90874301595b5faa210dd",
+      "note": "Definition approved in Codex for plugin-table-bounded version matching"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785288849,
+      "digest": "f0da33cf07d976171ec90649ea91e5a58fdf4c64cced462e30577a47bd5262a8",
+      "note": "Closing approval granted in Codex after the plugin-table-bounded release version fix passed 168 specs and 30 smoke checks"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785289463,
+      "digest": "7fbf9cc903eb969a28ce9964de04ee51970a4adafe355679cbd85c73f0d454af",
+      "note": "Closing approval granted in Codex after all remaining release-policy review gaps passed 170 specs and 30 smoke checks"
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0005-restrict-release-version-matching-to-the-plugin-toml-table",
+      "actor": "0xLeif",
+      "reason": "Approved CHG-0006 closes remaining release-policy review gaps in shared exact delivery files",
+      "timestamp": 1785289255,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1785288849,
+        "digest": "f0da33cf07d976171ec90649ea91e5a58fdf4c64cced462e30577a47bd5262a8",
+        "note": "Closing approval granted in Codex after the plugin-table-bounded release version fix passed 168 specs and 30 smoke checks"
+      },
+      "prior_verification": {
+        "timestamp": 1785288809,
+        "commit": "dd3a968da0fca38384f9dee153a0e142007409fa",
+        "contract_digest": "b7b475788df11dac230b262998f6ddc17bea1122d5c90874301595b5faa210dd",
+        "workspace_digest": "5ef1714af2971203b5a1516f9b704965d31f0c400c5166bcd20353b1c9ba9f80",
+        "acceptance_input_digest": "4e81a9b8ca8ddec97669b1f86e9f240324cbd22a21ce8959b52a76cdac59837b",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4563883be51752b8d43c71d5dfdaf4c7eac68fb64d476bb812a2e4e18da0fb5f",
+              "entry_digest": "e63f698d95c5ecc269f4a4024b8123b5aedf1c42efa1064e34c32e5dbb49041f",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "scripts/check_release_version.rb",
+              "kind": "file",
+              "mode": 33261,
+              "payload_digest": "3b3607524859a812b30f952de959311fd00001d6fd6117798eb4431bf3ba0fab",
+              "entry_digest": "731b09f9fa4752790366a337ab67e96380a7a1513e8b356adeea843563b21894",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "scripts/set_release_version.rb",
+              "kind": "file",
+              "mode": 33261,
+              "payload_digest": "b8e8d1c82c6f3b69961410e2670ce2d6989c8a2895611bae2f9a2857ea287dfd",
+              "entry_digest": "ab7496ff5cf9851dbcd22a124af8dbf8fd67b1e3ff0cb439bb9462f58ad16e96",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "spec/release_version_check_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "288a6441b5d086c328a3046d40cd86d26f5c47b0bf5240fa9533e53b7f18cf83",
+              "entry_digest": "b0802ab879016f6267bf74360ce3aa99c26e700a47937e4a132c112c1ecd387a",
+              "owners": [
+                "@exact:delivery"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "4e81a9b8ca8ddec97669b1f86e9f240324cbd22a21ce8959b52a76cdac59837b",
+      "current_acceptance_input_digest": "cc36778534c5ea46b30176cb6a987617eb5f382ce3780c93c8fa118840d71f5e"
+    }
+  ]
+}
