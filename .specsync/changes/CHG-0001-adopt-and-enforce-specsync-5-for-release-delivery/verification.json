@@ -1,9 +1,9 @@
 {
-  "timestamp": 1785288722,
-  "commit": "dd3a968da0fca38384f9dee153a0e142007409fa",
+  "timestamp": 1785289284,
+  "commit": "772dddacd43b01c79c702f6dd3932ad5ccf72a4d",
   "contract_digest": "f63832a1bb2b345a728e7f6c9d8e182335d3c04f58dffb1242e51c343337a1c5",
-  "workspace_digest": "5ef1714af2971203b5a1516f9b704965d31f0c400c5166bcd20353b1c9ba9f80",
-  "acceptance_input_digest": "51e076e0057fa7310cae7624aba04e131c489aecc2024d0a468ecf39331e7da9",
+  "workspace_digest": "29368152269668c8eb80c4ff19b1db070e698719d94cdc5ec559795306e08bfa",
+  "acceptance_input_digest": "7834dbddbc6940c2a5a0892c456d1e56689d0d1a3a5144ea450bd1af7024363a",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": ".github/workflows/publish-package.yml",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "95e19279f3d913015ba93d17b11833d6cab4a4c6934d0da6cbf1a8b244866211",
-        "entry_digest": "d449aebae4f8ef635e7446b049a318275555adf05997cffe07759f5e30ddd2d1",
+        "payload_digest": "03d78e14fbc2309f3d64fce15787ebc6a00660cd9cfc6fa883668006c907dce2",
+        "entry_digest": "06b1600762023cbe2b12830be6995012aa5567a8fc4fd1f20c015e4ccfe2face",
         "owners": [
           "@exact:delivery"
         ]
@@ -51,8 +51,8 @@
         "path": ".specsync/sdd.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "8466b4c94578f26284d25649bd18763ab97642ebaba1fa1265421b9ed3854a89",
-        "entry_digest": "1ab68a0b9f78b21bdc5001925c54d9ba139efd2c81ad146a5c2fdff29daccac0",
+        "payload_digest": "798a06c38f106441e174c386b4e36d8b8611d9e559cd94737b12e02b8722dccc",
+        "entry_digest": "ebbcb1ac49b7f3c5a0b15508c0881f34e4949086b3234cbbd416a3a4e723ec0f",
         "owners": [
           "@exact:delivery"
         ]

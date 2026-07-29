@@ -38,7 +38,11 @@
     "fledge.toml"
   ],
   "ignored_paths": [
-    ".specsync/",
+    ".specsync/changes/",
+    ".specsync/hashes.json",
+    ".specsync/change.lock",
+    ".specsync/change-sequence.json",
+    ".specsync/adoption-report.json",
     "specs/"
   ],
   "verification_commands": [

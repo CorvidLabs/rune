@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 5,
-  "id": "CHG-0005-restrict-release-version-matching-to-the-plugin-toml-table",
+  "sequence": 6,
+  "id": "CHG-0006-close-the-remaining-release-policy-review-gaps",
   "acknowledged_collisions": []
 }

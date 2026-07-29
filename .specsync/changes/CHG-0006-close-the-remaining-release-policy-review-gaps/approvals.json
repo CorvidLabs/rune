@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785289114,
+      "digest": "4fa6553969d270ba8bdf8b4561bb8906e21ff7e030dab4f0cc1477c4144d3f57",
+      "note": "Definition approved in Codex under the explicit request to fix, reply to, and resolve all PR review comments"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785289471,
+      "digest": "e6c6ae4a1ad703287c6a6211a72c7d2cb3bbb3195725d4f6e8c10d3fbaf6364c",
+      "note": "Closing approval granted in Codex after all remaining release-policy review gaps passed 170 specs and 30 smoke checks"
+    }
+  ],
+  "reopenings": []
+}

@@ -29,6 +29,10 @@ jobs:
 
       - name: Verify Release Tag Is on Main
         run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
           git fetch --no-tags origin main:refs/remotes/origin/main
           if ! git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"; then
             echo "Release ref must be an existing tag: ${RELEASE_TAG}" >&2
@@ -103,6 +107,10 @@ jobs:
 
       - name: Verify Release Tag Is on Main
         run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
           git fetch --no-tags origin main:refs/remotes/origin/main
           if ! git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"; then
             echo "Release ref must be an existing tag: ${RELEASE_TAG}" >&2

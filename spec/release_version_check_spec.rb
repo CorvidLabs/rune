@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require 'json'
 require 'open3'
 require 'rbconfig'
 require 'spec_helper'
@@ -10,6 +11,8 @@ RSpec.describe 'release version check' do
   let(:check_script) { File.expand_path('../scripts/check_release_version.rb', __dir__) }
   let(:set_script) { File.expand_path('../scripts/set_release_version.rb', __dir__) }
   let(:publish_workflow) { File.read(File.expand_path('../.github/workflows/publish-package.yml', __dir__)) }
+  let(:release_docs) { File.read(File.expand_path('../docs/releasing.md', __dir__)) }
+  let(:sdd_policy) { JSON.parse(File.read(File.expand_path('../.specsync/sdd.json', __dir__))) }
 
   it 'accepts matching repository versions and a v-prefixed release tag' do
     output, status = Open3.capture2e(RbConfig.ruby, check_script, "v#{Rune::VERSION}")
@@ -84,10 +87,12 @@ RSpec.describe 'release version check' do
   end
 
   it 'requires both publish jobs to validate an exact tag on origin main' do
+    release_tag_format_check = '[[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
     exact_tag_check = 'git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"'
     checked_out_tag_check = 'git rev-parse "refs/tags/${RELEASE_TAG}^{commit}"'
     mainline_check = 'git merge-base --is-ancestor "$tag_commit" origin/main'
 
+    expect(publish_workflow.scan(release_tag_format_check).length).to eq(2)
     expect(publish_workflow.scan(exact_tag_check).length).to eq(2)
     expect(publish_workflow.scan(checked_out_tag_check).length).to eq(2)
     expect(publish_workflow.scan(mainline_check).length).to eq(2)
@@ -100,6 +105,22 @@ RSpec.describe 'release version check' do
     expect(publish_workflow.scan(strict_tag_filter).length).to eq(2)
     expect(publish_workflow.scan(restricted_describe).length).to eq(2)
     expect(publish_workflow).not_to include('git describe --tags --abbrev=0')
+  end
+
+  it 'keeps SpecSync policy files meaningful while ignoring generated state' do
+    expect(sdd_policy.fetch('meaningful_paths')).to include('.specsync/sdd.json', '.specsync/config.toml')
+    expect(sdd_policy.fetch('ignored_paths')).not_to include('.specsync/')
+    expect(sdd_policy.fetch('ignored_paths')).to include('.specsync/changes/', '.specsync/hashes.json')
+  end
+
+  it 'documents merge-commit attestation before trust verification' do
+    post_merge_steps = release_docs.split('## Tag and publish after merge').last
+    sign_position = post_merge_steps.index('fledge attest sign')
+    push_position = post_merge_steps.index('git push origin refs/notes/attest')
+    trust_position = post_merge_steps.index('fledge trust verify')
+
+    expect(sign_position).to be < push_position
+    expect(push_position).to be < trust_position
   end
 
   def write_setter_fixture(root, rune_version:, plugin_version:, later_version: nil)
