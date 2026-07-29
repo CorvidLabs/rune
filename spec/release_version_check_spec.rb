@@ -1,11 +1,15 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'open3'
 require 'rbconfig'
 require 'spec_helper'
+require 'tmpdir'
 
 RSpec.describe 'release version check' do
   let(:check_script) { File.expand_path('../scripts/check_release_version.rb', __dir__) }
+  let(:set_script) { File.expand_path('../scripts/set_release_version.rb', __dir__) }
+  let(:publish_workflow) { File.read(File.expand_path('../.github/workflows/publish-package.yml', __dir__)) }
 
   it 'accepts matching repository versions and a v-prefixed release tag' do
     output, status = Open3.capture2e(RbConfig.ruby, check_script, "v#{Rune::VERSION}")
@@ -22,10 +26,63 @@ RSpec.describe 'release version check' do
   end
 
   it 'rejects invalid input before the version setter changes files' do
-    set_script = File.expand_path('../scripts/set_release_version.rb', __dir__)
     output, status = Open3.capture2e(RbConfig.ruby, set_script, 'not-a-version')
 
     expect(status).not_to be_success
     expect(output).to include('Usage: fledge run set-version -- MAJOR.MINOR.PATCH')
+  end
+
+  it 'repairs either stale version source when the other source already matches' do
+    [
+      ['0.2.1', '0.2.0'],
+      ['0.2.0', '0.2.1']
+    ].each do |rune_version, plugin_version|
+      Dir.mktmpdir do |root|
+        fixture_script = write_setter_fixture(
+          root,
+          rune_version: rune_version,
+          plugin_version: plugin_version
+        )
+        output, status = Open3.capture2e(RbConfig.ruby, fixture_script, '0.2.1')
+
+        expect(status).to be_success
+        expect(output).to include('Updated release versions to 0.2.1')
+        expect(File.read(File.join(root, 'lib/rune/version.rb'))).to include("VERSION = '0.2.1'")
+        expect(File.read(File.join(root, 'plugin.toml'))).to include('version = "0.2.1"')
+      end
+    end
+  end
+
+  it 'validates every version pattern before writing either source' do
+    Dir.mktmpdir do |root|
+      fixture_script = write_setter_fixture(root, rune_version: '0.2.0', plugin_version: nil)
+      _output, status = Open3.capture2e(RbConfig.ruby, fixture_script, '0.2.1')
+
+      expect(status).not_to be_success
+      expect(File.read(File.join(root, 'lib/rune/version.rb'))).to include("VERSION = '0.2.0'")
+    end
+  end
+
+  it 'requires both publish jobs to validate an exact tag on origin main' do
+    exact_tag_check = 'git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"'
+    checked_out_tag_check = 'git rev-parse "refs/tags/${RELEASE_TAG}^{commit}"'
+    mainline_check = 'git merge-base --is-ancestor "$tag_commit" origin/main'
+
+    expect(publish_workflow.scan(exact_tag_check).length).to eq(2)
+    expect(publish_workflow.scan(checked_out_tag_check).length).to eq(2)
+    expect(publish_workflow.scan(mainline_check).length).to eq(2)
+  end
+
+  def write_setter_fixture(root, rune_version:, plugin_version:)
+    scripts = File.join(root, 'scripts')
+    version_file = File.join(root, 'lib/rune/version.rb')
+    plugin_file = File.join(root, 'plugin.toml')
+    FileUtils.mkdir_p(scripts)
+    FileUtils.mkdir_p(File.dirname(version_file))
+    FileUtils.cp(set_script, scripts)
+    File.write(version_file, "module Rune\n  VERSION = '#{rune_version}'\nend\n")
+    plugin_content = plugin_version ? "[plugin]\nversion = \"#{plugin_version}\"\n" : "[plugin]\nname = \"rune\"\n"
+    File.write(plugin_file, plugin_content)
+    File.join(scripts, 'set_release_version.rb')
   end
 end

@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785286274,
+      "digest": "3f160c6a62f9c0ded8db165987742300aa2872fb3022088b7ca3b1dabd90cad2",
+      "note": "Definition approved in Codex for all substantiated PR review fixes"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785286680,
+      "digest": "01416722ab78d4be9a10648021d90baeb8457e1dc517806f6393be015c41ead8",
+      "note": "Finalized implementation tasks approved in Codex after all review fixes and local gates passed"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785286772,
+      "digest": "7b70df249e3d3afef9decaaf25cfdd176949502a5fffad7e0d6880c651297c65",
+      "note": "Closing approval granted in Codex after all PR review fixes and verification gates passed"
+    }
+  ],
+  "reopenings": []
+}

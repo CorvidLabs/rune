@@ -1,22 +1,12 @@
 {
-  "timestamp": 1785286823,
+  "timestamp": 1785286702,
   "commit": "44c9a14d6dc393f620dc2b3080bf3e83da707d63",
-  "contract_digest": "f63832a1bb2b345a728e7f6c9d8e182335d3c04f58dffb1242e51c343337a1c5",
-  "workspace_digest": "23fd426c13de631f5063eb586f029016a4dc61b5e3201792501d5cc361c81f9b",
-  "acceptance_input_digest": "0b578e3fd4ef37c5c0003b559ab6e3006b397e97b927471641a55b7b8cf0487a",
+  "contract_digest": "01416722ab78d4be9a10648021d90baeb8457e1dc517806f6393be015c41ead8",
+  "workspace_digest": "025c942dc50775e19e3785d4020e09ffe9df2b8451a34d29deb54e8d22781acf",
+  "acceptance_input_digest": "91757f2fa7ccdf94c00e6c8cf8b7352b33ed4d44a178243359d1713d66feb962",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
-      {
-        "path": ".github/workflows/ci.yml",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "a964ccac7b2f174b0292b3ccaf557d61d6fcefdbc9ee039d9899f5156230c42f",
-        "entry_digest": "e8c1a6c1e5850b8809ab3125dcba678337a91627b77260e1da8db51bf3f60100",
-        "owners": [
-          "@exact:delivery"
-        ]
-      },
       {
         "path": ".github/workflows/publish-package.yml",
         "kind": "file",
@@ -31,18 +21,8 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "e17881ffddcfe57d18e85226cf0962e2e24169943b3bbd0159e478a13f1993e2",
-        "entry_digest": "0c8da7fcd6b917882d46eef28353b7161db51aae60f0fa50eb79af477490ca8f",
-        "owners": [
-          "@exact:delivery"
-        ]
-      },
-      {
-        "path": ".specsync/config.toml",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "b9a5bfedcefe9a37569c725d337183fba219acca0a84667cb0428773c6deb5b7",
-        "entry_digest": "f5e89dd2d2671a922829251bcf3179d686d786c2eb62591d1afaa10d02c04cc3",
+        "payload_digest": "5688f69cc3eb92d14747de5dc4eb5e2870b9be1458ce99f1c22887cfed12bf41",
+        "entry_digest": "3e9343ce20c7757f9cc07600a3c7c6eff1abd6b9969b046717c8e4ca6de54a85",
         "owners": [
           "@exact:delivery"
         ]
@@ -58,41 +38,21 @@
         ]
       },
       {
-        "path": "fledge.toml",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "94e34e17001d12f3212daf80be13b8fffcd36b0e76bbd18ab2cc375d7f71a91f",
-        "entry_digest": "a1a52b32063c5934aa79d4ea2415badf5e72554929e02b24a0060102da7308c6",
-        "owners": [
-          "@exact:delivery"
-        ]
-      },
-      {
-        "path": "lib/rune/version.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "054ccf921170122e1252a0f2b46a6e0bb61292856cbcc1f6c69a1fe2d724d83a",
-        "entry_digest": "0bccb34dec87e820e15e7d8cc036fe4f84effa5623aa5b5793654b6f4b44b729",
-        "owners": [
-          "cli"
-        ]
-      },
-      {
-        "path": "scripts/check_release_version.rb",
-        "kind": "file",
-        "mode": 33261,
-        "payload_digest": "2f054d349f17e609a8f1857901b83894eeabbbaf431fdab8dbc15e742950124f",
-        "entry_digest": "a13dbc66af38016196a816aac76de30e91bd19a38b3ed2bc466d8bca80608596",
-        "owners": [
-          "@exact:delivery"
-        ]
-      },
-      {
         "path": "scripts/set_release_version.rb",
         "kind": "file",
         "mode": 33261,
         "payload_digest": "eb1a2e62a87cccb51413d31c3fa05e96c3020aeedbe8c3d231e7669094b14f5d",
         "entry_digest": "03ac0cacb7f614e8c03475069e78e198f3b9236e0b518ef83731e69a4a0f230f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/release_version_check_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c4d3c3f0c33f80363aef0689b9c84189460af516fc7480c46f3099437705bb2f",
+        "entry_digest": "cfebd851824142425a365fb5ce96537ac6654eea9c54c72b99c8d490e9db4c1f",
         "owners": [
           "@exact:delivery"
         ]

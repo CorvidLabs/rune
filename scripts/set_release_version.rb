@@ -19,11 +19,14 @@ files = {
   ]
 }
 
-files.each do |path, (pattern, replacement)|
+updates = files.map do |path, (pattern, replacement)|
   content = File.read(path)
-  updated = content.sub(pattern, replacement)
-  raise "Could not update version in #{path}" if updated == content
+  raise "Could not update version in #{path}" unless content.match?(pattern)
 
+  [path, content.sub(pattern, replacement)]
+end
+
+updates.each do |path, updated|
   File.write(path, updated)
 end
 

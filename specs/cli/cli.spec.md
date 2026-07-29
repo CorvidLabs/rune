@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 2
+version: 3
 status: active
 files:
   - lib/rune.rb
@@ -71,8 +71,9 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 8. Unknown commands return a structured error, never crash
 9. `--json` and `--ndjson` are rune-global only before the first `--` separator. Identical tokens
    after the separator are preserved as wrapped-command arguments.
-10. `Rune::VERSION`, `plugin.toml`, and a release tag identify the same semantic version before a
-    package can be published.
+10. `Rune::VERSION`, `plugin.toml`, and the release tag identify the same semantic version before a
+    package can be published. The release ref is an exact Git tag whose commit is reachable from
+    `origin/main`.
 
 ## Behavioral Examples
 
@@ -82,6 +83,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 - Running `rune run -- tool --json` passes `--json` to `tool` instead of consuming it globally
 - Piping `rune version | cat` automatically outputs JSON
 - Running `rune nonexistent` returns exit code 1 and an error message
+- Running the release-version setter repairs one stale version source when the other already matches
 
 ## Error Cases
 | Condition | Behavior |
@@ -99,3 +101,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 - v1: Restricted global output-flag extraction to arguments before the first `--`, preserving
   identically named flags for wrapped commands.
 | 2026-07-28 | CHG-0001-adopt-and-enforce-specsync-5-for-release-delivery: Adopt and enforce SpecSync 5 for release delivery |
+| 2026-07-29 | CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and: Address PR review findings in release synchronization, SDD package coverage, and publish ref validation |

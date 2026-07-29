@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 1,
-  "id": "CHG-0001-adopt-and-enforce-specsync-5-for-release-delivery",
+  "sequence": 2,
+  "id": "CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and",
   "acknowledged_collisions": []
 }
