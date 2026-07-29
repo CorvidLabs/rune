@@ -1,0 +1,66 @@
+{
+  "timestamp": 1785335903,
+  "commit": "e433ab7d590e01f8acfb6d8c27fbabcfca35fdf4",
+  "contract_digest": "43d1aac5abb461d9ec894575798d14d691216ae78471b9c7426275ad40938c72",
+  "workspace_digest": "2dee9606c2fdbb2fff942e9c436749d0c1985a1f04865831683c4ec9edcbcf8b",
+  "acceptance_input_digest": "cb6e1f7bc2d1e29eecd58f7540be6d78563c8827d6b7bb7060b9257f50bf1233",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "96f2b4ca3ffe24b8ffab153f8a2eac221fa4cfb447ccfa5d79e7226a44e9fd26",
+        "entry_digest": "5a7a639f2dd7b80234a911692b4c367ab19b46dbb743586d1c031c6f43cfed15",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/cli/cli.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "808cc3e446b8e501a505943d1d441fcc70248ab7529e4070a7e4fc1ccc581de3",
+        "entry_digest": "b175c24dd9c5c9bd00b7a44d2d3ff3111023ea255ca57380f91c6d9c88ba676a",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "specs/cli/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+        "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+        "owners": [
+          "cli"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

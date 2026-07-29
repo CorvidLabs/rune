@@ -5,6 +5,7 @@ module Rune
     class VersionCommand < Command
       name 'version'
       summary 'Show rune version and environment info'
+      usage 'rune version'
 
       def call(_args, _options)
         Result.success({

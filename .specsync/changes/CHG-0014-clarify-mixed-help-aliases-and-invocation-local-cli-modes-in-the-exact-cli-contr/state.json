@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0014-clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr",
+  "slug": "clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr",
+  "title": "Clarify mixed help aliases and invocation-local CLI modes in the exact CLI contract",
+  "description": "Clarify mixed help aliases and invocation-local CLI modes in the exact CLI contract",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "e3b9064ab7f89fbd43a9c3e42a92886b5c9ac3b9",
+  "created_at": 1785335113,
+  "updated_at": 1785336082,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "specs/cli/cli.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "1. The CLI error-case table explicitly states that every mixed or repeated help alias is consumed and help exits 0. 2. The invocation-local invariant explicitly states that prior help and output flags cannot affect a later run. 3. The exact semantic successor is based on e3b9064 and strict SpecSync plus the trust gate pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "requirements",
+    "tasks",
+    "testing"
+  ],
+  "dependencies": [
+    "CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o",
+    "CHG-0009-address-pr-9-review-findings-by-covering-every-commit-in-multi-commit-push-trus",
+    "CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and",
+    "CHG-0011-reconcile-exact-cli-canonical-spec-path-coverage-after-the-accepted-help-delta-s",
+    "CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant",
+    "CHG-0013-finalize-commit-anchored-exact-cli-spec-coverage-for-the-accepted-help-stack"
+  ],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

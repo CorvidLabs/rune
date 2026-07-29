@@ -7,6 +7,8 @@ module Rune
     class RunCommand < Command
       name 'run'
       summary 'Execute any CLI command in a PTY and return structured output'
+      usage 'rune run [--timeout=SECONDS] [--] <command...>'
+      flag '--timeout=SECONDS', 'Kill the wrapped command after N seconds (default 30). Before `--` only.'
 
       def call(args, _options)
         timeout_seconds, remaining, timeout_error = extract_timeout(args)

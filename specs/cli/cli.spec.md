@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 4
+version: 9
 status: active
 files:
   - lib/rune.rb
@@ -8,6 +8,7 @@ files:
   - lib/rune/command.rb
   - lib/rune/result.rb
   - lib/rune/renderer.rb
+  - lib/rune/help.rb
   - lib/rune/version.rb
   - lib/rune/commands/version_command.rb
 ---
@@ -17,10 +18,11 @@ files:
 Core CLI framework for rune. Provides command registration, argument parsing, dual-mode output (human-pretty for terminals, structured JSON for agents, streaming NDJSON), and the base `Command` class that all commands extend. Designed so that every interaction is first-class for both humans and AI agents.
 
 ## Public API
+
 | Name | Type | Description |
 |------|------|-------------|
 | `CLI` | class | CLI router. Class methods: `run(argv)`, `register(command_class)`, `commands`. Instance: `run(argv)`. |
-| `Command` | class | Base class for commands. DSL: `name(n)`, `summary(s)`. Override: `call(args, options)`, `human_render(data, io)`. |
+| `Command` | class | Base class for commands. DSL: `name(n)`, `summary(s)`, `usage(text)`, `flag(spec, description)`. Override: `call(args, options)`, `human_render(data, io)`. |
 | `Result` | class | Structured result. Class methods: `.success(data, exit_code: nil)`, `.failure(error, data: nil, exit_code: nil)`. Instance: `#success?`, `#failure?`, `#to_h`, `#exit_code`. |
 | `Renderer` | class | Output formatter. `#agent_mode?`, `#render(result, human_block:)`. Supports JSON and NDJSON modes. |
 | `Error` | class | Base exception reserved for rune-specific library errors. |
@@ -53,6 +55,18 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | `VERSION` | constant | Current rune release version. |
 | `VersionCommand` | class | Returns rune, Ruby, platform, and optional-tool version information. |
 | `Commands` | module | Namespace containing concrete CLI command implementations. |
+| `usage` | class method | Declares the one-line invocation shape shown by `rune <cmd> --help`. |
+| `flag` | class method | Declares one command-specific flag (spec + description) for command help. |
+| `command_usage` | reader | Returns the subclass's declared usage line, or nil. |
+| `command_flags` | reader | Returns the subclass's declared flags, defaulting to an empty array. |
+| `Help` | class | Builds and renders `rune --help`, `rune <cmd> --help`, and `rune help [cmd]`. Class method: `.extract_flag!(args)`. Instance: `#overview`, `#for_command(name)`, `#render(data, io)`. |
+| `FLAGS` | constant | Tokens (`--help`, `-h`) recognized as a help request before the first `--`. |
+| `GLOBAL_FLAGS` | constant | Flags that apply to every command, rendered under "Global flags" and returned in every help payload. |
+| `extract_flag!` | class method | Removes every help alias from the pre-separator argv in place and reports whether any were present. |
+| `overview` | instance method | Builds the all-commands help `Result`. |
+| `for_command` | instance method | Builds one command's help `Result`, or a structured failure for an unknown name. |
+| `render_command` | internal method | Renders one command's usage and flag list for a terminal. |
+| `render_flags` | internal method | Renders an aligned flag/description list. |
 
 ## Invariants
 
@@ -82,6 +96,21 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
     executable for every registered command in every agent output mode, asserting over whole
     stdout rather than a substring, because a substring assertion passes against interleaved
     output and previously did.
+12. `--help` and `-h` are accepted at the top level (`rune --help`) and per command
+    (`rune run --help`), and `rune help <command>` is equivalent. Command help never executes the
+    command — `rune run --help` previously spawned `--help` in a pty and reported exit 127.
+    Like `--json`/`--ndjson`, they are recognized only before the first `--`, so a wrapped
+    command's own `--help` is passed through untouched (invariant 9).
+13. Help is a normal `Result`, so it is available in agent mode: `rune <cmd> --help --json`
+    returns the command's `usage` string and `flags` list as data. Every flag a command parses is
+    declared on that command via the `flag` DSL, so the CLI surface is discoverable without
+    reading `specs/` or scraping the human rendering.
+14. Help extraction removes every recognized alias before the first separator. Mixed and repeated
+    forms such as `rune --help -h` and `rune --help --help` remain help requests and do not leave
+    an alias behind to be resolved as a command.
+15. Rendering modes are invocation-local. Reusing one `CLI` instance for help and then a normal
+    command resets help, JSON, and NDJSON selection before the second dispatch; no help or output
+    flag from an earlier run may affect a later run.
 
 ## Behavioral Examples
 
@@ -95,16 +124,28 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 - Running `rune watch --json -- CMD` from a terminal writes only the result envelope to stdout and
   the wrapped command's live output to stderr, so `rune watch --json -- CMD 2>/dev/null | jq`
   succeeds; without the split, stdout began with the child's own bytes and failed to parse
+- Running `rune --help`, `rune -h`, or `rune help` all print the same command overview and exit 0
+- Running `rune run --help` prints `rune run [--timeout=SECONDS] [--] <command...>` and exits 0
+  without spawning anything
+- Running `rune run --help --json` returns `data.usage` and `data.flags` for an agent to read
+- Running `rune run -- mytool --help` passes `--help` to `mytool` instead of showing Rune's help
+- Running `rune --help -h` returns the overview rather than treating `-h` as a command
+- Reusing a `CLI` object for `run --help` and then `version` renders version output normally
 
 ## Error Cases
+
 | Condition | Behavior |
 |-----------|----------|
 | Unknown command | Returns `Result.failure` with descriptive error, exit code 1 |
 | Command raises exception | Caught and wrapped in `Result.failure`, exit code 1 |
 | No command given | Shows help output |
+| Help requested for an unknown command | Returns `Result.failure` with descriptive error, exit code 1 |
+| Mixed or repeated help aliases | Consumes every alias, returns help, and exits 0 |
+| Reused CLI after help | Resets help and output modes, then dispatches and renders normally |
 
 ## Dependencies
-- Ruby stdlib: `optparse`, `json`
+
+- Ruby stdlib: `json`
 - No external runtime dependencies
 
 ## Change Log
@@ -114,3 +155,8 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-07-28 | CHG-0001-adopt-and-enforce-specsync-5-for-release-delivery: Adopt and enforce SpecSync 5 for release delivery |
 | 2026-07-29 | CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and: Address PR review findings in release synchronization, SDD package coverage, and publish ref validation |
 | 2026-07-29 | CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o: Keep rune watch stdout parseable in agent mode and stop the trust gate passing on an empty commit range |
+| 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |
+| 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
+| 2026-07-29 | CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant: Restore full CLI contract detail after the help delta and establish exact semantic successor coverage |
+| 2026-07-29 | CHG-0014-clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr: Clarify mixed help aliases and invocation-local CLI modes in the exact CLI contract |
+| 2026-07-29 | CHG-0015-record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r: Finalize the committed CLI help contract and document CLI reuse recovery |

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 9,
-  "id": "CHG-0009-address-pr-9-review-findings-by-covering-every-commit-in-multi-commit-push-trus",
+  "sequence": 15,
+  "id": "CHG-0015-record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r",
   "acknowledged_collisions": []
 }

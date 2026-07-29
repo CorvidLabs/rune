@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0013-finalize-commit-anchored-exact-cli-spec-coverage-for-the-accepted-help-stack",
+  "slug": "finalize-commit-anchored-exact-cli-spec-coverage-for-the-accepted-help-stack",
+  "title": "Finalize commit-anchored exact CLI spec coverage for the accepted help stack",
+  "description": "Finalize commit-anchored exact CLI spec coverage for the accepted help stack",
+  "kind": "operations",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "bf384e40f45bbf7e8eb1c3d3f09b00af137b91d3",
+  "created_at": 1785334987,
+  "updated_at": 1785336025,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "specs/cli/cli.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The accepted semantic contract is committed at bf384e4; this exact-path successor anchors its delivery coverage to that commit without changing the canonical spec.",
+  "acceptance_criteria": [
+    "1. The exact CLI spec path is anchored to commit bf384e4, which contains all accepted predecessor evidence. 2. The canonical CLI contract is unchanged. 3. Strict SpecSync and the unified trust gate pass with no stale evidence."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "requirements",
+    "tasks"
+  ],
+  "dependencies": [
+    "CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o",
+    "CHG-0009-address-pr-9-review-findings-by-covering-every-commit-in-multi-commit-push-trus",
+    "CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and",
+    "CHG-0011-reconcile-exact-cli-canonical-spec-path-coverage-after-the-accepted-help-delta-s",
+    "CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant"
+  ],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

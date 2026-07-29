@@ -9,6 +9,8 @@ module Rune
     class WatchCommand < Command
       name 'watch'
       summary 'Interactively drive a command in a PTY with live passthrough and an NDJSON event log'
+      usage 'rune watch [--log=PATH] [--] <command...>'
+      flag '--log=PATH', 'Write the NDJSON event log here instead of a temp file. Before `--` only.'
 
       def call(args, options)
         return Result.failure('rune watch requires a real terminal (stdin is not a TTY).') unless $stdin.tty?

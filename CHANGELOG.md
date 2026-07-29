@@ -2,8 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- `--help` and `-h`, at the top level (`rune --help`) and per command (`rune run --help`), plus
+  `rune help <command>`. Command help lists that command’s own flags — `--timeout=SECONDS`,
+  `--log=PATH` — which were previously discoverable only from `specs/` and from the error you got
+  for using them wrong.
+- A `usage`/`flag` DSL on `Rune::Command` so each command declares its own invocation shape and
+  flags next to the code that parses them.
+- Help is a normal `Result`, so `rune run --help --json` returns `usage` and `flags` as structured
+  data an agent can read without scraping the human rendering.
+
 ### Fixed
 
+- `rune --help` returned `Unknown command: --help` and exit 1; `rune run --help` tried to *execute*
+  `--help` in a pty and exited 127.
 - Route `rune watch`'s live passthrough to stderr in agent mode (`--json`, `--ndjson`, or piped
   stdout) so stdout carries only the result envelope. It previously emitted the wrapped command's
   raw output followed by the JSON, which meant `rune watch --json` produced stdout that did not
