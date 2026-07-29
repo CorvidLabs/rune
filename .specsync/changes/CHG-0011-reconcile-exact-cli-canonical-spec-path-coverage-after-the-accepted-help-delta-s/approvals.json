@@ -13,7 +13,99 @@
       "timestamp": 1785334763,
       "digest": "37d70e73a18acf3928f291a3bcdfcc51298090865f9c0c7894cab4306ce6236a",
       "note": "Exact CLI spec path coverage reconciled without changing the accepted CHG-0010 contract; full lane passed."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785335911,
+      "digest": "ec369678de9e93638aa9781de498f400fbf0d91f0bccca2b9752b936cb4ca84f",
+      "note": "Freshly reverified against the final CHG-0015 CLI contract; 201 specs and 30 smoke checks pass."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0011-reconcile-exact-cli-canonical-spec-path-coverage-after-the-accepted-help-delta-s",
+      "actor": "0xLeif",
+      "reason": "CHG-0015 finalized the CLI help contract; refresh CHG-0011 evidence against the final canonical state after its predecessors were reaccepted.",
+      "timestamp": 1785335872,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1785334763,
+        "digest": "37d70e73a18acf3928f291a3bcdfcc51298090865f9c0c7894cab4306ce6236a",
+        "note": "Exact CLI spec path coverage reconciled without changing the accepted CHG-0010 contract; full lane passed."
+      },
+      "prior_verification": {
+        "timestamp": 1785334755,
+        "commit": "ef897af980c1b85b0a6b343e9e70b3bdb8ff1ed7",
+        "contract_digest": "43d1aac5abb461d9ec894575798d14d691216ae78471b9c7426275ad40938c72",
+        "workspace_digest": "72859a33523630e473c17d8e8b4d20619c4d156d2d85ba509a385f9ce6ceaf85",
+        "acceptance_input_digest": "78eececc3c32e1cd3efa92e7e3c8744541b4fa8bc205930325d24aed96186697",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "96f2b4ca3ffe24b8ffab153f8a2eac221fa4cfb447ccfa5d79e7226a44e9fd26",
+              "entry_digest": "5a7a639f2dd7b80234a911692b4c367ab19b46dbb743586d1c031c6f43cfed15",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/cli/cli.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ee3c4381d3f92640e4717b789eee097ab37b99650c5b8b4035021cd26916d488",
+              "entry_digest": "bf50d35febc8292b24b65b50560f35ade0686359aafec689f18ffaa9c1dc80bc",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/cli/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+              "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+              "owners": [
+                "cli"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "78eececc3c32e1cd3efa92e7e3c8744541b4fa8bc205930325d24aed96186697",
+      "current_acceptance_input_digest": "cb6e1f7bc2d1e29eecd58f7540be6d78563c8827d6b7bb7060b9257f50bf1233"
+    }
+  ]
 }

@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 8
+version: 9
 status: active
 files:
   - lib/rune.rb
@@ -141,6 +141,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | No command given | Shows help output |
 | Help requested for an unknown command | Returns `Result.failure` with descriptive error, exit code 1 |
 | Mixed or repeated help aliases | Consumes every alias, returns help, and exits 0 |
+| Reused CLI after help | Resets help and output modes, then dispatches and renders normally |
 
 ## Dependencies
 
@@ -158,3 +159,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
 | 2026-07-29 | CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant: Restore full CLI contract detail after the help delta and establish exact semantic successor coverage |
 | 2026-07-29 | CHG-0014-clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr: Clarify mixed help aliases and invocation-local CLI modes in the exact CLI contract |
+| 2026-07-29 | CHG-0015-record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r: Finalize the committed CLI help contract and document CLI reuse recovery |

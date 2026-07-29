@@ -13,7 +13,99 @@
       "timestamp": 1785335211,
       "digest": "f93f2e3df0bc3019ead4bb388ee03872c6d033e4d73f7c942fc64c4c45f861d8",
       "note": "Final exact CLI semantic successor accepted from a commit containing all predecessor evidence; full lane passing."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785336082,
+      "digest": "003551e8cbb5d82a325dfc65d0d671967370218472c19b7b267bce22bb644b28",
+      "note": "Freshly reverified against the final CHG-0015 CLI contract; 201 specs and 30 smoke checks pass."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0014-clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr",
+      "actor": "0xLeif",
+      "reason": "CHG-0015 finalized the CLI help contract; refresh CHG-0014 evidence against the final canonical state after its predecessors were reaccepted.",
+      "timestamp": 1785336032,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1785335211,
+        "digest": "f93f2e3df0bc3019ead4bb388ee03872c6d033e4d73f7c942fc64c4c45f861d8",
+        "note": "Final exact CLI semantic successor accepted from a commit containing all predecessor evidence; full lane passing."
+      },
+      "prior_verification": {
+        "timestamp": 1785335204,
+        "commit": "e3b9064ab7f89fbd43a9c3e42a92886b5c9ac3b9",
+        "contract_digest": "399da422e0641682e073bc6e9cc27a0dd41e277c5ad3a68ee5ed85ac824a26ea",
+        "workspace_digest": "984293e2c30ff074cca5e92c17999378c3e5261cb49b76ce339436ccd8fd6127",
+        "acceptance_input_digest": "f67180d985946a404fe3504e5e47647ca30e8e06b7c4329afa0df39b94b7eedb",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "fd1558d2b6e0b4fb64ff17c349924fed8dc0b90efacfc1a35d6e1914d1df018b",
+              "entry_digest": "65de32dd0369e3779d12d550741478d11d32a8ddbc931b1b22c36f2aebac170d",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/cli/cli.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3ab61ed47b7e1af56834aaaff09019ba0a9624d657a687e8daf8d64f6e12f7c3",
+              "entry_digest": "a63db0cb35e079fd4f66d7b94648aa3861bf839ec65822a4b6611078b08adb50",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/cli/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+              "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+              "owners": [
+                "cli"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "f67180d985946a404fe3504e5e47647ca30e8e06b7c4329afa0df39b94b7eedb",
+      "current_acceptance_input_digest": "a7d6fe0fdd7e0900fde4586c47f578f559632c044524a67ca23caeffe0ec62d0"
+    }
+  ]
 }

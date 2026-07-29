@@ -2,10 +2,10 @@
   "schema_version": 1,
   "attempts": [
     {
-      "timestamp": 1785334926,
-      "commit": "ef897af980c1b85b0a6b343e9e70b3bdb8ff1ed7",
-      "contract_digest": "3baafc6e9d8eadbcc23b731f774e656768c39308fbc011f1e4c9b1bd091acb71",
-      "workspace_digest": "f451a22fb8b066dee74e5a49dde1cb42c4198a4e95d511dfe132552fe5bcf53f",
+      "timestamp": 1785335453,
+      "commit": "e433ab7d590e01f8acfb6d8c27fbabcfca35fdf4",
+      "contract_digest": "7d2bf3aeb8817d45034943c0d45c19b7bf8fa3bad753f8ef348e1a17b8a4b2c4",
+      "workspace_digest": "23f578db8db7db88f1e53c9e45a798b0edbaca2a93fb43ba4895816b1d20b59b",
       "passed": true,
       "commands": [
         {
@@ -32,10 +32,10 @@
       "requirement_ids": []
     },
     {
-      "timestamp": 1785335951,
+      "timestamp": 1785335706,
       "commit": "e433ab7d590e01f8acfb6d8c27fbabcfca35fdf4",
-      "contract_digest": "3baafc6e9d8eadbcc23b731f774e656768c39308fbc011f1e4c9b1bd091acb71",
-      "workspace_digest": "2dee9606c2fdbb2fff942e9c436749d0c1985a1f04865831683c4ec9edcbcf8b",
+      "contract_digest": "57c636d388fb6febb27fa27ac3954e6cff630984f560831447ffbb254a04cae6",
+      "workspace_digest": "23f578db8db7db88f1e53c9e45a798b0edbaca2a93fb43ba4895816b1d20b59b",
       "passed": true,
       "commands": [
         {

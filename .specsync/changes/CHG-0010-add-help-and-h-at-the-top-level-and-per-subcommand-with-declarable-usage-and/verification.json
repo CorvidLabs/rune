@@ -1,9 +1,9 @@
 {
-  "timestamp": 1785334497,
-  "commit": "ef897af980c1b85b0a6b343e9e70b3bdb8ff1ed7",
+  "timestamp": 1785335856,
+  "commit": "e433ab7d590e01f8acfb6d8c27fbabcfca35fdf4",
   "contract_digest": "5dd1672293bef3725083b15408947c0004161606c43c323134461e51a0d3a9d0",
-  "workspace_digest": "bd5180770f659eac81be5df6853970fcdcc9d552469b7893df9b0296ce0bb2a4",
-  "acceptance_input_digest": "601901f29e5c5de4d0489c8f7b62064089dd4bdbf997d1db3931ed4f3746d545",
+  "workspace_digest": "2dee9606c2fdbb2fff942e9c436749d0c1985a1f04865831683c4ec9edcbcf8b",
+  "acceptance_input_digest": "fe5cb585c68150f4b1aa6a94e742525b566f567ff64bde407873f2bcf6dfc83a",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -331,8 +331,8 @@
         "path": "specs/cli/cli.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "ee3c4381d3f92640e4717b789eee097ab37b99650c5b8b4035021cd26916d488",
-        "entry_digest": "bf50d35febc8292b24b65b50560f35ade0686359aafec689f18ffaa9c1dc80bc",
+        "payload_digest": "808cc3e446b8e501a505943d1d441fcc70248ab7529e4070a7e4fc1ccc581de3",
+        "entry_digest": "b175c24dd9c5c9bd00b7a44d2d3ff3111023ea255ca57380f91c6d9c88ba676a",
         "owners": [
           "cli"
         ]
