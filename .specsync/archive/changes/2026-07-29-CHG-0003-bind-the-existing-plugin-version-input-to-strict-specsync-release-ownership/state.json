@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0003-bind-the-existing-plugin-version-input-to-strict-specsync-release-ownership",
+  "slug": "bind-the-existing-plugin-version-input-to-strict-specsync-release-ownership",
+  "title": "Bind the existing plugin version input to strict SpecSync release ownership",
+  "description": "Bind the existing plugin version input to strict SpecSync release ownership",
+  "kind": "operations",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "bc21bf21dca0e2458dab2a0c6950031676fd7108",
+  "created_at": 1785286991,
+  "updated_at": 1785290342,
+  "affected_specs": [],
+  "affected_paths": [
+    "plugin.toml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The CLI v3 invariant already specifies plugin.toml version parity; this change records ownership for the existing release bump without altering canonical behavior",
+  "acceptance_criteria": [
+    "Strict SpecSync verification recognizes plugin.toml as covered by an approved change and the full trust gate passes without weakening meaningful_paths"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

@@ -1,6 +1,6 @@
 ---
 id: CHG-0004-restrict-release-provenance-ranges-to-semantic-release-tags
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 24c591c9b366cb7a6aebb653f7ab9d29a687f00d
 ---

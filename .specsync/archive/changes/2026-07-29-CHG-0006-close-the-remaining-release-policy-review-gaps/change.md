@@ -1,6 +1,6 @@
 ---
 id: CHG-0006-close-the-remaining-release-policy-review-gaps
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 772dddacd43b01c79c702f6dd3932ad5ccf72a4d
 ---
