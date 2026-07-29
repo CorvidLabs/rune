@@ -41,6 +41,13 @@
       "timestamp": 1785332852,
       "digest": "0c2e8a64e96d4f1ebe677d897f1f2d2febfedcd121d44ee2e7b178075c9e024d",
       "note": "Fresh delivery evidence accepted after the PR #9 review corrections; the original CHG-0008 definition is unchanged and all 184 tests plus 30 smoke checks pass."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785334369,
+      "digest": "e7d776bb80eb569e47384557b489a269b56d84957a54950735954becea5a790e",
+      "note": "Reverified after PR #21 added WatchCommand help metadata; stdout-purity behavior remains covered and passing."
     }
   ],
   "reopenings": [

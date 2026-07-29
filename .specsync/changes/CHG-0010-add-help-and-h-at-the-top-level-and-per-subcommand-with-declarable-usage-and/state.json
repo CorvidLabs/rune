@@ -5,10 +5,11 @@
   "title": "Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state",
   "description": "Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state",
   "kind": "feature",
-  "state": "implementing",
+  "state": "accepted",
+  "canonical_applied": true,
   "base_commit": "0b2218b4b054368a0cd6562e289ffff9f9199395",
   "created_at": 1785333824,
-  "updated_at": 1785334195,
+  "updated_at": 1785334522,
   "affected_specs": [
     "cli",
     "pty_runner",

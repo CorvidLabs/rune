@@ -20,6 +20,13 @@
       "timestamp": 1785332918,
       "digest": "24aa38ee899e7d50353db1c59c0149ab587fbd619bccad5f5b821de29f179e95",
       "note": "Accepted after 184 RSpec examples, 30 smoke checks, lint, and exact regression coverage for three-commit push ranges and PTY-unavailable E2E loading."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785334430,
+      "digest": "3ebcf579c8dd0e2d129bda13de0f8029b25c7948bdd6e5d54d0990170e2aae36",
+      "note": "Reverified after PR #21 updated the changelog; PR #22 trust-range and non-PTY coverage remains passing."
     }
   ],
   "reopenings": [

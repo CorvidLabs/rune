@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785334892,
+      "digest": "3baafc6e9d8eadbcc23b731f774e656768c39308fbc011f1e4c9b1bd091acb71",
+      "note": "Approve exact semantic successor restoring the complete CLI contract rationale."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785334932,
+      "digest": "7e140c33ce473fc9dffa8d8115fc65a08c6d2953508daa076a5eb89231d0cc09",
+      "note": "Full CLI safety rationale restored and exact semantic successor coverage accepted after a passing full lane."
+    }
+  ],
+  "reopenings": []
+}

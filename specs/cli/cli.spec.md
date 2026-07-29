@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 5
+version: 7
 status: active
 files:
   - lib/rune.rb
@@ -96,7 +96,6 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
     executable for every registered command in every agent output mode, asserting over whole
     stdout rather than a substring, because a substring assertion passes against interleaved
     output and previously did.
-
 12. `--help` and `-h` are accepted at the top level (`rune --help`) and per command
     (`rune run --help`), and `rune help <command>` is equivalent. Command help never executes the
     command — `rune run --help` previously spawned `--help` in a pty and reported exit 127.
@@ -128,7 +127,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 - Running `rune run --help` prints `rune run [--timeout=SECONDS] [--] <command...>` and exits 0
   without spawning anything
 - Running `rune run --help --json` returns `data.usage` and `data.flags` for an agent to read
-- Running `rune run -- mytool --help` passes `--help` to `mytool` instead of showing rune's help
+- Running `rune run -- mytool --help` passes `--help` to `mytool` instead of showing Rune's help
 - Running `rune --help -h` returns the overview rather than treating `-h` as a command
 - Reusing a `CLI` object for `run --help` and then `version` renders version output normally
 
@@ -154,3 +153,5 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-07-29 | CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and: Address PR review findings in release synchronization, SDD package coverage, and publish ref validation |
 | 2026-07-29 | CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o: Keep rune watch stdout parseable in agent mode and stop the trust gate passing on an empty commit range |
 | 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |
+| 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
+| 2026-07-29 | CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant: Restore full CLI contract detail after the help delta and establish exact semantic successor coverage |

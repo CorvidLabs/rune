@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 10,
-  "id": "CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and",
+  "sequence": 12,
+  "id": "CHG-0012-restore-full-cli-contract-detail-after-the-help-delta-and-establish-exact-semant",
   "acknowledged_collisions": []
 }

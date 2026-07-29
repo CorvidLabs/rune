@@ -13,6 +13,20 @@
       "timestamp": 1785334195,
       "digest": "3ca5d321e12f7983b5396997ac19c11daa686adc7e7da1a6cd092093e6b233f6",
       "note": "Approved implementation definition including reviewer regressions and ordered dependencies on CHG-0008 and CHG-0009."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785334456,
+      "digest": "5dd1672293bef3725083b15408947c0004161606c43c323134461e51a0d3a9d0",
+      "note": "Approved final task state after two successful full verification lane runs for the reopened predecessor changes."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785334522,
+      "digest": "3ca95067ced5d28bc0a65fcb15cc88d8784121561f53a403d4e293236b919b78",
+      "note": "Help aliases, command metadata, separator behavior, duplicate-alias removal, CLI reuse, docs, and full verification accepted."
     }
   ],
   "reopenings": []

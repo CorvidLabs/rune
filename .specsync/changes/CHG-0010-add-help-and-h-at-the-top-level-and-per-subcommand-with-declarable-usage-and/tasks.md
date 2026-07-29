@@ -15,4 +15,4 @@ artifact: tasks
 - [x] T8 Remove every mixed or repeated pre-separator help alias.
 - [x] T9 Reset renderer selection for every reused `CLI` invocation.
 - [x] T10 Add regression tests for T8 and T9.
-- [ ] T11 Run the full verification and trust gates.
+- [x] T11 Run the full verification and trust gates.

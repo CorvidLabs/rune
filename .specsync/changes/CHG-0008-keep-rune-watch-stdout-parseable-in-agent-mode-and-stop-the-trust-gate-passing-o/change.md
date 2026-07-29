@@ -1,6 +1,6 @@
 ---
 id: CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o
-state: verifying
+state: accepted
 type: bug_fix
 base_commit: 2ec05cf24663908b061974b8dd8a9caa3fc6ef15
 ---

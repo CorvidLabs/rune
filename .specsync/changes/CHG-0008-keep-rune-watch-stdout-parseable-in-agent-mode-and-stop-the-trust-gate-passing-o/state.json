@@ -5,11 +5,11 @@
   "title": "Keep rune watch stdout parseable in agent mode and stop the trust gate passing on an empty commit range",
   "description": "Keep rune watch stdout parseable in agent mode and stop the trust gate passing on an empty commit range",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "2ec05cf24663908b061974b8dd8a9caa3fc6ef15",
   "created_at": 1785303806,
-  "updated_at": 1785334280,
+  "updated_at": 1785334369,
   "affected_specs": [
     "watch",
     "cli"

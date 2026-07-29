@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0011-reconcile-exact-cli-canonical-spec-path-coverage-after-the-accepted-help-delta-s",
+  "slug": "reconcile-exact-cli-canonical-spec-path-coverage-after-the-accepted-help-delta-s",
+  "title": "Reconcile exact CLI canonical-spec path coverage after the accepted help delta so CHG-0008 has an audited successor",
+  "description": "Reconcile exact CLI canonical-spec path coverage after the accepted help delta so CHG-0008 has an audited successor",
+  "kind": "operations",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "ef897af980c1b85b0a6b343e9e70b3bdb8ff1ed7",
+  "created_at": 1785334671,
+  "updated_at": 1785334763,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "specs/cli/cli.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "CHG-0010 already applied the CLI semantic delta; this ledger-only successor records the exact canonical path required to cover CHG-0008's accepted delivery evidence without changing the contract again.",
+  "acceptance_criteria": [
+    "1. The exact specs/cli/cli.spec.md delivery path is covered by an accepted successor to CHG-0008 and CHG-0010. 2. The canonical CLI contract remains unchanged from the accepted CHG-0010 result. 3. Strict SpecSync and the full trust gate pass with no stale accepted evidence."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "requirements",
+    "tasks"
+  ],
+  "dependencies": [
+    "CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o",
+    "CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and"
+  ],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785334715,
+      "digest": "43d1aac5abb461d9ec894575798d14d691216ae78471b9c7426275ad40938c72",
+      "note": "Approve exact-path ledger reconciliation so strict SpecSync recognizes the accepted help change as CHG-0008's successor."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785334763,
+      "digest": "37d70e73a18acf3928f291a3bcdfcc51298090865f9c0c7894cab4306ce6236a",
+      "note": "Exact CLI spec path coverage reconciled without changing the accepted CHG-0010 contract; full lane passed."
+    }
+  ],
+  "reopenings": []
+}
