@@ -5,11 +5,11 @@
   "title": "Address PR #9 review findings by covering every commit in multi-commit push trust ranges and keeping non-PTY E2E tests loadable without Ruby's optional pty extension",
   "description": "Address PR #9 review findings by covering every commit in multi-commit push trust ranges and keeping non-PTY E2E tests loadable without Ruby's optional pty extension",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "verifying",
   "canonical_applied": true,
   "base_commit": "605e5d42445c9cc4ff61a5ec9ef958e16245a09c",
   "created_at": 1785332659,
-  "updated_at": 1785332918,
+  "updated_at": 1785334190,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/ci.yml",

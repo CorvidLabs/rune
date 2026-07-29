@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'optparse'
-
 module Rune
   class CLI
     @commands = {}
@@ -32,11 +30,19 @@ module Rune
     def run(argv)
       args = argv.dup
       args = extract_output_modes(args)
-
+      help_requested = Help.extract_flag!(args)
       command_name = resolve_command_name(args.shift)
-      result = command_name == 'help' ? show_help : run_command(command_name, args)
+      help_mode = command_name == 'help' || help_requested
 
-      render_result(command_name, result)
+      result = if command_name == 'help'
+                 show_help(args.shift)
+               elsif help_requested
+                 show_help(command_name)
+               else
+                 run_command(command_name, args)
+               end
+
+      render_result(command_name, result, help_mode: help_mode)
       exit result.exit_code
     end
 
@@ -58,9 +64,12 @@ module Rune
       name
     end
 
-    def render_result(command_name, result)
+    def render_result(command_name, result, help_mode:)
       renderer = Renderer.new(io: @io, json_mode: @json_mode, ndjson_mode: @ndjson_mode)
-      command_instance = self.class.commands[command_name]&.new
+      # Help for a command must not be rendered by that command — `rune run
+      # --help` resolves command_name to "run", and RunCommand#human_render
+      # expects a PTY result, not a help payload.
+      command_instance = help_mode ? nil : self.class.commands[command_name]&.new
 
       renderer.render(result, human_block: lambda { |data, io|
         if command_instance
@@ -81,26 +90,13 @@ module Rune
       Result.failure(e.message)
     end
 
-    def show_help
-      Result.success({
-                       commands: self.class.commands.map { |n, c| { name: n, summary: c.command_summary } },
-                       version: VERSION
-                     })
+    def show_help(command_name = nil)
+      help = Help.new(self.class.commands)
+      command_name ? help.for_command(command_name) : help.overview
     end
 
     def help_human_render(data, io)
-      io.puts "\e[1;35mrune\e[0m v#{data[:version]}"
-      io.puts ''
-      io.puts 'Commands:'
-      data[:commands].each do |cmd|
-        io.puts format("  \e[1m%-20<name>s\e[0m %<summary>s", name: cmd[:name], summary: cmd[:summary])
-      end
-      io.puts ''
-      io.puts 'Global flags:'
-      io.puts '  --json               Output as JSON (agent mode)'
-      io.puts '  --ndjson             Stream output as JSON lines (live agent mode)'
-      io.puts ''
-      io.puts 'Pipe or redirect output to automatically get JSON.'
+      Help.new(self.class.commands).render(data, io)
     end
   end
 end

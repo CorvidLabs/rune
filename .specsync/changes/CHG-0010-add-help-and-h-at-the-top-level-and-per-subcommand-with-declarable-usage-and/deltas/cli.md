@@ -1,24 +1,6 @@
----
-module: cli
-version: 5
-status: active
-files:
-  - lib/rune.rb
-  - lib/rune/cli.rb
-  - lib/rune/command.rb
-  - lib/rune/result.rb
-  - lib/rune/renderer.rb
-  - lib/rune/help.rb
-  - lib/rune/version.rb
-  - lib/rune/commands/version_command.rb
----
-# CLI
+## MODIFIED
 
-## Purpose
-Core CLI framework for rune. Provides command registration, argument parsing, dual-mode output (human-pretty for terminals, structured JSON for agents, streaming NDJSON), and the base `Command` class that all commands extend. Designed so that every interaction is first-class for both humans and AI agents.
-
-## Public API
-
+### SPEC SECTION Public API
 | Name | Type | Description |
 |------|------|-------------|
 | `CLI` | class | CLI router. Class methods: `run(argv)`, `register(command_class)`, `commands`. Instance: `run(argv)`. |
@@ -68,8 +50,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | `render_command` | internal method | Renders one command's usage and flag list for a terminal. |
 | `render_flags` | internal method | Renders an aligned flag/description list. |
 
-## Invariants
-
+### SPEC SECTION Invariants
 1. Commands never print directly to stdout — they return a `Result`
 2. `Result#to_h` always includes a `status` key ("ok" or "error")
 3. Non-TTY stdout automatically triggers JSON output (agent mode)
@@ -92,48 +73,33 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
     any command parses as exactly one JSON document (or, under `--ndjson`, one JSON line per
     emitted event). A command that also produces side-effect output while it runs — currently only
     `rune watch`'s live passthrough — must route that output to stderr whenever `--json`/`--ndjson`
-    is set or stdout is not a TTY. This is enforced end-to-end against the real `bin/rune`
-    executable for every registered command in every agent output mode, asserting over whole
-    stdout rather than a substring, because a substring assertion passes against interleaved
-    output and previously did.
-
-12. `--help` and `-h` are accepted at the top level (`rune --help`) and per command
-    (`rune run --help`), and `rune help <command>` is equivalent. Command help never executes the
-    command — `rune run --help` previously spawned `--help` in a pty and reported exit 127.
-    Like `--json`/`--ndjson`, they are recognized only before the first `--`, so a wrapped
-    command's own `--help` is passed through untouched (invariant 9).
-13. Help is a normal `Result`, so it is available in agent mode: `rune <cmd> --help --json`
-    returns the command's `usage` string and `flags` list as data. Every flag a command parses is
-    declared on that command via the `flag` DSL, so the CLI surface is discoverable without
-    reading `specs/` or scraping the human rendering.
+    is set or stdout is not a TTY.
+12. `--help` and `-h` are accepted at the top level and per command, and `rune help <command>` is
+    equivalent. Command help never executes the command. Like output flags, help aliases are
+    recognized only before the first `--`.
+13. Help is a normal `Result`, so agent mode returns the command's `usage` and `flags` as data.
+    Every parsed command flag is declared through the command DSL.
 14. Help extraction removes every recognized alias before the first separator. Mixed and repeated
-    forms such as `rune --help -h` and `rune --help --help` remain help requests and do not leave
-    an alias behind to be resolved as a command.
-15. Rendering modes are invocation-local. Reusing one `CLI` instance for help and then a normal
-    command resets help, JSON, and NDJSON selection before the second dispatch.
+    aliases remain help requests and cannot become a command token.
+15. Rendering modes are invocation-local. Reusing one `CLI` instance resets help, JSON, and NDJSON
+    selection before every dispatch.
 
-## Behavioral Examples
-
+### SPEC SECTION Behavioral Examples
 - Running `rune version` in a terminal prints human-formatted version info
 - Running `rune version --json` reports the current `Rune::VERSION` in the success envelope
-- Running `rune version --ndjson` prints `{"event":"result","status":"ok",...}`
-- Running `rune run -- tool --json` passes `--json` to `tool` instead of consuming it globally
+- Running `rune version --ndjson` prints a newline-delimited result envelope
+- Running `rune run -- tool --json` passes `--json` to `tool`
 - Piping `rune version | cat` automatically outputs JSON
 - Running `rune nonexistent` returns exit code 1 and an error message
-- Running the release-version setter repairs one stale version source when the other already matches
-- Running `rune watch --json -- CMD` from a terminal writes only the result envelope to stdout and
-  the wrapped command's live output to stderr, so `rune watch --json -- CMD 2>/dev/null | jq`
-  succeeds; without the split, stdout began with the child's own bytes and failed to parse
-- Running `rune --help`, `rune -h`, or `rune help` all print the same command overview and exit 0
-- Running `rune run --help` prints `rune run [--timeout=SECONDS] [--] <command...>` and exits 0
-  without spawning anything
-- Running `rune run --help --json` returns `data.usage` and `data.flags` for an agent to read
-- Running `rune run -- mytool --help` passes `--help` to `mytool` instead of showing rune's help
-- Running `rune --help -h` returns the overview rather than treating `-h` as a command
-- Reusing a `CLI` object for `run --help` and then `version` renders version output normally
+- Running `rune watch --json -- CMD` keeps stdout parseable and routes live output to stderr
+- Running `rune --help`, `rune -h`, or `rune help` prints the command overview
+- Running `rune run --help` prints declared usage without spawning anything
+- Running `rune run --help --json` returns structured usage and flags
+- Running `rune run -- mytool --help` passes help to the child
+- Running `rune --help -h` returns the overview
+- Reusing a `CLI` for help and then version renders version normally
 
-## Error Cases
-
+### SPEC SECTION Error Cases
 | Condition | Behavior |
 |-----------|----------|
 | Unknown command | Returns `Result.failure` with descriptive error, exit code 1 |
@@ -141,16 +107,6 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | No command given | Shows help output |
 | Help requested for an unknown command | Returns `Result.failure` with descriptive error, exit code 1 |
 
-## Dependencies
-
+### SPEC SECTION Dependencies
 - Ruby stdlib: `json`
 - No external runtime dependencies
-
-## Change Log
-- v1: Active spec — CLI framework with dual-mode output and NDJSON envelopes
-- v1: Restricted global output-flag extraction to arguments before the first `--`, preserving
-  identically named flags for wrapped commands.
-| 2026-07-28 | CHG-0001-adopt-and-enforce-specsync-5-for-release-delivery: Adopt and enforce SpecSync 5 for release delivery |
-| 2026-07-29 | CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and: Address PR review findings in release synchronization, SDD package coverage, and publish ref validation |
-| 2026-07-29 | CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o: Keep rune watch stdout parseable in agent mode and stop the trust gate passing on an empty commit range |
-| 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |

@@ -34,8 +34,27 @@ Or as a [fledge](https://github.com/CorvidLabs/fledge) plugin:
 
 ```sh
 fledge plugins install rune
-fledge rune run --json git status
+fledge rune run --json -- git status
 ```
+
+## Discovering what's available
+
+```sh
+rune --help              # or -h, or `rune help`
+rune run --help          # or `rune help run`, or `rune run -h`
+```
+
+Command help lists that command's own flags — `--timeout=SECONDS` for `rune run`, `--log=PATH` for
+`rune watch` — alongside the global ones. It is structured in agent mode too, so discovery does not
+require parsing the human rendering:
+
+```sh
+$ rune run --help --json | jq -c '.data.flags'
+[{"flag":"--timeout=SECONDS","description":"Kill the wrapped command after N seconds (default 30). Before `--` only."}]
+```
+
+Help flags follow the same separator rule as everything else (below): `rune run -- mytool --help`
+passes `--help` to `mytool`.
 
 ## The three output modes
 

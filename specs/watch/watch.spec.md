@@ -1,6 +1,6 @@
 ---
 module: watch
-version: 2
+version: 3
 status: active
 files:
   - lib/rune/pty_watcher.rb
@@ -23,7 +23,7 @@ there.
 | Name | Type | Description |
 |------|------|-------------|
 | `PTYWatcher` | class | Constructor: `(command, log: $stderr, input: $stdin, output: $stdout)`. Method: `#watch` returns `Result`. The library default is `$stderr`; `WatchCommand` (the CLI) always passes an explicit `File` instead — see below. |
-| `WatchCommand` | class | Subcommand `rune watch [--log=PATH] <command...>`. Defaults the NDJSON event log to a temp file (`$stdin.tty?` is checked before anything else, so no file is created if it fails), announcing the path once via `warn`; `--log=PATH` writes it to a specific file instead. Only recognized before a `--` separator, same convention as `RunCommand`'s `--timeout`. Selects the live passthrough's destination from the output mode before spawning the watcher. |
+| `WatchCommand` | class | Subcommand `rune watch [--log=PATH] <command...>`. Defaults the NDJSON event log to a temp file (`$stdin.tty?` is checked before anything else, so no file is created if it fails), announcing the path once via `warn`; `--log=PATH` writes it to a specific file instead. Only recognized before a `--` separator, same convention as `RunCommand`'s `--timeout`. Selects the live passthrough's destination from the output mode before spawning the watcher. Declared via the `usage`/`flag` DSL, so `rune watch --help` renders it. |
 | `Rune` | module | Top-level rune namespace. |
 | `watch` | instance method | Validates terminal support and runs one live watched session. |
 | `build_result` | internal method | Logs session exit and constructs the duration/exit-code result. |
@@ -167,3 +167,4 @@ there.
   see it because they replace `PTYWatcher` with a double, so an end-to-end stdout-purity assertion
   over every command in every agent output mode was added alongside the fix.
 | 2026-07-29 | CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o: Keep rune watch stdout parseable in agent mode and stop the trust gate passing on an empty commit range |
+| 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |

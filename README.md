@@ -68,9 +68,36 @@ ruby bin/rune version
 
 ## Usage Examples
 
+### 0. Discover the CLI
+
+```sh
+rune --help              # every command, plus the global flags
+rune run --help          # one command's usage and its own flags
+rune help watch          # same thing, spelled the other way
+```
+
+Help is structured too, so an agent can discover the surface without scraping text:
+
+```sh
+rune run --help --json | jq '.data | {usage, flags}'
+```
+```json
+{
+  "usage": "rune run [--timeout=SECONDS] [--] <command...>",
+  "flags": [
+    { "flag": "--timeout=SECONDS", "description": "Kill the wrapped command after N seconds (default 30). Before `--` only." }
+  ]
+}
+```
+
+> **Use `--` before the wrapped command.** Every rune flag — `--json`, `--ndjson`, `--help`,
+> `--timeout`, `--log` — is recognized *only* before the first `--`. That is what lets
+> `rune run -- gh pr list --json number` pass `--json` to `gh` instead of consuming it. Without the
+> separator, rune takes the flag for itself and the wrapped command silently never sees it.
+
 ### 1. Execute Any CLI Command in Agent JSON Mode
 ```sh
-rune run --json git status
+rune run --json -- git status
 ```
 ```json
 {
@@ -79,6 +106,7 @@ rune run --json git status
     "command": "git status",
     "exit_code": 0,
     "clean_output": "On branch main\nnothing to commit, working tree clean\n",
+    "raw_output": "On branch main\r\nnothing to commit, working tree clean\r\n",
     "prompt_detected": false,
     "duration_ms": 21.05
   }
@@ -87,7 +115,7 @@ rune run --json git status
 
 ### 2. NDJSON Result Envelope
 ```sh
-rune run --ndjson fledge lanes run check
+rune run --ndjson -- fledge lanes run check
 ```
 ```json
 {"event":"result","status":"ok","data":{"command":"fledge lanes run check","exit_code":0,"clean_output":"...","duration_ms":1652.8}}
@@ -151,7 +179,7 @@ rune watch --json -- ruby examples/demo_tui.rb 2>/dev/null | jq .data.log_path
 - **[fledge](https://github.com/CorvidLabs/fledge)** — Task runner & project lifecycle. `rune` is a native `fledge` plugin defined via `plugin.toml`. Install directly via:
   ```sh
   fledge plugins install rune
-  fledge rune run --json git status
+  fledge rune run --json -- git status
   ```
 - **[spec-sync](https://github.com/CorvidLabs/spec-sync)** — Contract enforcement (`specs/`)
 - **[augur](https://github.com/CorvidLabs/augur)** — Change risk scoring

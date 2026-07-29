@@ -22,5 +22,130 @@
       "note": "Accepted after 184 RSpec examples, 30 smoke checks, lint, and exact regression coverage for three-commit push ranges and PTY-unavailable E2E loading."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0009-address-pr-9-review-findings-by-covering-every-commit-in-multi-commit-push-trus",
+      "actor": "0xLeif",
+      "reason": "PR #21 updates CHANGELOG.md after PR #22 merged, so the exact accepted delivery evidence requires a fresh audited verification.",
+      "timestamp": 1785334190,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1785332918,
+        "digest": "24aa38ee899e7d50353db1c59c0149ab587fbd619bccad5f5b821de29f179e95",
+        "note": "Accepted after 184 RSpec examples, 30 smoke checks, lint, and exact regression coverage for three-commit push ranges and PTY-unavailable E2E loading."
+      },
+      "prior_verification": {
+        "timestamp": 1785332910,
+        "commit": "605e5d42445c9cc4ff61a5ec9ef958e16245a09c",
+        "contract_digest": "cc435f001fd5e85cfbe05d3912d5e4deaf293fec7df27bb52677bb9c03890e9c",
+        "workspace_digest": "9a75c57e79fd12dfbccaf32901a093d5b3ab90b665d37d7a03c445ee23c512ff",
+        "acceptance_input_digest": "afc6e3e3dfdc426bde727670def966a0de6c43146422bc9b011d06f4be7b04d9",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c1abf77f677b5e0281db90bef90b918d552180888c0fbcc1e11f5734eadae033",
+              "entry_digest": "bf838dbbc54ecff2804536f1a2e96251ec05f60007c6650a12c3a595451c12d4",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "f8142ef83cc72a78c690fe130e9eba8c62c6b64cb5230fcfb6ee3f2a9abb4ae9",
+              "entry_digest": "933c8c182fbb12617c7e28f319fc3723b70f41771ee0b3b2cd2024779f7d0943",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "CHANGELOG.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3ecb6c02cc817017d9ae9446c963f67bfdb993e137ab5cedf36872f8f9099642",
+              "entry_digest": "138e61c29dac91ecc20fcdff22ffa9c13e892920b3ac61765f82564f8e372505",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "scripts/trust_range.sh",
+              "kind": "file",
+              "mode": 33261,
+              "payload_digest": "e20db931c41a0a5c9f25ecc547efb3199cb8683ddd4cc4f39e5ad75556564b33",
+              "entry_digest": "f8b73b1cf57c87017a2008169fca13241b99b2eb72168688bb9b645684e4a73a",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "spec/rune/e2e_portability_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d594ec99d2bd5b4e23156395c4ca5faadb5a40c81a6e67bbb8282f4682957f5a",
+              "entry_digest": "40317680e0ead770d80c90d77648376d80a371e6a8a203ccf41dd9b6d04bff39",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "spec/rune/e2e_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "525d92316df8ace9f904b7aa8e37411ae32e17efaa23177d5551bc489e12698b",
+              "entry_digest": "897662ac4fd264d707677d53b1b3b7285e81c5a42d399dab9f95c8195b3c643e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "spec/trust_range_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "96626f69fb9874e0ac5c29c94dc7579c7cd66a01aea4c585f58d324d7dc2e7c4",
+              "entry_digest": "5f7c17837f49e7919c61bbf8dc7cdf75d56505aedc3bd27e19682d051b943ad2",
+              "owners": [
+                "@exact:delivery"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "afc6e3e3dfdc426bde727670def966a0de6c43146422bc9b011d06f4be7b04d9",
+      "current_acceptance_input_digest": "2705da42a20ecb740d2e1110a561d840430bd9c7a64e0cabcbceb416db90eb12"
+    }
+  ]
 }

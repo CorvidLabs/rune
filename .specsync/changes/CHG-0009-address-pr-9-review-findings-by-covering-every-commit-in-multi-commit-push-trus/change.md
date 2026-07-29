@@ -1,6 +1,6 @@
 ---
 id: CHG-0009-address-pr-9-review-findings-by-covering-every-commit-in-multi-commit-push-trus
-state: accepted
+state: verifying
 type: bug_fix
 base_commit: 605e5d42445c9cc4ff61a5ec9ef958e16245a09c
 ---

@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785334105,
+      "digest": "9ddb056393eceafb7bee0e049f4fd6bd542d5b2d0ca5c3a03d3d9bad0bb6d6ae",
+      "note": "Approved after PR #22 merged; restack PR #21 and address both reviewer findings."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785334195,
+      "digest": "3ca5d321e12f7983b5396997ac19c11daa686adc7e7da1a6cd092093e6b233f6",
+      "note": "Approved implementation definition including reviewer regressions and ordered dependencies on CHG-0008 and CHG-0009."
+    }
+  ],
+  "reopenings": []
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 9,
-  "id": "CHG-0009-address-pr-9-review-findings-by-covering-every-commit-in-multi-commit-push-trus",
+  "sequence": 10,
+  "id": "CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and",
   "acknowledged_collisions": []
 }

@@ -3,6 +3,7 @@
 require_relative 'rune/version'
 require_relative 'rune/result'
 require_relative 'rune/renderer'
+require_relative 'rune/help'
 require_relative 'rune/command'
 require_relative 'rune/cli'
 require_relative 'rune/script'

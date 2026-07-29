@@ -1,6 +1,6 @@
 ---
 module: pty_runner
-version: 1
+version: 2
 status: active
 files:
   - lib/rune/pty_runner.rb
@@ -15,10 +15,11 @@ files:
 Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured TTY CLI commands in a sandboxed PTY process, cleans ANSI formatting, tracks execution timing, and exposes structured execution contracts to AI agents and humans alike.
 
 ## Public API
+
 | Name | Type | Description |
 |------|------|-------------|
 | `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, script: nil, timeout_seconds: 30, &on_output)`. Method: `#run` returns `Result`. Class method: `.pty_available?` reports whether the `pty` stdlib loaded successfully. |
-| `RunCommand` | class | Subcommand `rune run [--timeout=SECONDS] <command...>` exposing PTY process runner to humans and agents. `--timeout` overrides the default 30s PTYRunner timeout; only recognized before a `--` separator; must be a positive integer or the command fails with a clear error instead of leaking the raw flag into the executed command. |
+| `RunCommand` | class | Subcommand `rune run [--timeout=SECONDS] <command...>` exposing PTY process runner to humans and agents. `--timeout` overrides the default 30s PTYRunner timeout; only recognized before a `--` separator; must be a positive integer or the command fails with a clear error instead of leaking the raw flag into the executed command. Declared via the `usage`/`flag` DSL, so `rune run --help` renders it. |
 | `Script` | class | Interactive step DSL passed to `PTYRunner.new(script:)`. Constructor: `Script.new(&block)` (or `Script.define(&block)`, an alias) evaluates the block via `instance_eval`, so DSL methods can be called bare inside it. DSL methods: `wait_for(pattern)`, `send_keys(keys)`, `pause(seconds)` — each appends a `Step` to `#steps` (read via `attr_reader`); no I/O happens until `PTYRunner#run` actually executes the steps against the live PTY. |
 | `Rune` | module | Top-level rune namespace. |
 | `pty_available?` | class predicate | Reports whether Ruby's PTY stdlib loaded successfully. |
@@ -133,3 +134,4 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
   explicit `io/wait` require and the timeout-triggered SIGKILL/reap fix for orphaned child
   processes.
 - v1: Added boundary-safe incremental UTF-8 decoding shared by `PTYRunner` and `PTYWatcher`.
+| 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |
