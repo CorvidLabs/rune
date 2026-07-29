@@ -1,0 +1,1 @@
+{"commit":"3a9723a09026488b49b516c5fcf6935de587ed17","confidence":0.98,"humanApproved":true,"note":"Post-merge archive of accepted SpecSync changes CHG-0008 through CHG-0015. Full trust gate passed: 201 tests, strict SpecSync, 100% file/LOC coverage, Augur risk 32.","reviewer":"human:0xLeif","testsPassed":true,"timestamp":1785367391,"verdict":"proceed"}
