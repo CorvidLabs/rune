@@ -1,0 +1,1 @@
+{"commit":"e34145780044a263be05594d8e3ab2991cdf3fcd","confidence":0.99,"humanApproved":true,"note":"Homebrew tap PR #18 was confirmed merged; final Rune release record and exact SpecSync evidence reverified with 170 tests and all lifecycle checks passing.","reviewer":"agent:codex","testsPassed":true,"timestamp":1785297399,"verdict":"proceed"}
