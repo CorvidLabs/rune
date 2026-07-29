@@ -1,0 +1,145 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "human:0xLeif",
+      "timestamp": 1785295528,
+      "digest": "6b227aa4664ec71706c9d9af61b8db70b531a29265bfe4d4d3cf7721ed01e1ec",
+      "note": "Owner approved the Homebrew distribution and release-documentation work in this task."
+    },
+    {
+      "gate": "definition",
+      "actor": "human:0xLeif",
+      "timestamp": 1785296087,
+      "digest": "5b26b792288f66a5b659f2f570907754dfbe1ad75f25ea77cc33199638f0d1be",
+      "note": "Owner approved the finalized Homebrew distribution, release documentation, and verification scope in this task."
+    },
+    {
+      "gate": "definition",
+      "actor": "human:0xLeif",
+      "timestamp": 1785296345,
+      "digest": "794526c16d74c7b6801bd85b1b3f9e8e773f985c7f56e9b7bd6d90223abe5b80",
+      "note": "Owner approved the fully verified Homebrew distribution and release-documentation artifact set."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "human:0xLeif",
+      "timestamp": 1785296383,
+      "digest": "45a6326b3a8a30e6dbd782625ba3e06247938d2cc28a4b539c875771bdbf85a9",
+      "note": "Owner accepted the verified Homebrew distribution and release-documentation change for review."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "human:0xLeif",
+      "timestamp": 1785297324,
+      "digest": "42e82a7bb3c14731aa3feaa5b50181603c3fab47a5bc6614b7bb07cd67a2c4ea",
+      "note": "Owner confirmed CorvidLabs/homebrew-tap#18 merged; accepted the final completed v0.2.1 Homebrew release record."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0007-document-homebrew-as-the-primary-rune-installation-channel-and-synchronize-the-c",
+      "actor": "human:0xLeif",
+      "reason": "CorvidLabs/homebrew-tap#18 merged, completing the v0.2.1 Homebrew release record.",
+      "timestamp": 1785297283,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "human:0xLeif",
+        "timestamp": 1785296383,
+        "digest": "45a6326b3a8a30e6dbd782625ba3e06247938d2cc28a4b539c875771bdbf85a9",
+        "note": "Owner accepted the verified Homebrew distribution and release-documentation change for review."
+      },
+      "prior_verification": {
+        "timestamp": 1785296372,
+        "commit": "5ebf2a50a39838d994f6370a78fb47c9bc1deade",
+        "contract_digest": "794526c16d74c7b6801bd85b1b3f9e8e773f985c7f56e9b7bd6d90223abe5b80",
+        "workspace_digest": "ff3dd4964138a32d080f77e160fe6cc8a7e35ae5720126e16a65505bacc8101b",
+        "acceptance_input_digest": "5d0c08205e00f9a115ef2d3ec18cd775d674d21fe5ed8a212ac5ef6706f0bb39",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1b34e4e44607b4ea22650997317822857d8128115820fcb5e03f64d78ced5bf4",
+              "entry_digest": "d4ee0ba1776a920d3e26bd2505ff50b7691b5d1cced30aa415b349ecb94cc6c6",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "README.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "92c5a9b3a382a7c0541b483eec111dcd403a204656690145458de6fea62f1e93",
+              "entry_digest": "302871422770520af9729aeccfe7441e98d726c57a24096ce41eac2590400473",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "ROADMAP.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5ec85f890dc89b291f7e0600f865ca8a2a5f65d8621d980ea4b1ec6f82a3f68f",
+              "entry_digest": "db9124d952113ccc3f24355b78f6a8f4ac0f4223c74d540f70475607fd299a0c",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/getting_started.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5866bce5ad5a5762135065c07aa0592c845368242e340f9467603fdd8a7e14d0",
+              "entry_digest": "a0b65377d9bc671a22e9cf9747cca34de8c091e2ffec87ef074ada95d249abd7",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/releasing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "273ed9e787e7af536e72556020e15b815cf0cd0bbf54a7b4945e7f88d76244a0",
+              "entry_digest": "de91e41a6d2aeff4e009232a526159a52c6b673e07997af7085d0e6f6e54b665",
+              "owners": [
+                "@exact:delivery"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "5d0c08205e00f9a115ef2d3ec18cd775d674d21fe5ed8a212ac5ef6706f0bb39",
+      "current_acceptance_input_digest": "c72340a3fadc28c78a7d4886d58e59883aec1b46ef8608b289543dd2a397bd17"
+    }
+  ]
+}

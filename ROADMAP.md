@@ -1,6 +1,6 @@
 # rune release roadmap
 
-## 0.2.1 release prep
+## 0.2.1 release record
 
 `v0.2.0` shipped on 2026-07-27. The follow-up `v0.2.1` patch packages the PTY, UTF-8, watch-log,
 Ruby compatibility, documentation, and trust-gate fixes already merged to `main`.
@@ -9,8 +9,10 @@ Ruby compatibility, documentation, and trust-gate fixes already merged to `main`
 - [x] Add an automated version/tag parity check to local verification, CI, and package publishing.
 - [x] Require strict Attest verification from the previous tag through the release tag.
 - [x] Add a release lane covering version parity, lint, tests, spec-sync, smoke tests, and gem build.
-- [ ] Merge the release-prep PR after its CI and review gates pass.
-- [ ] Attest the resulting commit on `main`, verify `v0.2.0..HEAD`, then create and publish `v0.2.1`.
+- [x] Merge the release-prep PR after its CI and review gates pass.
+- [x] Attest the resulting commit on `main`, verify `v0.2.0..HEAD`, then create and publish `v0.2.1`.
+- [x] Publish `rune` 0.2.1 to GitHub Packages from the verified release tag.
+- [x] Merge the checksum-pinned 0.2.1 formula update in `CorvidLabs/homebrew-tap`.
 
 ## 0.2.0 release record
 
