@@ -62,5 +62,27 @@ Once the release-prep pull request is merged:
    exact tag, repeats version and provenance validation, builds the gem, and publishes it to
    GitHub Packages.
 
-6. Confirm the package workflow succeeded and that `rune version --json` from the installed gem
-   reports the released version.
+6. Confirm the package workflow succeeded and that its registry log reports the exact released gem
+   version.
+
+7. Confirm the `Bump Rune` workflow in
+   [`CorvidLabs/homebrew-tap`](https://github.com/CorvidLabs/homebrew-tap) opens a checksum-pinned
+   formula pull request. The tap pull request must pass all of the following before merge:
+
+   ```sh
+   fledge lanes run verify
+   brew audit --strict --online corvidlabs/tap/rune
+   brew install --build-from-source corvidlabs/tap/rune
+   brew test corvidlabs/tap/rune
+   ```
+
+   The tap checks both macOS and Linux. If the scheduled workflow has not run yet, dispatch
+   `Bump Rune` manually instead of editing an unverified checksum.
+
+8. After the tap pull request merges, install or upgrade from the public tap and verify the
+   executable reports the released version:
+
+   ```sh
+   brew upgrade corvidlabs/tap/rune || brew install corvidlabs/tap/rune
+   rune version --json
+   ```

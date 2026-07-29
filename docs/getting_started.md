@@ -7,8 +7,21 @@ agent driving it programmatically. Every command returns the same structured `Re
 ## Install
 
 The unqualified `rune` gem name is already taken on the public RubyGems.org registry by an
-unrelated package, so `gem install rune` there installs the wrong thing. Install from source
-instead:
+unrelated package, so `gem install rune` there installs the wrong thing. The supported end-user
+installation path is the checksum-pinned formula in the CorvidLabs Homebrew tap:
+
+```sh
+brew install corvidlabs/tap/rune
+rune version --json
+```
+
+Homebrew automatically adds the tap on first install. Upgrade Rune with:
+
+```sh
+brew upgrade corvidlabs/tap/rune
+```
+
+Clone the source only when developing Rune itself:
 
 ```sh
 git clone https://github.com/CorvidLabs/rune.git
@@ -37,7 +50,7 @@ colorized, human-formatted output:
 
 ```sh
 $ rune version
-rune v0.2.0
+rune v0.2.1
 ```
 
 ```sh
@@ -59,7 +72,7 @@ $ ruby bin/rune run --json -- echo "hello agent"
 
 ```sh
 $ ruby bin/rune version | cat
-{"status":"ok","data":{"name":"rune","version":"0.2.0","ruby":"4.0.5","ruby_platform":"arm64-darwin25","fledge":true,"specsync":true}}
+{"status":"ok","data":{"name":"rune","version":"0.2.1","ruby":"4.0.5","ruby_platform":"arm64-darwin25","fledge":true,"specsync":true}}
 ```
 
 Every JSON response has the same envelope: `{"status": "ok"|"error", "data": {...}}` (or

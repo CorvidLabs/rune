@@ -41,8 +41,21 @@ session. Same tool, same commands, dual interface.
 ## Install
 
 The unqualified `rune` gem name is already taken on the public RubyGems.org registry by an
-unrelated package, so `gem install rune` there installs the wrong thing. Install from source
-instead:
+unrelated package, so `gem install rune` there installs the wrong thing. Install the maintained,
+checksum-pinned formula from the CorvidLabs Homebrew tap:
+
+```sh
+brew install corvidlabs/tap/rune
+rune version --json
+```
+
+Upgrade later releases through the same channel:
+
+```sh
+brew upgrade corvidlabs/tap/rune
+```
+
+For source development:
 
 ```sh
 git clone https://github.com/CorvidLabs/rune.git

@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "human:0xLeif",
+      "timestamp": 1785295528,
+      "digest": "6b227aa4664ec71706c9d9af61b8db70b531a29265bfe4d4d3cf7721ed01e1ec",
+      "note": "Owner approved the Homebrew distribution and release-documentation work in this task."
+    },
+    {
+      "gate": "definition",
+      "actor": "human:0xLeif",
+      "timestamp": 1785296087,
+      "digest": "5b26b792288f66a5b659f2f570907754dfbe1ad75f25ea77cc33199638f0d1be",
+      "note": "Owner approved the finalized Homebrew distribution, release documentation, and verification scope in this task."
+    }
+  ],
+  "reopenings": []
+}
