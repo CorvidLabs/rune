@@ -134,6 +134,14 @@ rune watch -- ruby examples/demo_tui.rb
 rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
 ```
 
+In agent mode — `--json`, `--ndjson`, or any time stdout isn't a terminal — the live passthrough
+moves to **stderr** so stdout carries nothing but the result envelope. The human keeps their live
+view; the calling program gets clean JSON:
+
+```sh
+rune watch --json -- ruby examples/demo_tui.rb 2>/dev/null | jq .data.log_path
+```
+
 ---
 
 ## CorvidLabs Integration
@@ -162,7 +170,7 @@ rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
 ## Development & Verification
 
 ```sh
-fledge run test         # Run RSpec test suite (160 examples, 98%+ line coverage)
+fledge run test         # Run RSpec test suite (179 examples, 98%+ line coverage)
 fledge run lint         # Run RuboCop linter (0 offenses)
 fledge lanes run verify # Full CI gate (lint + tests + strict 100%-coverage spec-sync)
 fledge lanes run release # Verify, smoke-test, and build the release gem

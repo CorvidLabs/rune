@@ -158,6 +158,31 @@ Each log line is a JSON object: `{"event":"start","command":"...","pid":...}`, t
 `{"event":"output","bytes":N,"text":"..."}` per chunk as it streams, then
 `{"event":"exit","exit_code":N}` when the child exits.
 
+### `rune watch` in agent mode
+
+`rune watch` follows the same output-mode rules as every other command. Under `--json`, `--ndjson`,
+or any time stdout isn't a terminal, the live passthrough moves to **stderr** and stdout carries
+only the result envelope — so a wrapping program can parse stdout directly while the human at the
+keyboard still sees their session:
+
+```sh
+rune watch --json -- ruby examples/demo_tui.rb 2>/dev/null | jq .
+```
+
+```json
+{
+  "status": "ok",
+  "data": {
+    "command": "ruby examples/demo_tui.rb",
+    "exit_code": 0,
+    "duration_ms": 4820.11,
+    "log_path": "/tmp/rune-watch-20260728-12345-abcd.ndjson"
+  }
+}
+```
+
+Drop the `2>/dev/null` to keep watching the session yourself while the JSON is captured elsewhere.
+
 `rune watch` requires a real terminal (it refuses to run if stdin isn't a TTY — there's no
 meaningful non-interactive mode) and won't work over `rune run`'s own PTY inception, so it can't be
 demonstrated in a piped example the way the rest of this guide is. `examples/demo_tui.rb`'s top-level

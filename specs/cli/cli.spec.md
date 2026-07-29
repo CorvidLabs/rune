@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 3
+version: 4
 status: active
 files:
   - lib/rune.rb
@@ -74,6 +74,14 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 10. `Rune::VERSION`, `plugin.toml`, and the release tag identify the same semantic version before a
     package can be published. The release ref is an exact Git tag whose commit is reachable from
     `origin/main`.
+11. In agent mode, stdout carries the structured envelope and nothing else: the *complete* stdout of
+    any command parses as exactly one JSON document (or, under `--ndjson`, one JSON line per
+    emitted event). A command that also produces side-effect output while it runs — currently only
+    `rune watch`'s live passthrough — must route that output to stderr whenever `--json`/`--ndjson`
+    is set or stdout is not a TTY. This is enforced end-to-end against the real `bin/rune`
+    executable for every registered command in every agent output mode, asserting over whole
+    stdout rather than a substring, because a substring assertion passes against interleaved
+    output and previously did.
 
 ## Behavioral Examples
 
@@ -84,6 +92,9 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 - Piping `rune version | cat` automatically outputs JSON
 - Running `rune nonexistent` returns exit code 1 and an error message
 - Running the release-version setter repairs one stale version source when the other already matches
+- Running `rune watch --json -- CMD` from a terminal writes only the result envelope to stdout and
+  the wrapped command's live output to stderr, so `rune watch --json -- CMD 2>/dev/null | jq`
+  succeeds; without the split, stdout began with the child's own bytes and failed to parse
 
 ## Error Cases
 | Condition | Behavior |
@@ -102,3 +113,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
   identically named flags for wrapped commands.
 | 2026-07-28 | CHG-0001-adopt-and-enforce-specsync-5-for-release-delivery: Adopt and enforce SpecSync 5 for release delivery |
 | 2026-07-29 | CHG-0002-address-pr-review-findings-in-release-synchronization-sdd-package-coverage-and: Address PR review findings in release synchronization, SDD package coverage, and publish ref validation |
+| 2026-07-29 | CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o: Keep rune watch stdout parseable in agent mode and stop the trust gate passing on an empty commit range |

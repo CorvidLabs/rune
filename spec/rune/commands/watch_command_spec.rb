@@ -45,7 +45,7 @@ RSpec.describe Rune::Commands::WatchCommand do
 
         described_class.new.call(["--log=#{log_path}", '--', 'echo', 'hi'], {})
 
-        expect(Rune::PTYWatcher).to have_received(:new) do |command, log:|
+        expect(Rune::PTYWatcher).to have_received(:new) do |command, log:, **|
           expect(command).to eq(%w[echo hi])
           expect(log).to be_a(File)
           expect(log.path).to eq(log_path)
@@ -61,7 +61,7 @@ RSpec.describe Rune::Commands::WatchCommand do
       allow(Rune::PTYWatcher).to receive(:new).and_return(watcher)
 
       expect { described_class.new.call(%w[-- echo hi], {}) }.to output(/rune-watch-.*\.ndjson/).to_stderr
-      expect(Rune::PTYWatcher).to have_received(:new) do |command, log:|
+      expect(Rune::PTYWatcher).to have_received(:new) do |command, log:, **|
         expect(command).to eq(%w[echo hi])
         expect(log).to be_a(File)
         expect(log.path).to include(Dir.tmpdir).and include('rune-watch-')
@@ -76,7 +76,7 @@ RSpec.describe Rune::Commands::WatchCommand do
 
       described_class.new.call(%w[-- cargo clippy --tests -- -D warnings], {})
 
-      expect(Rune::PTYWatcher).to have_received(:new) do |command, log:|
+      expect(Rune::PTYWatcher).to have_received(:new) do |command, log:, **|
         expect(command).to eq(%w[cargo clippy --tests -- -D warnings])
         expect(log).to be_a(File)
       end
@@ -107,6 +107,44 @@ RSpec.describe Rune::Commands::WatchCommand do
 
       expect(result).to be_failure
       expect(result.error).to eq('boom')
+    end
+  end
+
+  # `rune watch` is the only command that writes output as a side effect while
+  # `#call` is still running, so it is the only one that can corrupt the
+  # structured envelope the Renderer emits afterwards. It previously never
+  # passed `output:` at all, leaving PTYWatcher's `$stdout` default to
+  # interleave the child's raw bytes with the JSON — `rune watch --json`
+  # produced stdout that did not parse. These lock the routing down at the unit
+  # level; spec/rune/e2e_spec.rb proves it end-to-end against the real binary.
+  describe '#call live-output routing' do
+    def display_stream_for(options, stdout_tty:)
+      allow($stdin).to receive(:tty?).and_return(true)
+      allow($stdout).to receive(:tty?).and_return(stdout_tty)
+      watcher = instance_double(Rune::PTYWatcher, watch: Rune::Result.success({ exit_code: 0 }))
+      allow(Rune::PTYWatcher).to receive(:new).and_return(watcher)
+
+      described_class.new.call(%w[-- echo hi], options)
+
+      captured = nil
+      expect(Rune::PTYWatcher).to have_received(:new) { |_cmd, output:, **| captured = output }
+      captured
+    end
+
+    it 'sends the live passthrough to stderr under --json, keeping stdout a parseable envelope' do
+      expect(display_stream_for({ json: true, ndjson: false }, stdout_tty: true)).to be($stderr)
+    end
+
+    it 'sends the live passthrough to stderr under --ndjson' do
+      expect(display_stream_for({ json: false, ndjson: true }, stdout_tty: true)).to be($stderr)
+    end
+
+    it 'sends the live passthrough to stderr when stdout is piped, matching Renderer#agent_mode?' do
+      expect(display_stream_for({ json: false, ndjson: false }, stdout_tty: false)).to be($stderr)
+    end
+
+    it 'keeps the live passthrough on stdout for a human on a terminal, the primary use case' do
+      expect(display_stream_for({ json: false, ndjson: false }, stdout_tty: true)).to be($stdout)
     end
   end
 

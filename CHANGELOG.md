@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Route `rune watch`'s live passthrough to stderr in agent mode (`--json`, `--ndjson`, or piped
+  stdout) so stdout carries only the result envelope. It previously emitted the wrapped command's
+  raw output followed by the JSON, which meant `rune watch --json` produced stdout that did not
+  parse.
+- Compute an explicit, non-empty commit range for the risk and provenance gates, and fail when that
+  range is empty. On a push to `main` the range resolved to zero commits, so both gates reported
+  success while inspecting nothing.
+- Forward the provenance recorded on a squash-merged pull request head onto the landed commit, so a
+  push to `main` is verified against the review that actually happened.
+
+### Changed
+
+- Assert end-to-end that the complete stdout of every command parses as a single JSON document, in
+  every agent output mode.
+
 ## [v0.2.1] - 2026-07-28
 
 ### Fixed
