@@ -1,9 +1,9 @@
 {
-  "timestamp": 1785296372,
-  "commit": "5ebf2a50a39838d994f6370a78fb47c9bc1deade",
+  "timestamp": 1785297316,
+  "commit": "2022283787c7d0373f4c3282d6d88c9b80e470ae",
   "contract_digest": "794526c16d74c7b6801bd85b1b3f9e8e773f985c7f56e9b7bd6d90223abe5b80",
-  "workspace_digest": "ff3dd4964138a32d080f77e160fe6cc8a7e35ae5720126e16a65505bacc8101b",
-  "acceptance_input_digest": "5d0c08205e00f9a115ef2d3ec18cd775d674d21fe5ed8a212ac5ef6706f0bb39",
+  "workspace_digest": "2c373e09d219d390beefe865f7e95bddf5de32ece7e5d46554e2394e25f65ba2",
+  "acceptance_input_digest": "c72340a3fadc28c78a7d4886d58e59883aec1b46ef8608b289543dd2a397bd17",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -31,8 +31,8 @@
         "path": "ROADMAP.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "5ec85f890dc89b291f7e0600f865ca8a2a5f65d8621d980ea4b1ec6f82a3f68f",
-        "entry_digest": "db9124d952113ccc3f24355b78f6a8f4ac0f4223c74d540f70475607fd299a0c",
+        "payload_digest": "ad1b82e292c8113c7c00dfe5b797a4fc660e0fb6682ace474247e69ec5eb31f8",
+        "entry_digest": "014bca4cd28c74a0c9e4815288d4e550a5c2b750f1acf3292fb873ae9081fb82",
         "owners": [
           "@exact:delivery"
         ]

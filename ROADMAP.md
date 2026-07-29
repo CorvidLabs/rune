@@ -12,7 +12,7 @@ Ruby compatibility, documentation, and trust-gate fixes already merged to `main`
 - [x] Merge the release-prep PR after its CI and review gates pass.
 - [x] Attest the resulting commit on `main`, verify `v0.2.0..HEAD`, then create and publish `v0.2.1`.
 - [x] Publish `rune` 0.2.1 to GitHub Packages from the verified release tag.
-- [ ] Merge the checksum-pinned 0.2.1 formula update in `CorvidLabs/homebrew-tap`.
+- [x] Merge the checksum-pinned 0.2.1 formula update in `CorvidLabs/homebrew-tap`.
 
 ## 0.2.0 release record
 
