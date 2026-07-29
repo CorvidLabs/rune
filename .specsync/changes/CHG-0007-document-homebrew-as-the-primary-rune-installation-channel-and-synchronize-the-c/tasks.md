@@ -9,4 +9,4 @@ artifact: tasks
 - [x] Add Rune to the tap's style, install, and formula-test gates.
 - [x] Add automatic detection and pull-request creation for future Rune releases.
 - [x] Update Rune installation, release, and roadmap documentation.
-- [ ] Pass strict SpecSync, Fledge trust, and Homebrew verification.
+- [x] Pass strict SpecSync, Fledge trust, and Homebrew verification.

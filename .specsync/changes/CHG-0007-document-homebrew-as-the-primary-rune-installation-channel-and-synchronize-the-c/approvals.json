@@ -13,6 +13,20 @@
       "timestamp": 1785296087,
       "digest": "5b26b792288f66a5b659f2f570907754dfbe1ad75f25ea77cc33199638f0d1be",
       "note": "Owner approved the finalized Homebrew distribution, release documentation, and verification scope in this task."
+    },
+    {
+      "gate": "definition",
+      "actor": "human:0xLeif",
+      "timestamp": 1785296345,
+      "digest": "794526c16d74c7b6801bd85b1b3f9e8e773f985c7f56e9b7bd6d90223abe5b80",
+      "note": "Owner approved the fully verified Homebrew distribution and release-documentation artifact set."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "human:0xLeif",
+      "timestamp": 1785296383,
+      "digest": "45a6326b3a8a30e6dbd782625ba3e06247938d2cc28a4b539c875771bdbf85a9",
+      "note": "Owner accepted the verified Homebrew distribution and release-documentation change for review."
     }
   ],
   "reopenings": []

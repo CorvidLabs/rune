@@ -1,6 +1,6 @@
 ---
 id: CHG-0007-document-homebrew-as-the-primary-rune-installation-channel-and-synchronize-the-c
-state: implementing
+state: accepted
 type: documentation
 base_commit: fc5f70a179be38bb1c5d9e640d1b49d668ea6676
 ---

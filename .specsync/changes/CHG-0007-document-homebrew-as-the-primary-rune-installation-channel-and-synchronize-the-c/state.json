@@ -5,10 +5,11 @@
   "title": "Document Homebrew as the primary Rune installation channel and synchronize the completed v0.2.1 release record",
   "description": "Document Homebrew as the primary Rune installation channel and synchronize the completed v0.2.1 release record",
   "kind": "documentation",
-  "state": "implementing",
+  "state": "accepted",
+  "canonical_applied": true,
   "base_commit": "fc5f70a179be38bb1c5d9e640d1b49d668ea6676",
   "created_at": 1785295473,
-  "updated_at": 1785296087,
+  "updated_at": 1785296383,
   "affected_specs": [],
   "affected_paths": [
     "README.md",
