@@ -50,7 +50,15 @@ jobs:
       - name: Resolve Release Range
         id: release-range
         run: |
-          previous_tag="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^")"
+          release_tag_args=()
+          while IFS= read -r release_tag; do
+            release_tag_args+=(--match "$release_tag")
+          done < <(git tag --merged "${RELEASE_TAG}^" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
+          if [ "${#release_tag_args[@]}" -eq 0 ]; then
+            echo "No prior semantic release tag found for ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          previous_tag="$(git describe --tags "${release_tag_args[@]}" --abbrev=0 "${RELEASE_TAG}^")"
           echo "range=${previous_tag}..${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Verify Release Provenance
@@ -116,7 +124,15 @@ jobs:
       - name: Resolve Release Range
         id: rubygems-release-range
         run: |
-          previous_tag="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^")"
+          release_tag_args=()
+          while IFS= read -r release_tag; do
+            release_tag_args+=(--match "$release_tag")
+          done < <(git tag --merged "${RELEASE_TAG}^" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
+          if [ "${#release_tag_args[@]}" -eq 0 ]; then
+            echo "No prior semantic release tag found for ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          previous_tag="$(git describe --tags "${release_tag_args[@]}" --abbrev=0 "${RELEASE_TAG}^")"
           echo "range=${previous_tag}..${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Verify Release Provenance

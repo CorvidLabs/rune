@@ -1,9 +1,9 @@
 {
-  "timestamp": 1785286702,
-  "commit": "44c9a14d6dc393f620dc2b3080bf3e83da707d63",
+  "timestamp": 1785287938,
+  "commit": "24c591c9b366cb7a6aebb653f7ab9d29a687f00d",
   "contract_digest": "01416722ab78d4be9a10648021d90baeb8457e1dc517806f6393be015c41ead8",
-  "workspace_digest": "025c942dc50775e19e3785d4020e09ffe9df2b8451a34d29deb54e8d22781acf",
-  "acceptance_input_digest": "91757f2fa7ccdf94c00e6c8cf8b7352b33ed4d44a178243359d1713d66feb962",
+  "workspace_digest": "5d1d439ce1560d5a2887cd95af282be286764c3ed341667c977e38a04a19c28c",
+  "acceptance_input_digest": "666b387eb96d1f20359b9cf6512bb9c9420b1c08ff8a9927a3d41e07348b9f18",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,8 +11,8 @@
         "path": ".github/workflows/publish-package.yml",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "2b6a42a5a87c3d2c8156c7eb49d17b074ff3b1653b10bc26db9e94b5df02f8ab",
-        "entry_digest": "8427360c4410fa46ba629c70df19047a1617abcff5fce45d9ae24347a85c87d9",
+        "payload_digest": "95e19279f3d913015ba93d17b11833d6cab4a4c6934d0da6cbf1a8b244866211",
+        "entry_digest": "d449aebae4f8ef635e7446b049a318275555adf05997cffe07759f5e30ddd2d1",
         "owners": [
           "@exact:delivery"
         ]
@@ -51,8 +51,8 @@
         "path": "spec/release_version_check_spec.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "c4d3c3f0c33f80363aef0689b9c84189460af516fc7480c46f3099437705bb2f",
-        "entry_digest": "cfebd851824142425a365fb5ce96537ac6654eea9c54c72b99c8d490e9db4c1f",
+        "payload_digest": "275a28af3acdda223823c90f23b6a4aed11e5bca296c9b64637a5df51573344c",
+        "entry_digest": "9eda412a8c5d677da8529f9a696a1151f54b206cdf49e4805d60a1e30df0734b",
         "owners": [
           "@exact:delivery"
         ]

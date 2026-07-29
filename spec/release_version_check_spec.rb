@@ -73,6 +73,15 @@ RSpec.describe 'release version check' do
     expect(publish_workflow.scan(mainline_check).length).to eq(2)
   end
 
+  it 'restricts both provenance ranges to exact semantic release tags' do
+    strict_tag_filter = "grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+$'"
+    restricted_describe = 'git describe --tags "${release_tag_args[@]}" --abbrev=0 "${RELEASE_TAG}^"'
+
+    expect(publish_workflow.scan(strict_tag_filter).length).to eq(2)
+    expect(publish_workflow.scan(restricted_describe).length).to eq(2)
+    expect(publish_workflow).not_to include('git describe --tags --abbrev=0')
+  end
+
   def write_setter_fixture(root, rune_version:, plugin_version:)
     scripts = File.join(root, 'scripts')
     version_file = File.join(root, 'lib/rune/version.rb')

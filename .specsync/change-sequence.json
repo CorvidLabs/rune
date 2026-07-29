@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 3,
-  "id": "CHG-0003-bind-the-existing-plugin-version-input-to-strict-specsync-release-ownership",
+  "sequence": 4,
+  "id": "CHG-0004-restrict-release-provenance-ranges-to-semantic-release-tags",
   "acknowledged_collisions": []
 }

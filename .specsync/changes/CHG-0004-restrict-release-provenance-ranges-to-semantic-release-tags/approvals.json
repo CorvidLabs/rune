@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785287712,
+      "digest": "0af699611a09b1dfbe2357a2eab3c1457a787ea17a7d2f07e7d6819b13c56a2d",
+      "note": "Definition approved in Codex for exact semantic release-tag provenance filtering"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785288155,
+      "digest": "736be5eba8786ee31b800b6844a125e13c0239ae4db6c6c44e081c9d3dc74854",
+      "note": "Closing approval granted in Codex after exact semantic release-tag filtering passed all gates"
+    }
+  ],
+  "reopenings": []
+}
