@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "agent:claude",
+      "timestamp": 1785304066,
+      "digest": "933f651214f7e894a012642da0095aae0b9236f54e021a0d4449ce81f244cf92",
+      "note": "Definition derived from an independent adversarial audit of v0.2.1; both defects reproduced before implementation."
+    },
+    {
+      "gate": "definition",
+      "actor": "agent:claude",
+      "timestamp": 1785305103,
+      "digest": "abb341156dd599ed294bd9384b2ea2b3d35fa367b37b7e6f12033ce3e52a1893",
+      "note": "Re-approved after aligning the watch Public API table with the exports spec-sync actually detects."
+    },
+    {
+      "gate": "definition",
+      "actor": "agent:claude",
+      "timestamp": 1785305147,
+      "digest": "928b4f59afc21f9d8cfa2802f67f6808c36eea62b6e58b6f245c4082bbdfb6b6",
+      "note": "Re-approved after documenting the spec-sync export-detection constraint in design.md."
+    },
+    {
+      "gate": "definition",
+      "actor": "agent:claude",
+      "timestamp": 1785305157,
+      "digest": "05a695ae2617c7b0599293fe2e0ebcac55cafdd71b23a410107a6e7a891b6d66",
+      "note": "Re-approved after marking implementation tasks complete."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1785305292,
+      "digest": "a9bf5de6a9361d2d94c65b39f1e1a624075e08e1d24abcdfe8847707984f3fe5",
+      "note": "Both defects reproduced before the fix and confirmed closed after; new E2E gate verified to fail against the unfixed code."
+    }
+  ],
+  "reopenings": []
+}

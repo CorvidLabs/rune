@@ -10,7 +10,7 @@ module Rune
       name 'watch'
       summary 'Interactively drive a command in a PTY with live passthrough and an NDJSON event log'
 
-      def call(args, _options)
+      def call(args, options)
         return Result.failure('rune watch requires a real terminal (stdin is not a TTY).') unless $stdin.tty?
 
         log_path, remaining, log_error = extract_log(args)
@@ -28,7 +28,7 @@ module Rune
         log_path, log = open_log(log_path)
         warn "[rune watch] live event log: #{log_path}"
         begin
-          result = PTYWatcher.new(clean_args, log: log).watch
+          result = PTYWatcher.new(clean_args, log: log, output: display_stream(options)).watch
         ensure
           log.close
         end
@@ -46,6 +46,33 @@ module Rune
       end
 
       private
+
+      # Where the wrapped child's live bytes go. This is the one command whose
+      # `#call` produces output as a side effect while it runs, so it has to
+      # make the agent-mode decision itself rather than leaving it to the
+      # Renderer — by the time the Renderer sees the Result, the whole session
+      # has already been displayed. Passing this explicitly is load-bearing:
+      # `PTYWatcher`'s `output:` defaults to `$stdout`, and not passing it at
+      # all meant the child's raw bytes landed on the same stream the Renderer
+      # then wrote the JSON envelope to, so `rune watch --json` emitted stdout
+      # that did not parse ("unexpected character: 'X' at line 1 column 1").
+      #
+      # stderr rather than /dev/null: a human is still driving the session even
+      # when a wrapping process captures stdout, so the live view has to remain
+      # visible somewhere. Same reasoning already puts the log-path
+      # announcement on stderr.
+      def display_stream(options)
+        agent_mode?(options) ? $stderr : $stdout
+      end
+
+      # Mirrors `Renderer#agent_mode?` one layer earlier. It reads the real
+      # `$stdout` rather than the CLI's injected io because the live
+      # passthrough writes to the real process stdout by nature — there is no
+      # meaningful "watch a TUI into a StringIO" — and because `#call` has no
+      # access to the Renderer's stream anyway.
+      def agent_mode?(options)
+        options[:json] || options[:ndjson] || !$stdout.tty?
+      end
 
       # A watched session can run for seconds, minutes, or hours, unlike
       # `rune run`'s usual sub-second commands — raw milliseconds

@@ -11,7 +11,12 @@ build = "gem build rune.gemspec"
 install = "bundle install"
 spec-check = "if command -v specsync >/dev/null 2>&1; then specsync check --force --strict --stale 1 --require-coverage 100; else echo 'specsync is required' >&2; exit 1; fi"
 spec-lifecycle = "specsync lifecycle enforce --all"
-trust = "fledge trust verify"
+# --range is explicit so the gate never inspects zero commits: `fledge trust
+# verify`'s own default is origin/main..HEAD, which is empty on main and makes
+# the risk and provenance checks pass vacuously. scripts/trust_range.sh applies
+# the same fallback CI uses, and exits non-zero rather than yield an empty range.
+trust = "fledge trust verify --range \"$(./scripts/trust_range.sh)\""
+trust-range = "./scripts/trust_range.sh"
 clean = "rm -f *.gem"
 smoke-test = "ruby examples/smoke_test.rb"
 set-version = "ruby scripts/set_release_version.rb \"$1\""

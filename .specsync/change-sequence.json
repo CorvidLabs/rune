@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 7,
-  "id": "CHG-0007-document-homebrew-as-the-primary-rune-installation-channel-and-synchronize-the-c",
+  "sequence": 8,
+  "id": "CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o",
   "acknowledged_collisions": []
 }

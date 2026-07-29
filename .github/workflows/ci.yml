@@ -54,6 +54,11 @@ jobs:
     name: Trust gate
     needs: verify
     runs-on: ubuntu-latest
+    # pull-requests: read lets the push-event range resolution below map a
+    # landed squash commit back to the reviewed pull request head it came from.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v6
         with:
@@ -62,6 +67,48 @@ jobs:
 
       - name: Fetch Attest Notes
         run: git fetch origin refs/notes/attest:refs/notes/attest
+
+      # Both the Augur and Attest actions default to `origin/main..HEAD`. That
+      # is right for a pull request and wrong for a push to main, where HEAD is
+      # origin/main and the range is empty — the gates then reported
+      # "PASS (0 commits checked)" and "risk 0/100" while inspecting nothing,
+      # which is how two unattested commits reached main under a green build.
+      - name: Resolve trust range
+        id: trust-range
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="origin/main..HEAD"
+            forward_from=""
+          else
+            range="HEAD~1..HEAD"
+            # Pull requests are squash-merged, so the attestation recorded
+            # against the reviewed head SHA does not apply to the differently
+            # hashed landed commit. attest's forward-from exists for exactly
+            # this; resolve the source commit here. Best effort — a direct push
+            # with no pull request leaves this empty and is verified strictly
+            # on its own merits.
+            forward_from="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+              --jq "map(select(.merge_commit_sha == \"${GITHUB_SHA}\")) | .[0].head.sha // \"\"" || echo "")"
+          fi
+          echo "range=${range}" >> "$GITHUB_OUTPUT"
+          echo "forward_from=${forward_from}" >> "$GITHUB_OUTPUT"
+          echo "Resolved trust range: ${range} (forward-from: ${forward_from:-none})"
+
+      # The load-bearing guard. Any future event type, checkout shape, or
+      # base-ref change that yields an empty range fails loudly here instead of
+      # silently reporting a green gate that examined nothing.
+      - name: Reject a vacuous trust range
+        run: |
+          set -euo pipefail
+          count="$(git rev-list --count '${{ steps.trust-range.outputs.range }}')"
+          echo "Trust range contains ${count} commit(s)."
+          if [ "${count}" -eq 0 ]; then
+            echo "::error::Trust range '${{ steps.trust-range.outputs.range }}' contains 0 commits; the risk and provenance gates would pass vacuously."
+            exit 1
+          fi
 
       - name: Set up Ruby 3.3
         uses: ruby/setup-ruby@v1
@@ -87,12 +134,17 @@ jobs:
       - name: Augur Risk Gate
         uses: CorvidLabs/augur@1.0.0
         with:
+          range: ${{ steps.trust-range.outputs.range }}
           threshold: block
 
       - name: Attest Provenance Check
         uses: CorvidLabs/attest@1.0.0
         with:
+          range: ${{ steps.trust-range.outputs.range }}
           policy: .attest.json
+          forward-from: ${{ steps.trust-range.outputs.forward_from }}
+          forward-to: ${{ github.sha }}
+          forward-reviewer: ci:squash-merge-forward
 
       - name: Verify Trust Block Present
         run: |
