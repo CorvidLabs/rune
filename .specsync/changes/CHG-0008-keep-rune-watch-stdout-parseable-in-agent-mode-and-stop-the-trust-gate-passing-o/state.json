@@ -9,7 +9,7 @@
   "canonical_applied": true,
   "base_commit": "2ec05cf24663908b061974b8dd8a9caa3fc6ef15",
   "created_at": 1785303806,
-  "updated_at": 1785305292,
+  "updated_at": 1785332852,
   "affected_specs": [
     "watch",
     "cli"

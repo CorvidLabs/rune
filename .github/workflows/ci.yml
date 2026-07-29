@@ -77,13 +77,18 @@ jobs:
         id: trust-range
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
             range="origin/main..HEAD"
             forward_from=""
-          else
-            range="HEAD~1..HEAD"
+          elif [ "${EVENT_NAME}" = "push" ]; then
+            range="$(TRUST_PUSH_BEFORE_SHA="${PUSH_BEFORE_SHA}" \
+              TRUST_PUSH_AFTER_SHA="${PUSH_AFTER_SHA}" \
+              ./scripts/trust_range.sh)"
             # Pull requests are squash-merged, so the attestation recorded
             # against the reviewed head SHA does not apply to the differently
             # hashed landed commit. attest's forward-from exists for exactly
@@ -92,6 +97,9 @@ jobs:
             # on its own merits.
             forward_from="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
               --jq "map(select(.merge_commit_sha == \"${GITHUB_SHA}\")) | .[0].head.sha // \"\"" || echo "")"
+          else
+            echo "::error::Unsupported trust event '${EVENT_NAME}'; refusing to guess a commit range."
+            exit 1
           fi
           echo "range=${range}" >> "$GITHUB_OUTPUT"
           echo "forward_from=${forward_from}" >> "$GITHUB_OUTPUT"
