@@ -51,6 +51,7 @@ RSpec.describe Rune::Commands::WatchCommand do
           expect(log.path).to eq(log_path)
         end
         expect(File).to exist(log_path)
+        expect(File.stat(log_path).mode & 0o777).to eq(0o600)
       end
     end
 

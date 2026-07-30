@@ -1,6 +1,6 @@
 ---
 module: parsers
-version: 1
+version: 2
 status: active
 files:
   - lib/rune/parsers/table_parser.rb
@@ -40,6 +40,7 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | `FALSE_POSITIVES` | constant | Exclusions applied before positive prompt matching. |
 
 ## Invariants
+
 1. `TableParser.parse` converts header titles to lowercase underscored symbols.
 2. `KeyValueParser.parse` coerces integer, float, and boolean values automatically.
 3. `TextSanitizer.strip_ansi` returns an empty string for nil input.
@@ -48,14 +49,16 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
    input size — validated unconditionally, not only once the input has 2+ non-empty lines.
 6. `PromptDetector.detect?` strips ANSI codes before matching, and returns `false` (never raises)
    for `nil`, empty, or whitespace-only input.
-7. `PromptDetector.detect?` has known, deliberate false-positive exclusions that trade rare misses
-   for common correctness: a line ending in a bare `<digit>%` (progress output, e.g. `"Building...
-   45%"`) is never treated as a tcsh-style `%` prompt, and a line ending in a `<placeholder>`-style
-   closing angle bracket (e.g. `"Install with: fledge plugins install <owner/repo>"`) is never
-   treated as a shell prompt's trailing `>`. Both trade-offs are documented inline next to the
-   `FALSE_POSITIVES` patterns that implement them.
+7. `PromptDetector.detect?` recognizes explicit confirmations, labeled prompts, anchored
+   interactive-wizard markers, arrow prompts, and recognizable shell prompts
+   (`user@host:path$`, macOS-style `user@host cwd %`, optional `(venv)` prefixes, and named
+   shells such as `bash-5.2#` / `zsh-5.9%`). Arbitrary prose questions and ordinary output
+   ending in a bare `#`, `>`, `$`, or `%` are not sufficient evidence of a prompt. This
+   intentionally favors rare false negatives over false positives that cause an agent to take an
+   incorrect interactive branch.
 
 ## Behavioral Examples
+
 - `TableParser.parse("NAME STATUS\nrune active")` returns `[{ name: 'rune', status: 'active' }]`.
 - `TableParser.parse("Name | Status\nrune | active", format: :pipe)` forces pipe parsing even without a `|`-only header separator row.
 - `KeyValueParser.parse("threads: 4")` returns `{ threads: 4 }`.
@@ -63,6 +66,11 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
   100%')` and `PromptDetector.detect?('Install with: fledge plugins install <owner/repo>')` both
   return `false` despite ending in characters (`%`, `>`) the underlying prompt patterns otherwise
   match on.
+- `PromptDetector.detect?('user@host:~$ ')`, `PromptDetector.detect?('leif@MacBook-Pro rune % ')`,
+  `PromptDetector.detect?('(venv) user@host:~$ ')`, and `PromptDetector.detect?('zsh-5.9%')` all
+  return `true`, while `PromptDetector.detect?('TODO: fix #')`, `PromptDetector.detect?('##')`,
+  `PromptDetector.detect?('Building... 45%')`, and `PromptDetector.detect?('Is it ok? Yes')`
+  return `false`.
 
 ## Error Cases
 | Condition | Behavior |
@@ -83,3 +91,5 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
   spec-sync despite being public since `PTYRunner#detect_prompt?` shipped); documented the
   `<placeholder>` false-positive fix and the pre-existing digit-percent one. Also documented that
   `TableParser.parse` now validates `format:` unconditionally, not only for 2+-line input.
+| 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |
+| 2026-07-30 | Follow-up on the CHG-0016 prompt narrowing: cover macOS zsh `user@host cwd %`, `(venv)` prefixes, and versioned shells like `zsh-5.9%` without reintroducing bare-punctuation false positives |

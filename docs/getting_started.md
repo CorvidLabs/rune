@@ -97,6 +97,11 @@ $ ruby bin/rune version | cat
 Every JSON response has the same envelope: `{"status": "ok"|"error", "data": {...}}` (or
 `{"status": "error", "error": "..."}` on failure).
 
+Rune writes the final envelope to stdout for both success and failure. That gives agents one
+parseable result channel, but it also means a human redirecting stdout redirects Rune-level error
+messages too. Stderr is reserved for operational announcements and live `rune watch` passthrough
+that must not corrupt structured stdout.
+
 Global output flags are recognized only before the first `--` separator. Tokens after it belong to
 the wrapped command and are preserved, so `rune run -- tool --json` passes `--json` to `tool`.
 

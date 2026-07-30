@@ -1,51 +1,6 @@
----
-module: watch
-version: 5
-status: active
-files:
-  - lib/rune/pty_watcher.rb
-  - lib/rune/commands/watch_command.rb
----
-# PTY Watcher (`rune watch`)
+## MODIFIED
 
-## Purpose
-Live, bidirectional interactive passthrough for a command in a PTY. Unlike `PTYRunner` (which
-buffers a command's entire output and only returns it once the command finishes), `PTYWatcher`
-forwards a human's keystrokes to the child as they're typed and streams the child's output to the
-screen as it arrives, while simultaneously logging every chunk as an NDJSON event so an agent can
-tail the session live. Deliberately a separate class from `PTYRunner`, not a mode bolted onto it:
-`PTYRunner`'s "run, capture, return once" contract is frozen for 0.2.0, and the execution model
-here (raw terminal mode, a background input-forwarding thread) is different enough not to belong
-there.
-
-## Public API
-
-| Name | Type | Description |
-|------|------|-------------|
-| `PTYWatcher` | class | Constructor: `(command, log: $stderr, input: $stdin, output: $stdout)`. Method: `#watch` returns `Result`. |
-| `WatchCommand` | class | Subcommand `rune watch [--log=PATH] <command...>`. It selects live output from the renderer mode and declares usage and flags through the command DSL, so `rune watch --help` renders them without constructing a watcher. |
-| `Rune` | module | Top-level rune namespace. |
-| `watch` | instance method | Validates terminal support and runs one live watched session. |
-| `build_result` | internal method | Logs session exit and constructs the duration/exit-code result. |
-| `with_raw_input` | internal method | Enters raw terminal mode with a narrow non-TTY fallback. |
-| `pump_session` | internal method | Runs output pumping while an input-forwarding thread is active. |
-| `forward_input` | internal method | Starts the disposable input-forwarding thread. |
-| `pump_output` | internal method | Polls, decodes, displays, logs, and reaps child output. |
-| `emit_output` | internal method | Writes and logs one non-empty decoded output chunk. |
-| `synchronize_window_size` | internal method | Copies changed terminal dimensions onto the child PTY. |
-| `valid_window_size?` | internal predicate | Accepts two positive integer terminal dimensions. |
-| `terminate_child` | internal method | Kills and reaps a child after an output-sink failure. |
-| `wait_for_exit_code` | internal method | Reaps the child and normalizes exit or signal status. |
-| `log_event` | internal method | Writes and flushes one timestamped NDJSON event. |
-| `Commands` | module | Namespace containing concrete CLI command implementations. |
-| `call` | instance method | Validates watch arguments, opens the log, selects display output, and runs `PTYWatcher`. |
-| `human_render` | instance method | Prints watched-session exit, duration, and log location. |
-| `attach_log_path` | internal method | Adds the concrete log path to a successful result. |
-| `open_log` | internal method | Opens an explicit append log or creates a private temporary log. |
-| `extract_log` | internal method | Extracts a non-empty `--log=PATH` before the first separator. |
-
-## Invariants
-
+### SPEC SECTION Invariants
 1. Refuses to run (returns `Result.failure`) unless `input` is a real TTY — live passthrough
    requires an actual terminal to put into raw mode; there is no meaningful non-interactive mode.
 2. Refuses to run (returns `Result.failure`) if the `pty` stdlib is unavailable, same check and
@@ -109,8 +64,7 @@ there.
     even when a wrapping process is capturing stdout — the same reasoning that already puts the
     log-path announcement on stderr.
 
-## Behavioral Examples
-
+### SPEC SECTION Behavioral Examples
 - `rune watch -- ruby examples/demo_tui.rb` puts your terminal in raw mode, runs the demo TUI
   interactively exactly as if you'd run it directly, prints
   `[rune watch] live event log: /tmp/rune-watch-<unique>.ndjson` once via `warn`, and writes an
@@ -130,45 +84,3 @@ there.
 - Piping a fake terminal (`#tty? => true`, no `#raw`) and `IO.pipe`s for input/output into
   `PTYWatcher.new` directly drives a real interactive child process end-to-end in a test, without
   a real terminal — see `spec/rune/pty_watcher_spec.rb`.
-
-## Error Cases
-| Condition | Behavior |
-|-----------|----------|
-| `input` is not a TTY (e.g. piped/non-interactive invocation) | Returns `Result.failure("...requires a real terminal...")` before spawning anything |
-| `pty` stdlib unavailable | Returns `Result.failure("PTY unavailable...")` |
-| No command argument | Returns `Result.failure("No command specified...")` |
-| `--log=` given with no value | Returns `Result.failure("--log requires a path...")` instead of silently smuggling the raw `--log=` token into the wrapped command's argv |
-| Wrapped command missing/non-executable | `Result` still succeeds (mirrors `PTYRunner`): `data[:exit_code]` is `127`/`126`, same convention as `rune run`, instead of collapsing to a generic failure |
-| Output sink closes with `EPIPE` | Kills and reaps the child, then returns a structured watcher failure |
-
-## Dependencies
-- Ruby stdlib: `pty`, `io/console` (required unconditionally, rescued on `LoadError` the same way
-  `pty_runner.rb` rescues `pty` — expected almost everywhere but not guaranteed on every platform),
-  `io/wait` (required explicitly for `IO#wait_readable`, same reasoning as `pty_runner.rb`),
-  `json`, `tempfile`, `tmpdir`
-
-## Change Log
-
-- v1: Active spec — initial `rune watch` / `PTYWatcher` contract
-- v1: Fixed the root cause of arrow keys/raw input never registering in real `rune watch` usage —
-  `pty_watcher.rb` never required `io/console` itself, so the parent process's `$stdin` never
-  gained `#raw`. `Result#data` now also carries `duration_ms`/`log_path`, and `WatchCommand`'s
-  closing message reports both instead of just the bare exit code.
-- v1: Added explicit `require 'io/wait'` (fixing a raw `NoMethodError` crash on Ruby versions
-  where it isn't already autoloaded); narrowed `with_raw_input`'s rescue so it only falls back to
-  `block.call` for a failure in entering raw mode itself, not for any exception raised from deep
-  inside an already-running session (which previously could silently re-run the whole session a
-  second time); switched `duration_ms` to a monotonic clock, matching `PTYRunner`; and added the
-  missing/non-executable-command exit-code parity and empty-`--log=` error cases above.
-- v1: Added incremental UTF-8 decoding, terminal-size synchronization, secure default log creation,
-  explicit child cleanup after output `EPIPE`, and direct argv spawning for reliable process
-  ownership.
-- v1: Routed the live passthrough to stderr in agent mode so `rune watch --json`/`--ndjson`/piped
-  stdout emits a parseable structured result instead of the child's raw output followed by the
-  envelope. Found by an independent adversarial audit of v0.2.1; the existing unit tests could not
-  see it because they replace `PTYWatcher` with a double, so an end-to-end stdout-purity assertion
-  over every command in every agent output mode was added alongside the fix.
-| 2026-07-29 | CHG-0008-keep-rune-watch-stdout-parseable-in-agent-mode-and-stop-the-trust-gate-passing-o: Keep rune watch stdout parseable in agent mode and stop the trust gate passing on an empty commit range |
-| 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |
-| 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
-| 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |

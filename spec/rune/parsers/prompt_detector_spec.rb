@@ -28,7 +28,7 @@ RSpec.describe Rune::Parsers::PromptDetector do
       expect(described_class.detect?('Confirm: ')).to be true
     end
 
-    it 'detects a question mark followed by a capitalized word or digit (interactive wizard style)' do
+    it 'detects anchored interactive-wizard markers with a supported action' do
       expect(described_class.detect?('? Select target environment: ')).to be true
       expect(described_class.detect?('? Pick a number 1-5')).to be true
     end
@@ -42,7 +42,14 @@ RSpec.describe Rune::Parsers::PromptDetector do
     it 'detects a full shell prompt (user@host:path$) ending in a shell terminator' do
       expect(described_class.detect?('user@hostname:~$ ')).to be true
       expect(described_class.detect?('bash-5.2# ')).to be true
+      expect(described_class.detect?('zsh-5.9%')).to be true
       expect(described_class.detect?('root@box:/var/log# ')).to be true
+    end
+
+    it 'detects common macOS zsh and virtualenv-prefixed shell prompts' do
+      expect(described_class.detect?('leif@MacBook-Pro rune % ')).to be true
+      expect(described_class.detect?('(venv) user@host:~$ ')).to be true
+      expect(described_class.detect?('(my-env) alice@dev /tmp $')).to be true
     end
 
     it 'strips ANSI escape codes before matching' do
@@ -69,7 +76,7 @@ RSpec.describe Rune::Parsers::PromptDetector do
       expect(described_class.detect?('# Config file')).to be false
     end
 
-    it 'ignores digit-percent progress output, not just tcsh-style % prompts' do
+    it 'ignores digit-percent progress output (no longer matches any positive shell pattern)' do
       expect(described_class.detect?('Building... 45%')).to be false
       expect(described_class.detect?('Downloading 100%')).to be false
       expect(described_class.detect?('Progress: 3.5%')).to be false
@@ -86,6 +93,15 @@ RSpec.describe Rune::Parsers::PromptDetector do
       expect(described_class.detect?('just plain output text')).to be false
       expect(described_class.detect?('npm WARN deprecated foo@1.0')).to be false
       expect(described_class.detect?('Server started on port 3000')).to be false
+    end
+
+    it 'ignores ordinary output ending in shell punctuation or containing a prose question' do
+      expect(described_class.detect?('##')).to be false
+      expect(described_class.detect?('TODO: fix #')).to be false
+      expect(described_class.detect?('comparison result >')).to be false
+      expect(described_class.detect?('price is $')).to be false
+      expect(described_class.detect?('coverage pending %')).to be false
+      expect(described_class.detect?('Is it ok? Yes')).to be false
     end
   end
 end

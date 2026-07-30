@@ -27,6 +27,13 @@ RSpec.describe Rune::CLI do
       expect(output[:status]).to eq('error')
       expect(output[:error]).to include('Unknown command')
     end
+
+    it 'returns an error event in NDJSON mode' do
+      output = JSON.parse(capture_cli('nonexistent', '--ndjson'), symbolize_names: true)
+
+      expect(output).to include(event: 'error', status: 'error')
+      expect(output[:error]).to include('Unknown command')
+    end
   end
 
   describe 'help' do
@@ -51,10 +58,6 @@ RSpec.describe Rune::CLI do
   end
 
   describe 'a command raising an unhandled exception' do
-    # A literal `class ... end` is required for Command.inherited's
-    # TracePoint(:end)-based CLI.register to actually fire — Class.new(Command)
-    # { ... } does not emit the same :end trace event and would silently fail
-    # to register, making this command unreachable by name.
     class SpecOnlyBoomCommand < Rune::Command # rubocop:disable Lint/ConstantDefinitionInBlock
       name 'spec-only-boom'
 

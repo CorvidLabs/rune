@@ -1,0 +1,206 @@
+{
+  "timestamp": 1785453149,
+  "commit": "89096a4b0049a70d34daf173a91a0e690a540c23",
+  "contract_digest": "ca700cfc50686614fb70eba1f068bf4858b2fe6e9d1c60e76adb1f9b7a03c933",
+  "workspace_digest": "74cbb4ee9fa5418cd0a07c9e0276ae46201764baacfc62a2d88bda1aa9f51b8d",
+  "acceptance_input_digest": "d9ee77eba352f404c41fc0d9b7a1fb4702bf2cf96659b0b6aa835e9dd88d8383",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".gitignore",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fb7215d7a274a7721015a62c2c865464d79ad12377f7b54f390e5f9eee382f99",
+        "entry_digest": "9b1c6d225dc44817beb18e4be8a386da0e34f73800ba6df5a0446f934dd60b5a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "dc04045e287bc153d9277e109a8e0e20159b099edbb3cd8f1377f68a31cf92b0",
+        "entry_digest": "30a97ebd523e2597bf783e788fc410916f3be203c0458196aef12b7b2b2de53d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Gemfile.lock",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0df66a26d9c42e05105307316a6c79147a1f0af6a2557a6809138e8abc516c3f",
+        "entry_digest": "e843277d5c476fc8a23e1e2203edcbbfe880f676a29fd03b58a688c03affdc22",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/getting_started.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9581c40237e0a006af7344e33c03a0d618b76357dec771f06600eaddb18b9529",
+        "entry_digest": "6efe8ac749b0d70fe49917998a3389a834558dda280cd060006afd67a5c13629",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "lib/rune/cli.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7d161718571e209cd427bb7061c8769f1208f6885c903c2f10dd5a744a58ec0b",
+        "entry_digest": "a6827a56112b6cbae3d8ad0f7fb3114b71c8f442ef38d24e31d72456ccf2da8d",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "lib/rune/command.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6318eca58f44ce4f38fb3ef9f21d6bb937fe8ed9fe94477c87961aabc66eb2a4",
+        "entry_digest": "93c499f44d52dc51da2fdead186d6f17566b2a450c9c7527a3730a79a5eb9d76",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "lib/rune/parsers/prompt_detector.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5d598c6917eeec06e44bb80307f7ce4dc61e2fa199dd29f47a31d4a658b6b91f",
+        "entry_digest": "d673fe3620345654f13d9b205acb0b007c8f5f639a4fea394f7e3c38fb069f01",
+        "owners": [
+          "parsers"
+        ]
+      },
+      {
+        "path": "spec/rune/command_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "815fd3d35497c835ed56e8d99d41bfa98319b771ad53c40813358dbc7d576e1e",
+        "entry_digest": "3f9a97e395eceab4fe591a406e7988463cb582435dee3591c802d0bc39709df3",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/rune/commands/watch_command_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "173c12ec5ed9a99ffec2964dde2d9c38495d9ccf6e517b72dc02272d8fe61b11",
+        "entry_digest": "0a9d18820d6488d5963314a4f39e714496d2b976748fae3a8108bf884d60a46c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/rune/parsers/prompt_detector_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "34f76b58747263c954d0e6e1be393a96b52617a5f84f7bcf3f56e1af2def79cb",
+        "entry_digest": "bab790da3256768592fa7a4cb423fa25077595ce325e23bdd31502e97432dfa6",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/rune/renderer_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "438ee9f5563bb29efb131719baa690439e6a9abbde37732ed7f89ca6f23d4312",
+        "entry_digest": "11e4dd264b2eaf14bc2082043335bfc9845f8046882784466bdcd219c06e6ee9",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/cli/cli.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3e74d0aa987ee1d2017f4f017cb97a80dc6a2a8af26f3b08a56d14b744de8e04",
+        "entry_digest": "879d8ecfc719650c4c7c58f314e0b947535818ebd4f586288dc3c23f16803593",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "specs/cli/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+        "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "specs/parsers/parsers.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3952d13ac0cd63383f2c2da431669dc4b689dce0a331806097021b095bfa7ed8",
+        "entry_digest": "477f63066c3315132ac125cc5264adac44fd2fc69edaba5cf8a48558c1f175af",
+        "owners": [
+          "parsers"
+        ]
+      },
+      {
+        "path": "specs/parsers/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d10eb208af6fa95b43af778fd5797b4e4586ffe9a58dc01f2ceaf31cf916fd5d",
+        "entry_digest": "8f365ed356648d581f18ff8f893fe741368eb763fa4556cec9243466b877810a",
+        "owners": [
+          "parsers"
+        ]
+      },
+      {
+        "path": "specs/watch/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4120dc4e6971fe20155d57e0110ef66f1dc8560a9471fffb954222cb6d7fd81a",
+        "entry_digest": "4396e75507693c7f324e619de816b9b20564813b26b608ac4bc577d26759bbf2",
+        "owners": [
+          "watch"
+        ]
+      },
+      {
+        "path": "specs/watch/watch.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "23935c87ec6bb133f09b78d72942c793367d2e8289a9334dcfb2928b6a588c59",
+        "entry_digest": "80f83107c317096df67413299123d4de9a61b8f383ece17ed73393906e0df12c",
+        "owners": [
+          "watch"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -1,0 +1,56 @@
+{
+  "timestamp": 1785368650,
+  "commit": "3a9723a09026488b49b516c5fcf6935de587ed17",
+  "contract_digest": "69de098a0d0148344a5ca67bd2221f2eb8f34c0688605905f3a9fd645e70e84c",
+  "workspace_digest": "b4b17db105828339ba82fac563015f0ad0dea124051bd511ed6b82023c1b77cd",
+  "acceptance_input_digest": "0ed5c17116f6016d493ea5f60f971e6e5ae2da044dbf727ae8916734e4c483df",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "070208c7ddc1eaecd450598a9d8d2cfa751e03c9a1da91be49b8d7cdf5328f41",
+        "entry_digest": "434bc9ca3b80e0208c84ab0f46df726a521827915a05130f9fd52684ba3b8518",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/rune/cli_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f29a615e3c599b4561158ded57bcb723bfd043f93e1ff2abc1c684a3128e2086",
+        "entry_digest": "a3abc2a83fc6cc88268e03675ae93db6af976dc73f4011b019baf29801e6bada",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785368006,
+      "digest": "5bf40233700b432cc9b9a855bb2d7348b0fcd48161890488cc1064f9861b7cb3",
+      "note": "Approved test-only integration coverage for issue #17."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785368121,
+      "digest": "69de098a0d0148344a5ca67bd2221f2eb8f34c0688605905f3a9fd645e70e84c",
+      "note": "Re-approved the completed task and test-evidence artifacts without changing scope or acceptance criteria."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785368661,
+      "digest": "5b5d63b2b81c0afc42315dbab8d9124fa6c2d7115c3f1a6e3e9061dd1e0a8b9f",
+      "note": "Accepted CLI-boundary NDJSON error coverage after the full 206-test and smoke verification passed."
+    }
+  ],
+  "reopenings": []
+}

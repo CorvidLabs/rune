@@ -15,25 +15,30 @@ RSpec.describe Rune::Command do
     end
   end
 
-  describe '.inherited' do
-    # CLI.register defers registration to a TracePoint(:end) firing when the
-    # subclass's `class ... end` body finishes executing (so `name` has had a
-    # chance to run first). A real `class` keyword definition is required to
-    # exercise this — Class.new(Command) { name '...' } does not emit the
-    # same :end trace event and would silently fail to register.
-    it 'auto-registers subclasses with CLI.commands once .name has been called' do
-      class SpecOnlyRegisteredCommand < Rune::Command # rubocop:disable Lint/ConstantDefinitionInBlock
-        name 'spec-only-registered-command'
-      end
+  describe '.name registration' do
+    it 'registers a subclass synchronously when its CLI name is declared' do
+      command_class = Class.new(described_class) { name 'spec-only-registered-command' }
 
-      expect(Rune::CLI.commands['spec-only-registered-command']).to eq(SpecOnlyRegisteredCommand)
+      expect(Rune::CLI.commands['spec-only-registered-command']).to eq(command_class)
+    end
+
+    it 'preserves Ruby class-name reflection when .name is called without a DSL argument' do
+      expect(Rune::Commands::RunCommand.name).to eq('Rune::Commands::RunCommand')
+      expect(Rune::Commands::RunCommand.command_name).to eq('run')
     end
 
     it 'does not register a subclass that never calls .name' do
-      class SpecOnlyUnnamedCommand < Rune::Command # rubocop:disable Lint/ConstantDefinitionInBlock
-      end
+      command_class = Class.new(described_class)
 
-      expect(Rune::CLI.commands.values).not_to include(SpecOnlyUnnamedCommand)
+      expect(Rune::CLI.commands.values).not_to include(command_class)
+    end
+
+    it 'does not leave an enabled global TracePoint for unnamed subclasses' do
+      enabled_before = ObjectSpace.each_object(TracePoint).count(&:enabled?)
+
+      6.times { Class.new(described_class) }
+
+      expect(ObjectSpace.each_object(TracePoint).count(&:enabled?)).to eq(enabled_before)
     end
   end
 
