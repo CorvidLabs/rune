@@ -1,9 +1,9 @@
 {
-  "timestamp": 1785368589,
-  "commit": "3a9723a09026488b49b516c5fcf6935de587ed17",
+  "timestamp": 1785453149,
+  "commit": "89096a4b0049a70d34daf173a91a0e690a540c23",
   "contract_digest": "ca700cfc50686614fb70eba1f068bf4858b2fe6e9d1c60e76adb1f9b7a03c933",
-  "workspace_digest": "f9c3cf2e0b479d586ce376d025137c179ab55d12ea56503f20eae44444a2ebf3",
-  "acceptance_input_digest": "c845c9f3532405dcd97967bc4a45c341e2c64048ad91e49f9e4fd218d6c1d49c",
+  "workspace_digest": "74cbb4ee9fa5418cd0a07c9e0276ae46201764baacfc62a2d88bda1aa9f51b8d",
+  "acceptance_input_digest": "d9ee77eba352f404c41fc0d9b7a1fb4702bf2cf96659b0b6aa835e9dd88d8383",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -71,8 +71,8 @@
         "path": "lib/rune/parsers/prompt_detector.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "3548d94260ed24a6e88fcb3aabb009982b40647b1780e444ad92ac0a23fda3be",
-        "entry_digest": "648de373fa42aa118d2223f09d4fa6f253d480d4d0ec2621c6ac19db50972cee",
+        "payload_digest": "5d598c6917eeec06e44bb80307f7ce4dc61e2fa199dd29f47a31d4a658b6b91f",
+        "entry_digest": "d673fe3620345654f13d9b205acb0b007c8f5f639a4fea394f7e3c38fb069f01",
         "owners": [
           "parsers"
         ]
@@ -101,8 +101,8 @@
         "path": "spec/rune/parsers/prompt_detector_spec.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "9d92964154a74d09ea30f5576e12cf47c831339da22abd264ae5331b962e106b",
-        "entry_digest": "96c3d393c2f8c83e5347b0c6c23f90583219154a675db931bc023bfdb9152c67",
+        "payload_digest": "34f76b58747263c954d0e6e1be393a96b52617a5f84f7bcf3f56e1af2def79cb",
+        "entry_digest": "bab790da3256768592fa7a4cb423fa25077595ce325e23bdd31502e97432dfa6",
         "owners": [
           "@exact:delivery"
         ]
@@ -141,8 +141,8 @@
         "path": "specs/parsers/parsers.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "123cf3d56ebf1f5977eb0b0c60a53825abab01716de710a188e54d38589cd301",
-        "entry_digest": "0f79229aa3444bb1dcc85ce284c0aa567e3b17244f3c802b5c538f9a267bc74a",
+        "payload_digest": "3952d13ac0cd63383f2c2da431669dc4b689dce0a331806097021b095bfa7ed8",
+        "entry_digest": "477f63066c3315132ac125cc5264adac44fd2fc69edaba5cf8a48558c1f175af",
         "owners": [
           "parsers"
         ]

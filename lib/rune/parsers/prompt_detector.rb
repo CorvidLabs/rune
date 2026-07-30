@@ -5,43 +5,47 @@ require_relative 'text_sanitizer'
 module Rune
   module Parsers
     class PromptDetector
+      # Positive matches only. There is deliberately no "any trailing #>$%"
+      # catch-all: ordinary markdown, comments, and progress lines must not be
+      # treated as interactive prompts. Prefer a rare false negative over a
+      # false positive that steers an agent into the wrong branch.
       PROMPT_PATTERNS = [
         %r{\[[yY]/[nN]\]\s*\z},
         %r{\(y/n\)\??\s*\z}i,
         /\A\s*(?:Password|Passphrase|Select|Choice|Confirm):\s*\z/i,
         /\A\s*\?\s+(?:Select|Choose|Pick|Confirm|Enter)\b/i,
         /\A\s*[➜❯›]/,
+        # Recognizable shell PS1 forms only:
+        #   user@host:~/path$
+        #   user@host cwd %          (default macOS zsh)
+        #   (venv) user@host:~$
+        #   bash-5.2# / zsh-5.9% / fish>
         %r{
           \A\s*
           (?:
-            [\w.-]+@[\w.-]+(?::[~./\w()|+-]+)?
+            (?:\([^)]*\)\s+)*
+            [\w.-]+@[\w.-]+
+            (?:
+              :[~./\w()|+-]+
+              |
+              \s+[~\w./+-]+
+            )?
             |
             (?:ba|z|fi|t?c)?sh(?:-[\d.]+)?
           )
-          [>$%#]\s*\z
+          \s*[>$%\#]\s*\z
         }x
       ].freeze
 
+      # Defensive exclusions kept for patterns that still share shape with
+      # real prompts (e.g. blockquotes / comparisons near a terminator). The
+      # old digit-percent and <placeholder> exclusions are gone: progress
+      # lines and angle-bracket examples no longer match any positive pattern.
       FALSE_POSITIVES = [
         /\A\s*>.*<.*>/,
         /\bif\b\s+.*[<>]/,
         /\b\w+\s*=\s*.*\$/,
-        /\A\s*#\s+[A-Z]/i,
-        # Progress output ("Building... 45%", "Downloading 100%") ends in a
-        # bare "<digit>%", which the trailing [>$%#...] prompt fallback below
-        # would otherwise catch. A real tcsh-style "%" prompt is preceded by
-        # a hostname/path, not a digit, so this trade-off only misses the
-        # rare case of a hostname ending in a digit.
-        /\d%\s*\z/,
-        # A line ending in a "<placeholder>" example (e.g. "Install with:
-        # fledge plugins install <owner/repo>") ends in a bare ">", which the
-        # trailing [>$%#...] prompt fallback below would otherwise catch —
-        # found via real dogfooding (`rune run --json -- fledge plugins
-        # search rune` misreported prompt_detected: true on a command that
-        # ran to completion and printed no prompt at all). A real shell
-        # prompt ending in ">" is never preceded by a "<...>" pair right
-        # before it, so this is a safe exclusion.
-        /<[^<>]+>\s*\z/
+        /\A\s*#\s+[A-Z]/i
       ].freeze
 
       class << self

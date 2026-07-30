@@ -50,10 +50,12 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 6. `PromptDetector.detect?` strips ANSI codes before matching, and returns `false` (never raises)
    for `nil`, empty, or whitespace-only input.
 7. `PromptDetector.detect?` recognizes explicit confirmations, labeled prompts, anchored
-   interactive-wizard markers, arrow prompts, and recognizable shell prompts. Arbitrary prose
-   questions and ordinary output ending in a bare `#`, `>`, `$`, or `%` are not sufficient
-   evidence of a prompt. This intentionally favors rare false negatives over false positives that
-   cause an agent to take an incorrect interactive branch.
+   interactive-wizard markers, arrow prompts, and recognizable shell prompts
+   (`user@host:path$`, macOS-style `user@host cwd %`, optional `(venv)` prefixes, and named
+   shells such as `bash-5.2#` / `zsh-5.9%`). Arbitrary prose questions and ordinary output
+   ending in a bare `#`, `>`, `$`, or `%` are not sufficient evidence of a prompt. This
+   intentionally favors rare false negatives over false positives that cause an agent to take an
+   incorrect interactive branch.
 
 ## Behavioral Examples
 
@@ -64,9 +66,11 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
   100%')` and `PromptDetector.detect?('Install with: fledge plugins install <owner/repo>')` both
   return `false` despite ending in characters (`%`, `>`) the underlying prompt patterns otherwise
   match on.
-- `PromptDetector.detect?('user@host:~$ ')` returns `true`, while
-  `PromptDetector.detect?('TODO: fix #')`, `PromptDetector.detect?('##')`, and
-  `PromptDetector.detect?('Is it ok? Yes')` return `false`.
+- `PromptDetector.detect?('user@host:~$ ')`, `PromptDetector.detect?('leif@MacBook-Pro rune % ')`,
+  `PromptDetector.detect?('(venv) user@host:~$ ')`, and `PromptDetector.detect?('zsh-5.9%')` all
+  return `true`, while `PromptDetector.detect?('TODO: fix #')`, `PromptDetector.detect?('##')`,
+  `PromptDetector.detect?('Building... 45%')`, and `PromptDetector.detect?('Is it ok? Yes')`
+  return `false`.
 
 ## Error Cases
 | Condition | Behavior |
@@ -88,3 +92,4 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
   `<placeholder>` false-positive fix and the pre-existing digit-percent one. Also documented that
   `TableParser.parse` now validates `format:` unconditionally, not only for 2+-line input.
 | 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |
+| 2026-07-30 | Follow-up on the CHG-0016 prompt narrowing: cover macOS zsh `user@host cwd %`, `(venv)` prefixes, and versioned shells like `zsh-5.9%` without reintroducing bare-punctuation false positives |
