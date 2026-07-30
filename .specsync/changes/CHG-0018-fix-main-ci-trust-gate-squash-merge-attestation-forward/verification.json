@@ -1,0 +1,76 @@
+{
+  "timestamp": 1785454828,
+  "commit": "1ce1605f71c2e1fac2650feb6df1360927eb14bc",
+  "contract_digest": "14ad7a6f6551350481b2131696013ce9cef8bcfa433c21cd9b64bee444515e40",
+  "workspace_digest": "48df72574950a137fd8886b1e2d532c1c6fe59e3f9d71cafe3f76ad17ec58f06",
+  "acceptance_input_digest": "277dad68260583c1c32b8d1caa4d6cc4ba16a3c95b4e4c8a262d3ec4eb86021f",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b292a76e87aaa6646d200cd96874c07bfb033cbc9243935c9b6a1b6bcdd97953",
+        "entry_digest": "0839d2e790cc859461d5215d5c449b0eefe2c16f20f3efe58e0b1f32beaa186a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6723e6fd48130ec0a10f022b478a8ad65d296ad1de34dfefd717bc4822a7df36",
+        "entry_digest": "4c4ee73b7a8d6279908d0134476641eb2163fb9c95956ad94cea4bdd94ce3405",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "scripts/squash_attest_forwards.sh",
+        "kind": "file",
+        "mode": 33261,
+        "payload_digest": "1218f306954f1cbd6559eec516b60f7f1a11cf90ac7ca3a4213b71bff2e172b8",
+        "entry_digest": "4afec3089d4ebf0fb9c4ca844fe3f8b89fe3b3675d3537ec5b17998b7f605359",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/squash_attest_forwards_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "87a398ee4682462982c30f7c7fe6b8e67e4a25e56b6ff10849964cd4eeb9a252",
+        "entry_digest": "9e777aefd7fe9f448b544dbe05779cf707fd6d8dcfd72af4a181a514e5ae111d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

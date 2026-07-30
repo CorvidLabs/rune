@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0018-fix-main-ci-trust-gate-squash-merge-attestation-forward",
+  "slug": "fix-main-ci-trust-gate-squash-merge-attestation-forward",
+  "title": "Fix main CI trust gate squash-merge attestation forward",
+  "description": "Fix main CI trust gate squash-merge attestation forward",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "1ce1605f71c2e1fac2650feb6df1360927eb14bc",
+  "created_at": 1785454775,
+  "updated_at": 1785454832,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    "scripts/squash_attest_forwards.sh",
+    "spec/squash_attest_forwards_spec.rb",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "CI workflow and helper scripts only; no public library or canonical contract change. Provenance forwarding is infrastructure for the trust gate, not a Rune CLI/API behavior.",
+  "acceptance_criteria": [
+    "Main push Trust gate forwards attestations from every squash-merged PR head (including multi-PR stack pushes) by fetching refs/pull/N/head, then attest verify passes for the push range; unit tests cover the forward-map script; no Rune library API changes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

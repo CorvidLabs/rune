@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 17,
-  "id": "CHG-0017-cover-ndjson-error-dispatch-at-the-cli-integration-boundary",
+  "sequence": 18,
+  "id": "CHG-0018-fix-main-ci-trust-gate-squash-merge-attestation-forward",
   "acknowledged_collisions": []
 }
