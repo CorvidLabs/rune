@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785454799,
+      "digest": "14ad7a6f6551350481b2131696013ce9cef8bcfa433c21cd9b64bee444515e40",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785454832,
+      "digest": "42690d3d9f4239845b86ab6e7214b69f77b9295d102d223577565de264102f77",
+      "note": "CI-only fix for squash-merge attestation forward on main"
+    }
+  ],
+  "reopenings": []
+}

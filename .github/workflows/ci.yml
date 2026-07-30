@@ -82,28 +82,35 @@ jobs:
           PUSH_AFTER_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          forwards_file="${RUNNER_TEMP}/attest-forwards.tsv"
+          : > "${forwards_file}"
           if [ "${EVENT_NAME}" = "pull_request" ]; then
             range="origin/main..HEAD"
-            forward_from=""
           elif [ "${EVENT_NAME}" = "push" ]; then
             range="$(TRUST_PUSH_BEFORE_SHA="${PUSH_BEFORE_SHA}" \
               TRUST_PUSH_AFTER_SHA="${PUSH_AFTER_SHA}" \
               ./scripts/trust_range.sh)"
-            # Pull requests are squash-merged, so the attestation recorded
-            # against the reviewed head SHA does not apply to the differently
-            # hashed landed commit. attest's forward-from exists for exactly
-            # this; resolve the source commit here. Best effort — a direct push
-            # with no pull request leaves this empty and is verified strictly
-            # on its own merits.
-            forward_from="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
-              --jq "map(select(.merge_commit_sha == \"${GITHUB_SHA}\")) | .[0].head.sha // \"\"" || echo "")"
+            # Pull requests are squash-merged, so provenance on the reviewed
+            # head SHA does not apply to the differently-hashed landed commit.
+            # Map every landed commit in the push to its source PR head (covers
+            # multi-PR stack merges that land as several squash commits in one
+            # push). Direct pushes with no PR emit zero rows and are verified
+            # strictly on their own merits.
+            ./scripts/squash_attest_forwards.sh "${PUSH_BEFORE_SHA}" "${PUSH_AFTER_SHA}" \
+              > "${forwards_file}"
           else
             echo "::error::Unsupported trust event '${EVENT_NAME}'; refusing to guess a commit range."
             exit 1
           fi
           echo "range=${range}" >> "$GITHUB_OUTPUT"
-          echo "forward_from=${forward_from}" >> "$GITHUB_OUTPUT"
-          echo "Resolved trust range: ${range} (forward-from: ${forward_from:-none})"
+          echo "forwards_file=${forwards_file}" >> "$GITHUB_OUTPUT"
+          echo "Resolved trust range: ${range}"
+          if [ -s "${forwards_file}" ]; then
+            echo "Squash-merge attestation forwards:"
+            cat "${forwards_file}"
+          else
+            echo "No squash-merge PR heads to forward."
+          fi
 
       # The load-bearing guard. Any future event type, checkout shape, or
       # base-ref change that yields an empty range fails loudly here instead of
@@ -145,14 +152,61 @@ jobs:
           range: ${{ steps.trust-range.outputs.range }}
           threshold: block
 
+      # Squash-merge drops the reviewed PR-head commit from main's history, so a
+      # plain checkout of main cannot resolve `attest forward --from <pr-head>`.
+      # Fetch each PR head via refs/pull/N/head (still available after the
+      # branch is deleted), then forward provenance onto the landed squash
+      # commit(s) before the policy verify step. Stacked multi-PR pushes get
+      # one forward per landed squash commit — the previous single-tip forward
+      # left intermediate stack commits unattested.
+      - name: Forward squash-merge attestations
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORWARDS_FILE: ${{ steps.trust-range.outputs.forwards_file }}
+        run: |
+          set -euo pipefail
+          if [ ! -s "${FORWARDS_FILE}" ]; then
+            echo "No squash-merge PR heads to forward."
+            exit 0
+          fi
+
+          tmp="$(mktemp -d)"
+          # Pin to the same major the CorvidLabs/attest action uses so CI and
+          # the subsequent verify step share one provenance tool version.
+          asset="attest-linux-x86_64"
+          gh release download 1.0.0 --repo CorvidLabs/attest \
+            --pattern "${asset}" --pattern "${asset}.sha256" \
+            --dir "${tmp}" --clobber
+          if [ -f "${tmp}/${asset}.sha256" ]; then
+            expected="$(cut -d' ' -f1 < "${tmp}/${asset}.sha256")"
+            actual="$(sha256sum "${tmp}/${asset}" | cut -d' ' -f1)"
+            if [ "${expected}" != "${actual}" ]; then
+              echo "::error::attest checksum mismatch for ${asset}"
+              exit 1
+            fi
+          fi
+          chmod +x "${tmp}/${asset}"
+          attest="${tmp}/${asset}"
+
+          while IFS=$'\t' read -r from to pr; do
+            [ -z "${from:-}" ] && continue
+            echo "Forwarding attestation: PR #${pr} ${from} -> ${to}"
+            # Named ref keeps the PR-head object reachable after the branch is
+            # deleted; a bare FETCH_HEAD fetch is easy to overwrite mid-loop.
+            git fetch --no-tags origin "refs/pull/${pr}/head:refs/temp/pr-${pr}"
+            if ! git cat-file -e "${from}^{commit}" 2>/dev/null; then
+              echo "::error::PR #${pr} head ${from} still unavailable after fetch"
+              exit 1
+            fi
+            "${attest}" forward --from "${from}" --to "${to}" --reviewer ci:squash-merge-forward
+          done < "${FORWARDS_FILE}"
+
       - name: Attest Provenance Check
         uses: CorvidLabs/attest@1.0.0
         with:
           range: ${{ steps.trust-range.outputs.range }}
           policy: .attest.json
-          forward-from: ${{ steps.trust-range.outputs.forward_from }}
-          forward-to: ${{ github.sha }}
-          forward-reviewer: ci:squash-merge-forward
 
       - name: Verify Trust Block Present
         run: |
