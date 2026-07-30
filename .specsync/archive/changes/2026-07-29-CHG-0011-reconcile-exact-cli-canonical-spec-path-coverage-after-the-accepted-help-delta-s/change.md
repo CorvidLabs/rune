@@ -1,6 +1,6 @@
 ---
 id: CHG-0011-reconcile-exact-cli-canonical-spec-path-coverage-after-the-accepted-help-delta-s
-state: accepted
+state: archived
 type: operations
 base_commit: ef897af980c1b85b0a6b343e9e70b3bdb8ff1ed7
 ---

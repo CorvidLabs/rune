@@ -1,6 +1,6 @@
 ---
 id: CHG-0013-finalize-commit-anchored-exact-cli-spec-coverage-for-the-accepted-help-stack
-state: accepted
+state: archived
 type: operations
 base_commit: bf384e40f45bbf7e8eb1c3d3f09b00af137b91d3
 ---

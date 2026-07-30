@@ -1,6 +1,6 @@
 ---
 id: CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and
-state: accepted
+state: archived
 type: feature
 base_commit: 0b2218b4b054368a0cd6562e289ffff9f9199395
 ---

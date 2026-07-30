@@ -1,6 +1,6 @@
 ---
 id: CHG-0015-record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r
-state: accepted
+state: archived
 type: documentation
 base_commit: e433ab7d590e01f8acfb6d8c27fbabcfca35fdf4
 ---

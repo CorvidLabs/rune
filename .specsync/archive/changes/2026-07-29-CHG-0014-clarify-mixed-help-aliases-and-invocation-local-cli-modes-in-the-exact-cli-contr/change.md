@@ -1,6 +1,6 @@
 ---
 id: CHG-0014-clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr
-state: accepted
+state: archived
 type: documentation
 base_commit: e3b9064ab7f89fbd43a9c3e42a92886b5c9ac3b9
 ---
