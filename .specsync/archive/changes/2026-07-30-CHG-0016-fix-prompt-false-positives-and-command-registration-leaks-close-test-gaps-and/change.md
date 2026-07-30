@@ -1,6 +1,6 @@
 ---
 id: CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 3a9723a09026488b49b516c5fcf6935de587ed17
 ---

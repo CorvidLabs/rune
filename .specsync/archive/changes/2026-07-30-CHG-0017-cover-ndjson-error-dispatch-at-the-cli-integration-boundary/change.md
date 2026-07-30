@@ -1,6 +1,6 @@
 ---
 id: CHG-0017-cover-ndjson-error-dispatch-at-the-cli-integration-boundary
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 3a9723a09026488b49b516c5fcf6935de587ed17
 ---
