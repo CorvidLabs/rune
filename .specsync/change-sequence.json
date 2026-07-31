@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 18,
-  "id": "CHG-0018-fix-main-ci-trust-gate-squash-merge-attestation-forward",
+  "sequence": 19,
+  "id": "CHG-0019-archive-chg-0018-and-set-gha-git-identity-before-attest-forward",
   "acknowledged_collisions": []
 }

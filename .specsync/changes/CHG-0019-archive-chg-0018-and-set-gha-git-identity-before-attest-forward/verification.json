@@ -1,0 +1,56 @@
+{
+  "timestamp": 1785456700,
+  "commit": "c6aa0fee4ce742207ab5de2dd4fa7e82971051d6",
+  "contract_digest": "7c66d498c5c2f596d68a0917472fedb3c41bee7b8b2ddb726f3dde8bb52b2566",
+  "workspace_digest": "10808630be1c8b79f9f2791df5255f334d95cba14202f7c0c8dbd2b4c13b41ab",
+  "acceptance_input_digest": "9040b2f1aa3a3732711e0730cdc3ba1d522da84f4f632dbde5ab3386272aece1",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b429811020a83c878d5424b0e042f2877ffd5bf77c18652096814822eecc7154",
+        "entry_digest": "30c94ad84d87a6a07f3e5587c3b1a26f3c8b0d5f8a5a50e4e992c77e5f25e96f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "151bf21e5b31185948c59f8e87170f9d5cdbf97519e4d1c3652efdbf1334ca5e",
+        "entry_digest": "b3a3f37c66baec02b24c44b75b85f327140967047e68dd2db6d3eabade9727cd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

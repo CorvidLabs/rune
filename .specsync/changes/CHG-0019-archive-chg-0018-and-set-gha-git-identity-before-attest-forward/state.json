@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0019-archive-chg-0018-and-set-gha-git-identity-before-attest-forward",
+  "slug": "archive-chg-0018-and-set-gha-git-identity-before-attest-forward",
+  "title": "Archive CHG-0018 and set GHA git identity before attest forward",
+  "description": "Archive CHG-0018 and set GHA git identity before attest forward",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "c6aa0fee4ce742207ab5de2dd4fa7e82971051d6",
+  "created_at": 1785456659,
+  "updated_at": 1785456705,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".specsync/archive/changes/2026-07-31-CHG-0018-fix-main-ci-trust-gate-squash-merge-attestation-forward",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Post-merge archive of CHG-0018 plus CI workflow fix for git author identity required by git notes add during attest forward on GHA runners. No Rune library or canonical contract change.",
+  "acceptance_criteria": [
+    "CHG-0018 is archived; main push Trust gate sets git author identity and completes attest forward without Author identity unknown."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}
