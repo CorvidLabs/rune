@@ -189,6 +189,11 @@ jobs:
           chmod +x "${tmp}/${asset}"
           attest="${tmp}/${asset}"
 
+          # `git notes add` (used by `attest forward`) creates a notes commit and
+          # requires author identity. GitHub-hosted runners have none configured.
+          git config user.email "ci+attest-forward@github-actions.invalid"
+          git config user.name "github-actions[bot]"
+
           while IFS=$'\t' read -r from to pr; do
             [ -z "${from:-}" ] && continue
             echo "Forwarding attestation: PR #${pr} ${from} -> ${to}"

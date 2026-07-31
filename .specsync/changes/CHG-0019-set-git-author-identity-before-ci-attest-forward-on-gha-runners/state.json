@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0019-set-git-author-identity-before-ci-attest-forward-on-gha-runners",
+  "slug": "set-git-author-identity-before-ci-attest-forward-on-gha-runners",
+  "title": "Set git author identity before CI attest forward on GHA runners",
+  "description": "Set git author identity before CI attest forward on GHA runners",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "c6aa0fee4ce742207ab5de2dd4fa7e82971051d6",
+  "created_at": 1785456181,
+  "updated_at": 1785456228,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "CI workflow only: configure git user.name/user.email so attest forward can write notes commits on GitHub-hosted runners. No Rune library or canonical contract change.",
+  "acceptance_criteria": [
+    "Main push Trust gate runs attest forward without Author identity unknown; git user.name and user.email are set on the runner before git notes add."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785456193,
+      "digest": "5da672e8a6276fff5001b7375fc7581cbb4b06bec4f263091afaa59497507c7c",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785456228,
+      "digest": "7dd568ebfd24108168649a6117ed74c565b3a2c789845d28b6f0299d1674bcea",
+      "note": "GHA git identity for attest forward"
+    }
+  ],
+  "reopenings": []
+}
