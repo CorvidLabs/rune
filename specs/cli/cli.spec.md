@@ -172,3 +172,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-07-29 | CHG-0014-clarify-mixed-help-aliases-and-invocation-local-cli-modes-in-the-exact-cli-contr: Clarify mixed help aliases and invocation-local CLI modes in the exact CLI contract |
 | 2026-07-29 | CHG-0015-record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r: Finalize the committed CLI help contract and document CLI reuse recovery |
 | 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |
+| 2026-08-14 | CHG-0025-prep-0-3-0-release-bump-version-roll-up-changelog: Bump `Rune::VERSION` to 0.3.0 for the 0.3.0 release prep. No public API or contract change — version constant value only. |

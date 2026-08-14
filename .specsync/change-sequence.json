@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 24,
-  "id": "CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e",
+  "sequence": 27,
+  "id": "CHG-0027-fix-too-tight-1s-timeout-margin-in-a-pty-runner-spec-rb-prompt-detected-test",
   "acknowledged_collisions": []
 }

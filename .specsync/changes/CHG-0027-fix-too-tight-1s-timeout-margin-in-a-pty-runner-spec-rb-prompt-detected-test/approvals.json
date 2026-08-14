@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786736926,
+      "digest": "764beb71a946fe4bef0acd8416a2b9b59dd3d71494eb811721d1265661f1b9f7",
+      "note": "Approved via interactive session: test-only timing-margin fix, matches this file's own existing defensive pattern."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786737086,
+      "digest": "fa5c81b1246ec4eb032448b9a2635ea9acc491324b5853e8c8a7412b4fe02227",
+      "note": "Closing approval: fledge lanes run verify all green, confirms the timing-margin fix for PR #37's second CI failure."
+    }
+  ],
+  "reopenings": []
+}
