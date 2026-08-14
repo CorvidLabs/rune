@@ -1,0 +1,1 @@
+{"commit":"e47b8eb6ac50b9268cea1bc7cb0d1164947db2c5","confidence":0.95,"humanApproved":false,"note":"CHG-0023: fledge run spec-check, spec-lifecycle now pass (covers the Gemfile.lock path); lint/test still green from the prior commit.","reviewer":"agent:claude","testsPassed":true,"timestamp":1786725930,"verdict":"proceed"}
