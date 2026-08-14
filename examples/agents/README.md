@@ -4,6 +4,10 @@ Programmatic usage: rune returning **structured data** a program can act on, wit
 keyboard. Each runs directly with no setup beyond a checkout, and none of them need API keys —
 they default to shells and small Ruby children so they work anywhere.
 
+Two integration paths are shown. Most examples `require` the library directly; `cli_envelope.rb`
+deliberately does not, and drives the `rune` executable as a subprocess instead — the path for
+anything that can only run commands, in any language.
+
 | Example | Shows |
 |---|---|
 | `parsing_pipeline.rb` | The library end: run any CLI in a pty, parse tables and key/value output into hashes, bound output, read exit codes |
@@ -13,7 +17,7 @@ they default to shells and small Ruby children so they work anywhere.
 | `script_automation_example.rb` | Driving an interactive prompt with the `Script` DSL |
 | `pty_runner_example.rb` | The smallest `PTYRunner` call |
 | `table_parser_example.rb` | `TableParser` on its own |
-| `cli_from_shell.sh` | The same power from **bash + jq**, no Ruby — for agents that shell out |
+| `cli_envelope.rb` | Driving rune as a **subprocess** — no `require 'rune'` anywhere, just the JSON envelope |
 
 Point the session examples at a real agent CLI to see the actual use case:
 

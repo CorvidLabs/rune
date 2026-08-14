@@ -40,8 +40,9 @@
 - Examples are split by audience: `examples/agents/` (structured, programmatic — including a
   bash+jq example for agents that shell out rather than requiring the gem) and `examples/humans/`
   (interactive programs meant to be driven from a terminal). Each folder has a README, and new
-  examples cover the library surface, multi-session fan-out, failure handling, and a stand-in agent
-  REPL that costs no API quota to drive.
+  examples cover the library surface, multi-session fan-out, failure handling, driving rune as a
+  subprocess without loading the library, and a stand-in agent REPL that costs no API quota. The
+  repository is now Ruby end to end — no shell scripts remain.
 - CI no longer runs the Augur risk gate or Attest provenance verification, and `spec-sync` runs
   without `--strict`/`--stale`. The contract itself — specs matching code, coverage staying
   complete — is the part worth gating on; the rest was rejecting work for bookkeeping reasons
