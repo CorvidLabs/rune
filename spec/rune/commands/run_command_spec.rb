@@ -110,6 +110,33 @@ RSpec.describe Rune::Commands::RunCommand do
         expect(result.error).to include('Invalid --tail value')
       end
     end
+
+    it 'accepts --separate-streams and forwards it to PTYRunner' do
+      runner = instance_double(Rune::PTYRunner, run: Rune::Result.success({}))
+      allow(Rune::PTYRunner).to receive(:new).and_return(runner)
+
+      described_class.new.call(%w[--separate-streams -- echo hi], {})
+
+      expect(Rune::PTYRunner).to have_received(:new).with(%w[echo hi], separate_streams: true)
+    end
+
+    it 'combines --timeout with --separate-streams in the same invocation' do
+      runner = instance_double(Rune::PTYRunner, run: Rune::Result.success({}))
+      allow(Rune::PTYRunner).to receive(:new).and_return(runner)
+
+      described_class.new.call(%w[--timeout=5 --separate-streams -- echo hi], {})
+
+      expect(Rune::PTYRunner).to have_received(:new).with(%w[echo hi], timeout_seconds: 5, separate_streams: true)
+    end
+
+    it 'does not forward separate_streams to PTYRunner when the flag is not given' do
+      runner = instance_double(Rune::PTYRunner, run: Rune::Result.success({}))
+      allow(Rune::PTYRunner).to receive(:new).and_return(runner)
+
+      described_class.new.call(%w[-- echo hi], {})
+
+      expect(Rune::PTYRunner).to have_received(:new).with(%w[echo hi])
+    end
   end
 
   describe '#human_render' do

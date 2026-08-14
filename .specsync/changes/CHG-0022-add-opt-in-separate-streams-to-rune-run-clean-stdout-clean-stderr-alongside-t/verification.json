@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786728056,
+  "timestamp": 1786728135,
   "commit": "162ee50e6e0d386fa5372dd200512e3fe63b8551",
-  "contract_digest": "11ad43f740dd0fc6f16bb28e473c820bdcf579c76cd91aff6828dd13bcd9d874",
+  "contract_digest": "6aa0ec01edfc88bfe69b24fc2b776eded3be962903c79370fb6a2ee21e1c2044",
   "workspace_digest": "3b5c3c2a814075b829e2e80dee470c05060545da7b55a6707a99b414a4bb417d",
-  "acceptance_input_digest": "64ca88d0e44bee81a61cb12655e22238111519d6b30e353a2fb65c13bec7f287",
+  "acceptance_input_digest": "30dbe0f8c264eba1f786f29c1b097b03dd4fda2edf455d43ec9d5197fb73ce6d",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,8 +11,8 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "e156d56d91780021e6bdc6e63e141cb3eee859dd9f6e357604d51651fe3f42db",
-        "entry_digest": "84f23c73f3eb4d803747c92f2e4852807eac534003dbd74bc48055ce35130a0b",
+        "payload_digest": "09bed837e5311d68b163e4c772112b6b878a8fe42f54305edf24ad6bcda4e6c3",
+        "entry_digest": "2a3a1940fdf9bb2297f0d6f2dfc18d7b67f76aa0b04ad46ce44ed27625f05f51",
         "owners": [
           "@exact:delivery"
         ]
@@ -38,16 +38,6 @@
         ]
       },
       {
-        "path": "lib/rune/output_limiter.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "2f2e3248bcadf5b1f779e6d64ce7902dccbd7f1fab85db13277839185f1c3041",
-        "entry_digest": "2d4829ce2103fa681fe971453ab9dc319517fe2bb2cbaa524e05b335d1b614f4",
-        "owners": [
-          "pty_runner"
-        ]
-      },
-      {
         "path": "lib/rune/pty_runner.rb",
         "kind": "file",
         "mode": 33188,
@@ -63,16 +53,6 @@
         "mode": 33188,
         "payload_digest": "053d3adf95bff6d4a962f11c7abb7afc9ea2864e894f545ea05c20b37d731de6",
         "entry_digest": "e4bf5273793bdecd378ab0365b0bbd90eb44edee3e131b5a364c1e39debb6042",
-        "owners": [
-          "@exact:delivery"
-        ]
-      },
-      {
-        "path": "spec/rune/output_limiter_spec.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "b2401b669e81d23508008624947cec5053ae39926019a41758fbefec7cb68290",
-        "entry_digest": "0b54a8e1b669d70a716412f81beffc9a32b6551faaccb09ada21988520cb21a9",
         "owners": [
           "@exact:delivery"
         ]

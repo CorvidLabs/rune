@@ -1,30 +1,14 @@
----
-module: pty_runner
-version: 4
-status: active
-files:
-  - lib/rune/pty_runner.rb
-  - lib/rune/commands/run_command.rb
-  - lib/rune/script.rb
-  - lib/rune/signal_handler.rb
-  - lib/rune/utf8_stream_decoder.rb
-  - lib/rune/output_limiter.rb
----
-# PTY Runner
+## MODIFIED
 
-## Purpose
-Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured TTY CLI commands in a sandboxed PTY process, cleans ANSI formatting, tracks execution timing, and exposes structured execution contracts to AI agents and humans alike.
-
-## Public API
-
+### SPEC SECTION Public API
 | Name | Type | Description |
 |------|------|-------------|
-| `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, script: nil, timeout_seconds: 30, max_output_bytes: nil, tail_lines: nil, separate_streams: false, &on_output)`. Method: `#run` returns `Result`. Class method: `.pty_available?` reports whether the `pty` stdlib loaded successfully. |
-| `RunCommand` | class | Subcommand `rune run [--timeout=SECONDS] [--max-output=BYTES] [--tail=N] [--separate-streams] <command...>` exposing PTY process runner to humans and agents. `--timeout` overrides the default 30s PTYRunner timeout. `--max-output` bounds `clean_output`/`raw_output` to BYTES each, keeping head+tail. `--tail` keeps only the last N lines of each. `--max-output` and `--tail` are mutually exclusive. `--separate-streams` adds `clean_stdout`/`clean_stderr` to the result alongside the existing merged view. All four are only recognized before a `--` separator; a malformed value fails with a clear error instead of leaking the raw flag into the executed command. Declared via the `usage`/`flag` DSL, so `rune run --help` renders them without constructing a PTY runner. |
+| `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, script: nil, timeout_seconds: 30, separate_streams: false, &on_output)`. Method: `#run` returns `Result`. Class method: `.pty_available?` reports whether the `pty` stdlib loaded successfully. |
+| `RunCommand` | class | Subcommand `rune run [--timeout=SECONDS] [--separate-streams] <command...>` exposing PTY process runner to humans and agents. `--timeout` overrides the default 30s PTYRunner timeout. `--separate-streams` adds `clean_stdout`/`clean_stderr` to the result alongside the existing merged view. Both are only recognized before a `--` separator; a malformed `--timeout` value fails with a clear error instead of leaking the raw flag into the executed command. Declared via the `usage`/`flag` DSL, so `rune run --help` renders them without constructing a PTY runner. |
 | `Script` | class | Interactive step DSL passed to `PTYRunner.new(script:)`. Constructor: `Script.new(&block)` (or `Script.define(&block)`, an alias) evaluates the block via `instance_eval`; no I/O happens until `PTYRunner#run` executes the declared steps. |
 | `Rune` | module | Top-level rune namespace. |
 | `pty_available?` | class predicate | Reports whether Ruby's PTY stdlib loaded successfully. |
-| `run` | instance method | Executes, captures, sanitizes, bounds (if requested), and returns one PTY-backed command result. |
+| `run` | instance method | Executes, captures, sanitizes, and returns one PTY-backed command result. |
 | `detect_prompt?` | instance predicate | Delegates prompt recognition to `PromptDetector`. |
 | `spawn_and_stream` | internal method | Spawns the PTY and coordinates input, output, signals, and child reaping for the default single-stream mode. |
 | `spawn_for_mode` | internal method | Dispatches to `spawn_and_stream` or `spawn_and_stream_separate` depending on `separate_streams`. |
@@ -46,19 +30,15 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `input` | reader | Optional eager input written after spawn. |
 | `script` | reader | Optional interactive `Script`. |
 | `timeout_seconds` | reader | Maximum execution duration. |
-| `max_output_bytes` | reader | `--max-output` byte budget, or `nil` if unset. |
+| `separate_streams` | reader | Whether stdout/stderr are captured on independent streams. |
 | `on_output` | reader | Optional decoded-output callback. |
-| `OutputLimiter` | class | Bounds captured text without corrupting UTF-8 at the cut boundary. Stateless; both methods are class methods. |
-| `truncate_middle` | class method | `(text, max_bytes)` returns `[bounded_text, omitted_bytes]`; keeps head and tail, omits the middle, byte-exact. |
-| `tail_lines` | class method | `(text, n)` returns `[bounded_text, omitted_lines]`; keeps only the last `n` lines. Also the name of the matching `PTYRunner` reader holding the `--tail` line budget, or `nil` if unset. |
 | `Commands` | module | Namespace containing concrete CLI command implementations. |
 | `call` | instance method | Validates CLI arguments and delegates to `PTYRunner`. |
 | `human_render` | instance method | Prints a concise command summary and captured clean output. |
-| `FLAG_PATTERNS` | constant | Maps each `PTYRunner` value-taking keyword option (`--timeout`, `--max-output`, `--tail`) to its argv pattern, flag name, and error-message value description. `--separate-streams` takes no value, so it is matched separately rather than via this table. |
+| `FLAG_PATTERNS` | constant | Maps `--timeout` to its argv pattern, flag name, and error-message value description. |
 | `matching_flag` | internal method | Matches one argv token against `FLAG_PATTERNS`, returning the matched option key and `MatchData`, or `[nil, nil]`. |
-| `parse_flags` | internal method | Parses every raw `--timeout`/`--max-output`/`--tail` value, stopping at the first invalid one, then checks mutual exclusion. |
-| `both_output_limits?` | internal predicate | True when both `--max-output` and `--tail` were given. |
-| `parse_positive_int` | internal method | Accepts a positive integer value for `--timeout`/`--max-output`/`--tail` and rejects every other value. |
+| `parse_flags` | internal method | Parses the raw `--timeout` value, if any. |
+| `parse_positive_int` | internal method | Accepts a positive integer value for `--timeout` and rejects every other value. |
 | `wait_for` | DSL method | Appends an output-pattern wait step. |
 | `send_keys` | DSL method | Appends a PTY input step. |
 | `pause` | DSL method | Appends a timed delay step. |
@@ -74,8 +54,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `continuation_bytes?` | internal predicate | Validates UTF-8 continuation bytes. |
 | `scrub` | internal method | Force-encodes bytes as UTF-8 and replaces invalid sequences. |
 
-## Invariants
-
+### SPEC SECTION Invariants
 1. Executed commands run inside a PTY session so TTY-dependent CLIs behave naturally.
 2. Output is stripped of ANSI escape sequences before being returned in `clean_output`.
 3. Duration of process execution is measured and returned in milliseconds.
@@ -121,31 +100,12 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
     spawned PID attached to the actual target process for signal, timeout, and cleanup handling
     while `command` remains the shell-escaped display value returned in structured results. String
     commands retain their explicit shell semantics.
-14. Neither `--max-output` nor `--tail` changes `data`'s shape when unset: no `truncated`,
-    `omitted_bytes`, or `omitted_lines` key appears, and `clean_output`/`raw_output` are exactly
-    what they would be without the flags. This preserves the existing JSON envelope for callers
-    that don't opt in.
-15. `--max-output=BYTES` bounds `clean_output` and `raw_output` independently, each to at most
-    `BYTES` bytes, keeping the head and tail and omitting the middle; `data[:truncated]` and
-    `data[:omitted_bytes]` are always present when the flag is given, even when nothing needed
-    omitting (`omitted_bytes: 0`, `truncated: false`). `omitted_bytes` reflects `clean_output`'s
-    own omitted count specifically — `raw_output` is bounded to the same byte budget
-    independently, but since it still contains ANSI codes and cursor movements its own omitted
-    count is not necessarily identical and is not separately surfaced. The cut never splits a
-    multi-byte UTF-8 character into an invalid sequence.
-16. `--tail=N` keeps only the last `N` lines of `clean_output` and `raw_output` independently;
-    `data[:truncated]` and `data[:omitted_lines]` are always present when the flag is given, and
-    (as with `--max-output`) `omitted_lines` reflects `clean_output`'s own count.
-17. `--max-output` and `--tail` are mutually exclusive; passing both fails before spawning
-    anything.
-18. `separate_streams: true` adds `clean_stdout` and `clean_stderr` to `data`, each independently
+14. `separate_streams: true` adds `clean_stdout` and `clean_stderr` to `data`, each independently
     ANSI-stripped from that stream alone, alongside the unchanged merged `clean_output`/
     `raw_output` (which still contains both streams' bytes, interleaved in the order each chunk was
     read). When `separate_streams` is not set, `data` has no `clean_stdout`/`clean_stderr` keys at
-    all — this preserves the existing JSON envelope for callers that don't opt in. `--max-output`/
-    `--tail` bound `clean_output`/`raw_output` as usual in this mode but do not currently bound
-    `clean_stdout`/`clean_stderr` separately.
-19. `separate_streams: true` spawns stdout (and stdin, for `input:`) on a real pty as before, but
+    all — this preserves the existing JSON envelope for callers that don't opt in.
+15. `separate_streams: true` spawns stdout (and stdin, for `input:`) on a real pty as before, but
     stderr on a plain `IO.pipe` instead of sharing the same pty slave — this is what makes
     `clean_stdout`/`clean_stderr` distinguishable at all, since a single pty is one stream by
     construction. The trade-off, and why this is opt-in rather than the default: the child no
@@ -154,20 +114,19 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
     natively) — irrelevant to rune's own signal forwarding and timeout handling (neither depends on
     terminal-driven job control, see invariant 6 and `SignalHandler`), but a wrapped program relying
     on that relationship itself would behave differently than under the default mode.
-20. In `separate_streams: true` mode, the merged `clean_output`/`raw_output` view's cross-stream
+16. In `separate_streams: true` mode, the merged `clean_output`/`raw_output` view's cross-stream
     chronological ordering is only as precise as the ~0.2s `IO.select` poll interval — writes to
     stdout and stderr spaced apart by more than that appear in real order, but near-simultaneous
     writes on both streams within the same poll window are not guaranteed byte-exact interleaving.
     This is an inherent property of capturing two independent file descriptors (also true of
     `subprocess.run`'s separate `stdout`/`stderr`, the baseline this feature closes the gap with),
     not something the default single-pty mode has to contend with.
-21. `separate_streams: true` combined with `script:` fails immediately with `Result.failure`,
+17. `separate_streams: true` combined with `script:` fails immediately with `Result.failure`,
     before spawning anything — the interactive `wait_for`/`send_keys` DSL only has a well-defined
     meaning against one stream. `RunCommand` never sets `script:` from the CLI, so this only
     applies to direct Ruby API callers combining both explicitly.
 
-## Behavioral Examples
-
+### SPEC SECTION Behavioral Examples
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.
 - `rune run -- nonexistent_binary` returns a *successful* `Result` with `data[:exit_code]: 127`; the `rune` process itself also exits `127`.
 - `rune run -- bash -c "exit 7"` — `rune run` (no `--json`) exits `7` at the shell, even though the `Result` is a success.
@@ -178,12 +137,6 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 - `Script.new { wait_for(/\?/); send_keys("y\n") }` passed as `PTYRunner.new(cmd, script:)` waits
   for a `?`-matching prompt in the captured output, then sends `"y\n"` as input, once the wrapped
   command actually runs.
-- `rune run --json --timeout=5 --max-output=65536 -- yes` returns a `clean_output`/`raw_output`
-  bounded to 65536 bytes each (head+tail) instead of the multi-megabyte unbounded payload the same
-  command produces without the flag, with `truncated: true` and the exact `omitted_bytes` count.
-- `rune run --json --tail=20 -- some_verbose_build` returns only the last 20 lines of
-  `clean_output`/`raw_output`, with `truncated: true` and `omitted_lines` set to however many lines
-  were dropped.
 - `rune run --json --separate-streams -- bash -c 'echo out; echo err >&2'` returns
   `clean_stdout: "out\n"` and `clean_stderr: "err\n"` alongside the existing merged
   `clean_output: "out\nerr\n"` — the case issue #15 exists to cover: an agent triaging a failing
@@ -193,30 +146,23 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 - `PTYRunner.new(cmd, separate_streams: true, script: Script.new { ... }).run` returns
   `Result.failure` immediately, before spawning anything.
 
-## Error Cases
-
+### SPEC SECTION Error Cases
 | Condition | Behavior |
 |-----------|----------|
 | No command argument | Returns `Result.failure("No command specified...")` |
 | Command times out | Returns exit code 124 with timeout message in output |
 | `--timeout` value is not a positive integer (`0`, negative, non-numeric, empty) | Returns `Result.failure("Invalid --timeout value...")` before spawning anything |
-| `--max-output` value is not a positive integer (`0`, negative, non-numeric, empty) | Returns `Result.failure("Invalid --max-output value...")` before spawning anything |
-| `--tail` value is not a positive integer (`0`, negative, non-numeric, empty) | Returns `Result.failure("Invalid --tail value...")` before spawning anything |
-| Both `--max-output` and `--tail` are given | Returns `Result.failure("Cannot combine --max-output and --tail...")` before spawning anything |
 | `pty` stdlib failed to load | `PTYRunner#run` returns `Result.failure("PTY unavailable: ...")` |
 | OS refuses pty allocation at runtime (sandbox/container/exhaustion) | `PTYRunner#run` returns `Result.failure("PTY allocation failed at runtime: ...")` |
 | Wrapped command emits bytes that are not valid UTF-8 | Bytes are force-encoded + scrubbed; `Result` still succeeds, no `Encoding::CompatibilityError` |
 | A valid UTF-8 character is split across reads | The incomplete suffix is buffered and combined with the following chunk without replacement corruption |
-| A `--max-output` cut lands inside a multi-byte UTF-8 character | The truncated head/tail is scrubbed rather than raising or leaving an invalid byte sequence |
 | `separate_streams: true` combined with `script:` | Returns `Result.failure(...)` before spawning anything |
 
-## Dependencies
-
+### SPEC SECTION Dependencies
 - Ruby stdlib: `pty`, `timeout`, `io/wait` (required explicitly — `IO#wait_readable` isn't
   guaranteed to be autoloaded by `pty` alone on every Ruby version)
 
-## Change Log
-
+### SPEC SECTION Change Log
 - v1: Active PTY runner spec contract
 - v1: Added `Script` to this module's file/API coverage (previously untracked by spec-sync
   despite being public since `PTYRunner`'s `script:` constructor option shipped); documented the
@@ -225,7 +171,4 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 - v1: Added boundary-safe incremental UTF-8 decoding shared by `PTYRunner` and `PTYWatcher`.
 | 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |
 | 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
-| 2026-08-14 | CHG-0020-add-opt-in-bounded-output-to-rune-run-max-output-bytes-head-tail-truncation-a: Add opt-in `--max-output=BYTES` (head+tail truncation) and `--tail=N` to `rune run`, plus the new `OutputLimiter` module. Fully additive: the result data shape is unchanged when neither flag is passed. Closes #12. |
-| 2026-08-14 | CHG-0020-add-opt-in-bounded-output-to-rune-run-max-output-bytes-head-tail-truncation-a: Add opt-in bounded output to rune run: --max-output=BYTES head+tail truncation and --tail=N, closing #12 |
 | 2026-08-14 | CHG-0022-add-opt-in-separate-streams-to-rune-run-clean-stdout-clean-stderr-alongside-t: Add opt-in `--separate-streams` to `rune run`: stdout on a real pty, stderr on a plain pipe, adding `clean_stdout`/`clean_stderr` alongside the existing merged `clean_output`/`raw_output` view. Fully additive: the result data shape is unchanged when the flag is not passed. Closes #15. |
-| 2026-08-14 | CHG-0022-add-opt-in-separate-streams-to-rune-run-clean-stdout-clean-stderr-alongside-t: Add opt-in --separate-streams to rune run: clean_stdout/clean_stderr alongside the merged view, closing #15 |

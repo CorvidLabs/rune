@@ -265,6 +265,87 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:omitted_lines]).to eq(25)
     end
 
+    it 'separates stdout and stderr into clean_stdout/clean_stderr when separate_streams is true, ' \
+       'while still returning the existing merged clean_output/raw_output view' do
+      runner = described_class.new(['bash', '-c', 'echo out1; echo err1 >&2; echo out2; echo err2 >&2'],
+                                   separate_streams: true)
+      result = runner.run
+
+      expect(result).to be_success
+      expect(result.data[:clean_stdout]).to eq("out1\nout2\n")
+      expect(result.data[:clean_stderr]).to eq("err1\nerr2\n")
+      expect(result.data[:clean_output]).to include('out1').and include('out2')
+        .and include('err1').and include('err2')
+    end
+
+    it 'mirrors the wrapped command exit code in separate_streams mode, same as the default mode' do
+      result = described_class.new(['bash', '-c', 'exit 3'], separate_streams: true).run
+
+      expect(result).to be_success
+      expect(result.exit_code).to eq(3)
+    end
+
+    it 'does not add clean_stdout/clean_stderr to the result data when separate_streams is not ' \
+       'set (regression guard: the default result data shape must stay byte-for-byte unchanged)' do
+      result = described_class.new('echo hi').run
+
+      expect(result.data).not_to have_key(:clean_stdout)
+      expect(result.data).not_to have_key(:clean_stderr)
+    end
+
+    it 'kills the timed-out child in separate_streams mode too, instead of leaving it orphaned' do
+      Dir.mktmpdir do |dir|
+        pid_file = File.join(dir, 'pid')
+        runner = described_class.new(
+          ['ruby', '-e', "File.write(#{pid_file.inspect}, Process.pid); sleep 10"],
+          separate_streams: true, timeout_seconds: 3
+        )
+
+        result = runner.run
+        child_pid = File.read(pid_file).strip.to_i
+        sleep 0.2
+
+        expect(result.data[:exit_code]).to eq(124)
+        expect(result.data[:clean_stdout]).to eq('')
+        expect(result.data[:clean_stderr]).to eq('')
+        expect { Process.kill(0, child_pid) }.to raise_error(Errno::ESRCH)
+      end
+    end
+
+    it 'forwards SIGINT to the child in separate_streams mode too' do
+      runner = described_class.new('sleep 10', separate_streams: true, timeout_seconds: 30)
+
+      Thread.new do
+        sleep 0.3
+        Process.kill('INT', Process.pid)
+      end
+
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = runner.run
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+
+      expect(result).to be_success
+      expect(elapsed).to be < 5
+      expect(result.data[:exit_code]).to eq(130)
+    end
+
+    it 'rejects combining separate_streams: true with script: (the interactive DSL only ' \
+       'supports the merged single-stream view)' do
+      script = Rune::Script.new { wait_for(/x/) }
+      result = described_class.new('echo hi', separate_streams: true, script: script).run
+
+      expect(result).to be_failure
+      expect(result.error).to include('separate_streams').and include('script')
+    end
+
+    it 'still handles missing/non-executable commands with the conventional 127/126 exit codes ' \
+       'in separate_streams mode' do
+      result = described_class.new('non_existent_command_xyz_12345', separate_streams: true).run
+
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(127)
+    end
+
     it 'forwards SIGINT to the wrapped child process, terminating it early' do
       runner = described_class.new('sleep 10', timeout_seconds: 30)
 
