@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0026-touch-cli-spec-md-change-log-to-close-the-stale-gate-for-the-0-3-0-version-bum",
+  "slug": "touch-cli-spec-md-change-log-to-close-the-stale-gate-for-the-0-3-0-version-bum",
+  "title": "Touch cli.spec.md Change Log to close the --stale gate for the 0.3.0 version bump",
+  "description": "Touch cli.spec.md Change Log to close the --stale gate for the 0.3.0 version bump",
+  "kind": "documentation",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "4b657c0956081708b3172e1710aafe96dcc396b3",
+  "created_at": 1786735664,
+  "updated_at": 1786737974,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "specs/cli/cli.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Change Log audit entry only, recording the version bump already delivered in CHG-0025; no Public API, Invariants, or contract content changed.",
+  "acceptance_criteria": [
+    "specs/cli/cli.spec.md's Change Log records CHG-0025's version bump; specsync check --stale 1 no longer flags cli as behind lib/rune/version.rb; fledge run spec-check passes with 0 warnings under --strict."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

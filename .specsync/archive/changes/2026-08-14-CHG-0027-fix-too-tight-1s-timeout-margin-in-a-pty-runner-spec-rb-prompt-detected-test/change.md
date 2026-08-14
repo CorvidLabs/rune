@@ -1,6 +1,6 @@
 ---
 id: CHG-0027-fix-too-tight-1s-timeout-margin-in-a-pty-runner-spec-rb-prompt-detected-test
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 314e1c26587812d9963ae24214386d629def3b5e
 ---

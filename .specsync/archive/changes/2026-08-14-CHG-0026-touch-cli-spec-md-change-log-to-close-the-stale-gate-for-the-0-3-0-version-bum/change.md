@@ -1,6 +1,6 @@
 ---
 id: CHG-0026-touch-cli-spec-md-change-log-to-close-the-stale-gate-for-the-0-3-0-version-bum
-state: accepted
+state: archived
 type: documentation
 base_commit: 4b657c0956081708b3172e1710aafe96dcc396b3
 ---
