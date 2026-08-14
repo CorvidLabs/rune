@@ -1,0 +1,1 @@
+{"commit":"8550d8eded69745881f4fa874d1d995170df14ef","confidence":0.9,"humanApproved":false,"note":"CHG-0021: fledge lanes run verify (version-check, lint, test 225 examples, spec-check, spec-lifecycle) and fledge trust verify all green. Adds rune watch --timeout/--idle-timeout.","reviewer":"agent:claude","testsPassed":true,"timestamp":1786725589,"verdict":"proceed"}
