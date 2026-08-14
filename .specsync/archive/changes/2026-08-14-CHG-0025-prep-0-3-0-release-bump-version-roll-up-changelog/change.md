@@ -1,6 +1,6 @@
 ---
 id: CHG-0025-prep-0-3-0-release-bump-version-roll-up-changelog
-state: accepted
+state: archived
 type: operations
 base_commit: 56588e061d2cf999f55d092bd9e78164f7c85ede
 ---

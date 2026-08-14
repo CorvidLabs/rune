@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0027-fix-too-tight-1s-timeout-margin-in-a-pty-runner-spec-rb-prompt-detected-test",
+  "slug": "fix-too-tight-1s-timeout-margin-in-a-pty-runner-spec-rb-prompt-detected-test",
+  "title": "Fix too-tight 1s timeout margin in a pty_runner_spec.rb prompt_detected test",
+  "description": "Fix too-tight 1s timeout margin in a pty_runner_spec.rb prompt_detected test",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "314e1c26587812d9963ae24214386d629def3b5e",
+  "created_at": 1786736882,
+  "updated_at": 1786737998,
+  "affected_specs": [],
+  "affected_paths": [
+    "spec/rune/pty_runner_spec.rb",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Test-only fix (timeout_seconds: 1 -> 3, matching this file's own existing pattern for the same real-system-load risk); no library code, public API, or canonical contract change.",
+  "acceptance_criteria": [
+    "spec/rune/pty_runner_spec.rb's --timeout kill prompt_detected test uses timeout_seconds: 3 (not 1) with a matching longer child sleep, resolving a reproducible-under-load flake; fledge run test passes; no library or contract change."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}
