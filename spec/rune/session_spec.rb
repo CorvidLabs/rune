@@ -4,6 +4,7 @@ require 'spec_helper'
 require 'tmpdir'
 require 'json'
 require 'open3'
+require 'socket'
 require 'fileutils'
 
 # These are the first specs in this suite that drive real *detached*
@@ -135,6 +136,28 @@ RSpec.describe Rune::Commands::SessionCommand do
       expect(monotonic - started).to be < 5
     end
 
+    # Found by an independent review (grok). --wait-for-regex is documented as
+    # the deterministic escape hatch, but it matched the raw slice — including
+    # the pty's echo of the input — so waiting for a marker you just asked the
+    # agent to print returned your own words instantly. That is the normal way
+    # the flag gets used, which made the reliable path the least reliable one.
+    it 'does not let --wait-for-regex match the echo of the text being sent' do
+      start_session('s31', ['bash', '--norc', '-i'])
+      # The documented pattern: wait for the child to be listening before
+      # driving it. Sending into a still-booting shell also mixes its banner
+      # into the reply, which is a different bug's territory.
+      wait_until(reason: 'the shell prompt') { session('read', '--name=s31').data[:output].include?('$') }
+
+      started = monotonic
+      result = session('send', '--name=s31', '--settle-ms=6000', '--timeout-ms=20000',
+                       '--wait-for-regex=MARKER', '--', 'sleep 2; echo MARKER')
+
+      expect(result.data[:matched]).to be true
+      # The echo arrives immediately; the real output only after the sleep.
+      expect(monotonic - started).to be > 1.5
+      expect(result.data[:output].scan('MARKER').length).to be >= 2
+    end
+
     it 'caps the wait with --timeout-ms and reports it rather than failing' do
       start_session('s6', thinking_child(delay: 30))
 
@@ -261,6 +284,50 @@ RSpec.describe Rune::Commands::SessionCommand do
 
       expect(data[:clean_output]).to include('GREEN plain')
       expect(data[:clean_output]).not_to include("\e[32m")
+    end
+  end
+
+  # Found by an independent review (agy) driven through rune itself, then
+  # reproduced before being fixed.
+  describe 'a caller that goes away mid-send' do
+    it 'releases the in-flight send instead of locking the session for the whole timeout' do
+      start_session('s28', thinking_child(delay: 30))
+
+      # Speak the control protocol directly so the caller can be abandoned the
+      # way a killed or cancelled `rune session send` process abandons it.
+      socket = Rune::Session::Store.with_bindable_path(store.socket_path('s28')) do |path|
+        UNIXSocket.new(path)
+      end
+      socket.puts(JSON.generate(op: 'send', text: 'hello', settle_ms: 500, timeout_ms: 60_000))
+      socket.flush
+      wait_until(reason: 'the send to be in flight') do
+        session('send', '--name=s28', '--settle-ms=100', '--timeout-ms=2000', '--', 'probe').failure?
+      end
+      socket.close
+
+      # Without noticing the disconnect the supervisor holds @pending for the
+      # full 60s and refuses every later send.
+      wait_until(timeout: 20, reason: 'the session to accept sends again') do
+        session('send', '--name=s28', '--settle-ms=100', '--timeout-ms=1500', '--', 'after').success?
+      end
+    end
+
+    it 'survives a control client that connects and never completes a request line' do
+      start_session('s29', thinking_child(delay: 0.1))
+      partial = Rune::Session::Store.with_bindable_path(store.socket_path('s29')) do |path|
+        UNIXSocket.new(path)
+      end
+      partial.write('{"op":"sen') # no newline, never finished
+      partial.flush
+
+      # A blocking `gets` here would freeze the only thread, stalling the pty
+      # and every other request with it.
+      begin
+        expect(session('send', '--name=s29', '--settle-ms=250', '--timeout-ms=15000', '--', 'still-alive'))
+          .to be_success
+      ensure
+        partial.close
+      end
     end
   end
 
@@ -412,6 +479,21 @@ RSpec.describe Rune::Commands::SessionCommand do
       end
     end
 
+    # Also from agy's review: without a liveness check `start` waited out the
+    # full START_TIMEOUT for an answer that was already certain.
+    it 'fails fast when the supervisor dies before reporting ready, rather than waiting out the timeout' do
+      corpse = Process.spawn('true')
+      Process.wait(corpse)
+      allow_any_instance_of(described_class).to receive(:spawn_supervisor).and_return(corpse)
+
+      started = monotonic
+      result = session('start', '--name=s30', '--', 'bash', '--norc', '-i')
+
+      expect(result).to be_failure
+      expect(result.error).to include('supervisor exited')
+      expect(monotonic - started).to be < (described_class::START_TIMEOUT / 2)
+    end
+
     it 'records the exit and stops supervising when the child exits on its own' do
       start_session('s14', ['bash', '--norc', '-c', 'exit 7'])
 
@@ -507,6 +589,31 @@ RSpec.describe Rune::Commands::SessionCommand do
 
       expect(last).to include('VISIBLE')
       expect(last).not_to include("\e")
+    end
+  end
+
+  describe 'process teardown' do
+    # Also from grok's review: agent CLIs spawn workers (node wrappers, MCP
+    # servers). Signalling only the recorded child pid left those running after
+    # `stop`, holding ptys and ports.
+    it 'kills the child process group so its own children do not survive stop' do
+      spawner = <<~'CHILD'
+        STDOUT.sync = true
+        worker = spawn('sleep 300')
+        puts "WORKER:#{worker}"
+        sleep 300
+      CHILD
+      start_session('s32', ['ruby', '-e', spawner])
+      wait_until(reason: 'the grandchild pid to be reported') do
+        session('read', '--name=s32').data[:output].to_s.include?('WORKER:')
+      end
+      worker_pid = session('read', '--name=s32').data[:output][/WORKER:(\d+)/, 1].to_i
+
+      session('stop', '--name=s32')
+
+      wait_until(reason: 'the grandchild to die with its group') do
+        !Rune::Session::Store.alive?(worker_pid)
+      end
     end
   end
 

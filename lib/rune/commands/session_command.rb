@@ -45,6 +45,10 @@ module Rune
       ACTIVITY_LINE_LIMIT = 100
       # How long `stop` waits for SIGKILLed processes to actually disappear.
       DEATH_TIMEOUT = 3.0
+      # Mirrors the supervisor's own default so a caller's ceiling is never
+      # tighter than the wait it asked for.
+      DEFAULT_SEND_TIMEOUT_MS = 120_000
+      CLIENT_TIMEOUT_MARGIN = 15.0
 
       VALUE_FLAGS = {
         name: [/\A--name=(.*)\z/, :string],
@@ -150,7 +154,11 @@ module Rune
         store.reset_transcript(name)
         store.write_meta(name, name: name, command: command, state: 'starting', started_at: Time.now.to_f)
         pid = spawn_supervisor(name, command)
-        ready_error = await_ready(name)
+        # Recorded before waiting, so a second `start` racing this one sees a
+        # live supervisor instead of a `starting` record with no pid — which
+        # `running_conflict` read as "free" for the whole interpreter boot.
+        store.update_meta(name, supervisor_pid: pid)
+        ready_error = await_ready(name, pid)
         if ready_error
           # Without this the supervisor spawned just above keeps running after
           # `start` reports failure, holding a pty for a session the caller was
@@ -206,18 +214,41 @@ module Rune
       # also keeps the missing/non-executable case consistent with `rune run`
       # and `rune watch`, where 127/126 is the child's exit status on a
       # successful Result rather than a rune-level failure.
-      def await_ready(name)
+      def await_ready(name, supervisor_pid)
         deadline = monotonic + START_TIMEOUT
         while monotonic < deadline
-          meta = store.read_meta(name)
-          if meta
-            return nil if meta[:state] == 'running' && File.socket?(store.socket_path(name))
-            return nil if meta[:state] == 'exited'
-          end
+          verdict = readiness(name, supervisor_pid)
+          return verdict == :ready ? nil : verdict if verdict
 
           sleep 0.02
         end
         "Session #{name.inspect} did not become ready within #{START_TIMEOUT.to_i}s."
+      end
+
+      # :ready, an error string, or nil to keep waiting.
+      def readiness(name, supervisor_pid)
+        meta = store.read_meta(name)
+        return :ready if meta && (serving?(name, meta) || meta[:state] == 'exited')
+        # A supervisor that died before recording anything never will, so
+        # waiting out START_TIMEOUT only delays an error that is already certain.
+        return supervisor_died(name) unless Session::Store.alive?(supervisor_pid)
+
+        nil
+      end
+
+      # Liveness as well as recorded state: a supervisor can write `running`,
+      # create the socket, then die on an early exception. Without the pid check
+      # `start` reported success and the caller's very next `send` failed against
+      # a session it had just been told was up.
+      def serving?(name, meta)
+        meta[:state] == 'running' &&
+          File.socket?(store.socket_path(name)) &&
+          Session::Store.alive?(meta[:supervisor_pid])
+      end
+
+      def supervisor_died(name)
+        "Session #{name.inspect} supervisor exited before the session was ready. " \
+          "See #{File.join(store.session_dir(name), 'supervisor.log')}."
       end
 
       # ---- send
@@ -256,13 +287,28 @@ module Rune
         alive = alive_session(name)
         return alive if alive.is_a?(Result)
 
-        reply = Session::Client.new(store.socket_path(name)).request(payload)
+        reply = Timeout.timeout(client_ceiling(payload)) do
+          Session::Client.new(store.socket_path(name)).request(payload)
+        end
         return Result.failure("Session #{name.inspect}: #{reply[:error]}") if reply[:error]
 
         Result.success({ action: action, name: name }.merge(with_clean_output(reply)))
       rescue Session::Client::Unavailable => e
         Result.failure("Session #{name.inspect} is not reachable (#{e.message}). It may have exited; " \
                        "run 'rune session list'.")
+      rescue Timeout::Error
+        Result.failure("Session #{name.inspect} did not answer within its timeout. The supervisor may be " \
+                       "wedged; run 'rune session stop --name=#{name}' to recover.")
+      end
+
+      # `Client` has no timeout of its own because the supervisor guarantees a
+      # reply. That guarantee does not hold when the supervisor is wedged — a
+      # blocking pty write is a documented limitation — and without a ceiling the
+      # caller then blocks forever, turning a stalled supervisor into a hung
+      # agent with no recovery but killing it by hand. The margin is generous so
+      # this can never pre-empt a legitimate wait the caller asked for.
+      def client_ceiling(payload)
+        ((payload[:timeout_ms] || DEFAULT_SEND_TIMEOUT_MS) / 1000.0) + CLIENT_TIMEOUT_MARGIN
       end
 
       # `rune run` has always returned both an ANSI-stripped `clean_output` and
@@ -500,14 +546,29 @@ module Rune
 
       # Idempotent by construction: every kill tolerates an already-dead pid,
       # so stopping a stopped session succeeds rather than erroring.
+      # The child is signalled by process group so its own workers go too; the
+      # supervisor is signalled directly, since group-killing it could reach
+      # this process. Every kill tolerates an already-dead pid, which is what
+      # makes `stop` idempotent.
       def kill_remaining(meta)
-        [meta[:child_pid], meta[:supervisor_pid]].compact.each do |pid|
-          next unless Session::Store.alive?(pid)
+        kill_process_group(meta[:child_pid])
+        kill_pid(meta[:supervisor_pid])
+      end
 
-          Process.kill('KILL', Integer(pid))
-        rescue Errno::ESRCH, Errno::EPERM, TypeError, ArgumentError
-          next
-        end
+      def kill_process_group(pid)
+        return unless pid && Session::Store.alive?(pid)
+
+        Process.kill('KILL', -Integer(pid))
+      rescue Errno::ESRCH, Errno::EPERM, TypeError, ArgumentError
+        kill_pid(pid)
+      end
+
+      def kill_pid(pid)
+        return unless pid && Session::Store.alive?(pid)
+
+        Process.kill('KILL', Integer(pid))
+      rescue Errno::ESRCH, Errno::EPERM, TypeError, ArgumentError
+        nil
       end
 
       # ---- hidden supervisor entry point
@@ -515,6 +576,12 @@ module Rune
       def supervise(args)
         options, rest, error = extract_options(args)
         return Result.failure(error) if error
+
+        # `_supervise` is internal but still dispatchable, and `Store` derives
+        # directory paths straight from the name, so skipping the guard `start`
+        # applies would let `--name=../../x` write session state outside
+        # RUNE_HOME. Defence in depth, not a reachable exploit today.
+        return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
 
         command = rest.first == '--' ? rest[1..] : rest
         # The project is passed explicitly rather than re-derived: the

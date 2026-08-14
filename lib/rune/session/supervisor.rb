@@ -5,12 +5,25 @@ require 'socket'
 require 'fileutils'
 require 'io/wait'
 require 'shellwords'
+require_relative 'store'
+require_relative 'prompt_scanner'
+require_relative '../utf8_stream_decoder'
 
 # IO#winsize= comes from this stdlib extension. Rescued on LoadError the same
 # way pty_runner.rb rescues 'pty' and pty_watcher.rb rescues 'io/console':
 # expected almost everywhere, guaranteed nowhere.
 begin
   require 'io/console'
+rescue LoadError
+  nil
+end
+
+# Required here so this file is loadable on its own rather than relying on some
+# other file having pulled `pty` in first — but rescued, because rune as a whole
+# must still *load* on a Ruby built without the optional pty extension. A bare
+# `require` here broke exactly that, which the non-PTY portability spec caught.
+begin
+  require 'pty'
 rescue LoadError
   nil
 end
@@ -47,6 +60,10 @@ module Rune
       # How much of the existing transcript an attaching terminal is replayed,
       # so it lands on a populated screen rather than a blank one.
       ATTACH_BACKLOG_BYTES = 64 * 1024
+      # Bounds on reading one control request, so a client that stalls mid-line
+      # or floods cannot hold or exhaust the supervisor.
+      REQUEST_READ_TIMEOUT = 2.0
+      MAX_REQUEST_BYTES = 1024 * 1024
 
       def self.run(name:, command:, home: nil, project: nil)
         new(name: name, command: command, store: Store.new(home: home, project: project)).run
@@ -98,10 +115,26 @@ module Rune
 
       def build_server
         path = @store.socket_path(@name)
+        # Only remove a socket nobody is answering on. `running_conflict` guards
+        # this at the CLI layer, but two concurrent starts race it, and blindly
+        # unlinking would leave the first supervisor serving an unlinked fd
+        # while every new client reached the second — two supervisors disagreeing
+        # about one session's transcript and cursors.
+        raise "session #{@name} is already being served" if socket_live?(path)
+
         FileUtils.rm_f(path)
         server = Store.with_bindable_path(path) { |bindable| UNIXServer.new(bindable) }
         File.chmod(Store::FILE_MODE, path)
         server
+      end
+
+      def socket_live?(path)
+        return false unless File.socket?(path)
+
+        Store.with_bindable_path(path) { |bindable| UNIXSocket.new(bindable) }.close
+        true
+      rescue SystemCallError
+        false
       end
 
       # A detached session has no controlling terminal to copy dimensions from,
@@ -123,7 +156,7 @@ module Rune
 
       def event_loop(server, reader, writer)
         until @stopping
-          ready = IO.select([server, reader, *@clients, *@attached], nil, nil, POLL_INTERVAL)
+          ready = IO.select([server, reader, *@clients, *@attached, *pending_client], nil, nil, POLL_INTERVAL)
           dispatch_ready(ready, server, reader, writer) if ready
           resolve_pending
           break if @child_finished && @pending.nil?
@@ -147,6 +180,8 @@ module Rune
             accept_client(server)
           elsif io.equal?(reader)
             pump(reader)
+          elsif pending_client.include?(io)
+            discard_disconnected_pending(io)
           elsif @attached.include?(io)
             forward_from_attached(io, writer)
           else
@@ -154,6 +189,29 @@ module Rune
             handle_request(io, writer)
           end
         end
+      end
+
+      # The in-flight send's socket is watched too. A caller that is killed or
+      # cancelled mid-send leaves it readable at EOF; without noticing, the
+      # supervisor holds @pending for the whole --timeout-ms and refuses every
+      # later send with "a send is already in flight" — so one cancelled call
+      # locks the session for two minutes at the default timeout.
+      def pending_client = @pending ? [@pending[:client]] : []
+
+      def discard_disconnected_pending(client)
+        return unless client_gone?(client)
+
+        @pending = nil
+        safe_close(client)
+      end
+
+      # `eof?` would block on a live socket, but this is only reached once
+      # IO.select reported the socket readable, so it returns immediately:
+      # true at EOF, false when the peer actually sent something.
+      def client_gone?(client)
+        client.eof?
+      rescue IOError, SystemCallError
+        true
       end
 
       def accept_client(server)
@@ -228,8 +286,8 @@ module Rune
       # ---- control protocol: one JSON request line in, one JSON reply line out
 
       def handle_request(client, writer)
-        line = client.gets
-        return client.close if line.nil?
+        line = read_request_line(client)
+        return safe_close(client) if line.nil?
 
         request = JSON.parse(line, symbolize_names: true)
         dispatch(request, client, writer)
@@ -241,6 +299,27 @@ module Rune
       # must never be able to take the session down with it.
       rescue IOError, SystemCallError
         safe_close(client)
+      end
+
+      # `gets` blocks until a newline arrives, so a client that connects and
+      # sends half a line would freeze the supervisor's only thread — stopping
+      # pty pumping (which stalls the child once its buffer fills) and every
+      # pending settle along with it. Bounded instead, so a broken or hostile
+      # client costs one short wait and its own connection, never the session.
+      def read_request_line(client)
+        deadline = monotonic + REQUEST_READ_TIMEOUT
+        buffer = +''
+        loop do
+          chunk = client.read_nonblock(READ_CHUNK, exception: false)
+          return nil if chunk.nil? || buffer.bytesize > MAX_REQUEST_BYTES
+
+          if chunk == :wait_readable
+            return nil unless monotonic < deadline && client.wait_readable(0.05)
+          else
+            buffer << chunk
+            return buffer if buffer.include?("\n")
+          end
+        end
       end
 
       def dispatch(request, client, writer)
@@ -325,7 +404,13 @@ module Rune
       # hard cap beats a settle that has not happened yet, and a child that
       # exited ends the wait whatever the settle window says.
       def pending_outcome(slice)
-        return { settled: true, matched: true } if @pending[:regex]&.match?(slice)
+        # Against the post-echo text, not the raw slice. Matching the raw slice
+        # meant `--wait-for-regex MARKER` on `echo MARKER` returned the instant
+        # the pty echoed the command back — handing the caller its own words as
+        # the "answer" before the child had produced any. Waiting for a marker
+        # you just asked an agent to print is the normal case, so the documented
+        # deterministic escape hatch was the least reliable path in practice.
+        return { settled: true, matched: true } if @pending[:regex]&.match?(beyond_echo(slice))
         return { settled: false, timed_out: true } if monotonic >= @pending[:deadline]
         return { settled: true, child_exited: true } if @child_finished
         return { settled: true } if quiet_enough?
@@ -348,21 +433,33 @@ module Rune
         normalized = slice.delete("\r")
         echo = @pending[:echo].to_s.delete("\r")
         return normalized if echo.empty?
-        # The echo arrives in chunks, so mid-arrival the slice is a *prefix* of
-        # the echo rather than starting with it. Without this case a partial
-        # echo reads as real output and settles the send immediately — which is
-        # exactly how this first presented.
-        #
-        # Time-bounded, because "output so far is a prefix of what I sent" is
-        # ambiguous: it is a half-arrived echo, or it is a complete reply that
-        # happens to be a prefix of the prompt. Treating the second case as an
-        # echo hung the send until --timeout-ms (send "helloworld" to a
-        # non-echoing child that answers "hello"). A real echo always lands
-        # inside the grace window, so after it a prefix is taken as real output.
-        return '' if echo.start_with?(normalized) && within_echo_grace?
-        return normalized unless normalized.start_with?(echo)
 
-        normalized[echo.length..].to_s
+        # Located, not prefix-matched. The cursor is taken the instant we write,
+        # so bytes the child was already emitting (the tail of its previous
+        # prompt, a redraw) can land *before* the echo — which made a prefix
+        # check fail and hand the whole slice back as if it were a reply. That
+        # showed up as --wait-for-regex matching its own echoed input roughly
+        # one run in three.
+        index = normalized.index(echo)
+        return normalized[(index + echo.bytesize)..].to_s if index
+        # Not all there yet: treat a trailing partial echo as "still arriving",
+        # but only inside the grace window, so a genuine reply that happens to
+        # be a prefix of the input cannot stall the send indefinitely.
+        return '' if within_echo_grace? && echo_still_arriving?(normalized, echo)
+
+        normalized
+      end
+
+      # True when the tail of what has arrived is the beginning of the echo,
+      # i.e. the echo is mid-flight. Comparing the *whole* slice was wrong: a
+      # child that was still printing something else (bash's startup banner)
+      # when the send landed pushes the partial echo off the front, so the
+      # prefix test failed and a half-arrived echo counted as a reply.
+      def echo_still_arriving?(normalized, echo)
+        return true if normalized.strip.empty?
+
+        limit = [normalized.bytesize, echo.bytesize].min
+        (1..limit).any? { |length| echo.start_with?(normalized[-length, length]) }
       end
 
       def within_echo_grace?
@@ -430,15 +527,23 @@ module Rune
         0
       end
 
+      # Each step is isolated: teardown previously shared one rescue, so a child
+      # that would not die took the socket removal and the file descriptors down
+      # with it, leaving a stale control socket that later clients connect to and
+      # get ECONNREFUSED from instead of a clean "not running" result.
       def cleanup(server)
-        resolve_orphaned_pending
-        terminate_child
-        (@clients + @attached).each { |client| safe_close(client) }
-        safe_close(server)
-        FileUtils.rm_f(@store.socket_path(@name))
-        @output_log&.close
-      rescue StandardError
-        nil
+        [
+          -> { resolve_orphaned_pending },
+          -> { terminate_child },
+          -> { (@clients + @attached).each { |client| safe_close(client) } },
+          -> { safe_close(server) },
+          -> { FileUtils.rm_f(@store.socket_path(@name)) },
+          -> { @output_log&.close }
+        ].each do |step|
+          step.call
+        rescue StandardError
+          next
+        end
       end
 
       # A client blocked on a reply that will now never come would hang until
@@ -449,13 +554,29 @@ module Rune
         settle_pending(@transcript.byteslice(@pending[:cursor]..) || '', settled: false, supervisor_exited: true)
       end
 
+      # The process *group*, not just the child. PTY.spawn puts the child in its
+      # own session, and agent CLIs routinely spawn workers (node wrappers, MCP
+      # servers). Signalling only the recorded pid left those helpers running
+      # after `rune session stop`, holding ptys and ports, where they could then
+      # collide with the next session started for the same tool.
       def terminate_child
         return unless @child_pid
 
-        Process.kill('KILL', @child_pid)
+        kill_group(@child_pid)
         Process.wait(@child_pid)
       rescue Errno::ESRCH, Errno::ECHILD
         nil
+      end
+
+      def kill_group(pid)
+        Process.kill('KILL', -pid)
+      rescue Errno::ESRCH, Errno::EPERM
+        # No such group, or not ours to signal — fall back to the single pid.
+        begin
+          Process.kill('KILL', pid)
+        rescue Errno::ESRCH
+          nil
+        end
       end
 
       def safe_close(io)
@@ -468,7 +589,9 @@ module Rune
         return unless @output_log
 
         @output_log.puts JSON.generate({ event: event, ts: Time.now.to_f }.merge(fields))
-      rescue IOError, Errno::EPIPE
+      # SystemCallError covers ENOSPC and friends: losing the transcript is bad,
+      # losing the running session because the disk filled is worse.
+      rescue IOError, SystemCallError
         nil
       end
 

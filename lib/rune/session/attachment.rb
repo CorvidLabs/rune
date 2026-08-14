@@ -32,6 +32,7 @@ module Rune
 
       def initialize(socket_path, input: $stdin, output: $stdout, announce: $stderr)
         @socket_path = socket_path
+        @attached = false
         @input = input
         @output = output
         @announce = announce
@@ -43,7 +44,11 @@ module Rune
         return refusal if refusal
 
         @announce&.puts("[rune session] attached — #{DETACH_HINT}")
-        Result.success({ action: 'attach', detached: with_raw_terminal { pump(socket) } })
+        @attached = true
+        detached = with_raw_terminal { pump(socket) }
+        return Result.failure('Session ended while attached (the child or its supervisor exited).') unless detached
+
+        Result.success({ action: 'attach', detached: true })
       rescue Client::Unavailable => e
         Result.failure("Cannot attach: #{e.message}")
       ensure
@@ -55,7 +60,9 @@ module Rune
       # wheel of an agent needs telling that it is still out there.
       def close_quietly(socket)
         socket.close unless socket.nil? || socket.closed?
-        @announce&.puts("\n[rune session] detached; the session is still running.")
+        # Only after an attach actually happened. Printing it when `connect` or
+        # the handshake failed told the user a dead session was "still running".
+        @announce&.puts("\n[rune session] detached; the session is still running.") if @attached
       rescue IOError, SystemCallError
         nil
       end
@@ -77,7 +84,7 @@ module Rune
         socket.puts(JSON.generate(op: 'attach'))
         socket.flush
         socket
-      rescue Errno::ENOENT, Errno::ECONNREFUSED, Errno::EPERM => e
+      rescue SystemCallError => e
         raise Client::Unavailable, e.message
       end
 

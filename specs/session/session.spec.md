@@ -296,7 +296,34 @@ deciding who talks to whom stays the calling agent's job.
     name resets it. Otherwise `send` cursors (which restart at zero with the new supervisor) and
     `read` offsets (which replayed the whole file) silently disagreed, and `read` returned a dead
     session's output as if it were this one's.
-33. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
+33. `--wait-for-regex` is matched against the output *beyond* the pty's echo of the input, never
+    the raw slice. Matching the raw slice meant waiting for a marker you had just asked the agent to
+    print returned the caller's own echoed words immediately — and since that is the normal way the
+    flag is used, the documented deterministic escape hatch was the least reliable path available.
+34. Echo suppression locates the echo within the slice rather than requiring it at the cursor. The
+    cursor is taken the instant input is written, so bytes the child was already emitting (the tail
+    of a previous prompt, a redraw) can arrive first. A partially-arrived echo is recognised by its
+    *trailing* bytes matching the start of the echo, so a child that was mid-output when the send
+    landed cannot turn a half-arrived echo into a reply.
+35. An in-flight send whose caller goes away is released as soon as its socket reports EOF, rather
+    than held until `--timeout-ms`. Otherwise one cancelled call locked the session for the whole
+    timeout — two minutes at the default — refusing every later send.
+36. `send` bounds its own wait client-side at the requested `timeout-ms` plus a margin. The
+    supervisor normally guarantees a reply, but that guarantee does not hold when it is wedged, and
+    without a ceiling a stalled supervisor became a permanently hung caller.
+37. `start` treats a session as ready only when the supervisor process is actually alive, not merely
+    when `meta.json` says `running` and the socket exists — a supervisor can record both and then
+    die. It also fails immediately once the supervisor is gone rather than waiting out the start
+    timeout for an answer that is already certain.
+38. Teardown signals the child's process *group*. Agent CLIs routinely spawn workers, and signalling
+    only the recorded pid left those running after `stop`, holding ptys and ports where they could
+    collide with the next session for the same tool.
+39. A control client can never take the session down: unexpected errors while handling a request
+    close that client only, a request line that never completes is abandoned after a short bound,
+    and a full disk while logging does not end the session.
+40. Every directory rune creates under `RUNE_HOME` is owner-only, not just the leaf session
+    directory, so the set of tools being driven and their session names is not world-readable.
+41. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
     additive.
 
 ## Behavioral Examples

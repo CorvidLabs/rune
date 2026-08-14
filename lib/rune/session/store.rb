@@ -167,10 +167,16 @@ module Rune
       def create(name)
         dir = session_dir(name)
         FileUtils.mkdir_p(dir)
-        # mkdir_p's :mode only applies to directories it actually creates, and
-        # is subject to umask; chmod unconditionally so an existing or
-        # umask-widened directory still ends up owner-only.
-        File.chmod(DIR_MODE, dir)
+        # Every component, not just the leaf. mkdir_p's :mode applies only to
+        # directories it actually creates and is masked by umask, so `home`,
+        # `projects/`, `projects/<slug>/` and `sessions/` were left at 0755 —
+        # letting any local user list which tools are being driven and under
+        # what names, even though the transcripts themselves were protected.
+        [dir, File.dirname(dir), project_dir, File.join(@home, 'projects'), @home].uniq.each do |path|
+          File.chmod(DIR_MODE, path)
+        rescue SystemCallError
+          next
+        end
         dir
       end
 

@@ -44,7 +44,10 @@ module Rune
         raise Unavailable, 'no control socket' unless File.socket?(@socket_path)
 
         Store.with_bindable_path(@socket_path) { |connectable| UNIXSocket.new(connectable) }
-      rescue Errno::ENOENT, Errno::ECONNREFUSED, Errno::EPERM => e
+      # SystemCallError rather than an enumerated list: a stale socket owned by
+      # another uid raises EACCES, which used to escape as an unhandled crash
+      # instead of the documented "session is not reachable" failure.
+      rescue SystemCallError => e
         raise Unavailable, e.message
       end
 
