@@ -5,10 +5,11 @@
   "title": "Fix seven session defects found by an independent grok/kimi/agy review: wait-for-regex matching the pty echo, a cancelled send locking the session, an unbounded client wait, start reporting success for a dead supervisor, teardown leaving agent workers alive, world-readable parent directories, and assorted robustness gaps",
   "description": "Fix seven session defects found by an independent grok/kimi/agy review: wait-for-regex matching the pty echo, a cancelled send locking the session, an unbounded client wait, start reporting success for a dead supervisor, teardown leaving agent workers alive, world-readable parent directories, and assorted robustness gaps",
   "kind": "bug_fix",
-  "state": "implementing",
+  "state": "accepted",
+  "canonical_applied": true,
   "base_commit": "df43a01ba17acbf6391a5177f08502485551eb1b",
   "created_at": 1786750685,
-  "updated_at": 1786750749,
+  "updated_at": 1786750870,
   "affected_specs": [
     "session"
   ],

@@ -6,6 +6,13 @@
       "timestamp": 1786750748,
       "digest": "407be002504ca7b63a8a0dea335e37a9710c1608a6ad4c226c1ec556c7d5fb35",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786750870,
+      "digest": "61aaa45037d6b07479f4167252d073aae09fe871ab9b3f8dbfca7b01e25fbf37",
+      "note": null
     }
   ],
   "reopenings": []
