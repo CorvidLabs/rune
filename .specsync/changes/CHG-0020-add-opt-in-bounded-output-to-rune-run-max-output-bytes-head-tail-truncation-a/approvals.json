@@ -1,0 +1,54 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786721223,
+      "digest": "7e2f5b49c1d8c6b81414b565871daadc9b9de51e5cabf43f50b5e472214a1026",
+      "note": "Approved via interactive session: additive-only design, no default envelope change."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786722255,
+      "digest": "3df5f5186874ca9e9371067ce4ab7476e078ca7368423c6d3abf810bbd1b42f3",
+      "note": "Re-approved after refining the pty_runner delta wording (clarified omitted_bytes/omitted_lines reflect clean_output specifically)."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786722562,
+      "digest": "c45f01a2f31a3b4856f23571df86b5e412b3c15f3e8a12bf287748aa739d4197",
+      "note": "Refined delta to account for spec-sync's known position-dependent Ruby export bug (rune#20 / spec-sync#479): omitted apply_output_limit from the table like the codebase's existing precedent for early-position private methods."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786722580,
+      "digest": "9b79b21f05dac845af0fd335b13d646a24248ef75de63383c4188f59baa4e728",
+      "note": "Documented the remaining detected exports (matching_flag, parse_flags, both_output_limits?, FLAG_PATTERNS)."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786722727,
+      "digest": "76a23e128eea28ba3b16a2381374fe3506986dd814b8db7a9c25305197b473c1",
+      "note": "Added the remaining touched paths (lib/rune.rb require, spec files, spec doc, changelog) to affected_paths."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786722938,
+      "digest": "11ad43f740dd0fc6f16bb28e473c820bdcf579c76cd91aff6828dd13bcd9d874",
+      "note": "Removed the redundant lib/rune.rb require (output_limiter.rb is already loaded transitively via pty_runner.rb's own require_relative), keeping this change scoped to the pty_runner contract only."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786722978,
+      "digest": "11a231add0d72ea49a11a8f5dd5fbb1b1a4944a9531d111aad9b941ffb19b68b",
+      "note": "Closing approval: fledge lanes run verify (version-check, lint, test, smoke-test) all green; deltas match the shipped code."
+    }
+  ],
+  "reopenings": []
+}

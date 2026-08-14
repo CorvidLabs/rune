@@ -225,6 +225,46 @@ RSpec.describe Rune::PTYRunner do
       expect(elapsed).to be >= 0.3
     end
 
+    it 'does not add truncated/omitted_* keys to the result data when neither option is set ' \
+       '(regression guard: the default result data shape must stay byte-for-byte unchanged)' do
+      result = described_class.new('echo hi').run
+
+      expect(result.data).not_to have_key(:truncated)
+      expect(result.data).not_to have_key(:omitted_bytes)
+      expect(result.data).not_to have_key(:omitted_lines)
+    end
+
+    it 'bounds clean_output/raw_output to max_output_bytes, keeping head and tail' do
+      runner = described_class.new(['ruby', '-e', 'print "a" * 5000'], max_output_bytes: 200)
+      result = runner.run
+
+      expect(result).to be_success
+      expect(result.data[:clean_output].bytesize).to be <= 200
+      expect(result.data[:raw_output].bytesize).to be <= 200
+      expect(result.data[:truncated]).to be true
+      expect(result.data[:omitted_bytes]).to be > 0
+    end
+
+    it 'leaves output untouched when max_output_bytes is larger than the actual output' do
+      runner = described_class.new('echo hi', max_output_bytes: 1_000_000)
+      result = runner.run
+
+      expect(result.data[:clean_output]).to include('hi')
+      expect(result.data[:truncated]).to be false
+      expect(result.data[:omitted_bytes]).to eq(0)
+    end
+
+    it 'bounds clean_output/raw_output to the last tail_lines lines' do
+      runner = described_class.new(['ruby', '-e', '30.times { |i| puts i }'], tail_lines: 5)
+      result = runner.run
+
+      expect(result).to be_success
+      kept = result.data[:clean_output].split("\n")
+      expect(kept).to eq(%w[25 26 27 28 29])
+      expect(result.data[:truncated]).to be true
+      expect(result.data[:omitted_lines]).to eq(25)
+    end
+
     it 'forwards SIGINT to the wrapped child process, terminating it early' do
       runner = described_class.new('sleep 10', timeout_seconds: 30)
 

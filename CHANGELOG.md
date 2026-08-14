@@ -4,6 +4,12 @@
 
 ### Added
 
+- `rune run --max-output=BYTES` bounds `clean_output`/`raw_output` to BYTES each, keeping head and
+  tail (the middle is omitted), reporting `truncated`/`omitted_bytes` in the result. `rune run
+  --tail=N` keeps only the last N lines of each, reporting `truncated`/`omitted_lines`. Both are
+  opt-in and mutually exclusive; the default result data shape is unchanged when neither is
+  passed. Addresses #12 (`rune run` previously buffered a chatty command's entire output
+  unbounded — 18.7MB of JSON from 5 seconds of `yes`).
 - `--help` and `-h`, at the top level (`rune --help`) and per command (`rune run --help`), plus
   `rune help <command>`. Command help lists that command’s own flags — `--timeout=SECONDS`,
   `--log=PATH` — which were previously discoverable only from `specs/` and from the error you got
