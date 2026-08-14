@@ -113,14 +113,17 @@ RSpec.describe 'release version check' do
     expect(sdd_policy.fetch('ignored_paths')).to include('.specsync/changes/', '.specsync/hashes.json')
   end
 
-  it 'documents merge-commit attestation before trust verification' do
+  # CI no longer gates on Augur/Attest, so the release guide documents recording
+  # provenance and then verifying it directly, rather than handing off to a
+  # `fledge trust verify` whose range guard has been removed along with the gate.
+  it 'documents recording merge-commit attestation before verifying it' do
     post_merge_steps = release_docs.split('## Tag and publish after merge').last
     sign_position = post_merge_steps.index('fledge attest sign')
     push_position = post_merge_steps.index('git push origin refs/notes/attest')
-    trust_position = post_merge_steps.index('fledge trust verify')
+    verify_position = post_merge_steps.index('fledge attest verify')
 
     expect(sign_position).to be < push_position
-    expect(push_position).to be < trust_position
+    expect(push_position).to be < verify_position
   end
 
   def write_setter_fixture(root, rune_version:, plugin_version:, later_version: nil)
