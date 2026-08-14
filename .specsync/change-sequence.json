@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 26,
-  "id": "CHG-0026-touch-cli-spec-md-change-log-to-close-the-stale-gate-for-the-0-3-0-version-bum",
+  "sequence": 27,
+  "id": "CHG-0027-fix-too-tight-1s-timeout-margin-in-a-pty-runner-spec-rb-prompt-detected-test",
   "acknowledged_collisions": []
 }

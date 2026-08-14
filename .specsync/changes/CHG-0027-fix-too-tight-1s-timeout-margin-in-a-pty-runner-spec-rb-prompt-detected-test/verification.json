@@ -1,0 +1,56 @@
+{
+  "timestamp": 1786737056,
+  "commit": "314e1c26587812d9963ae24214386d629def3b5e",
+  "contract_digest": "764beb71a946fe4bef0acd8416a2b9b59dd3d71494eb811721d1265661f1b9f7",
+  "workspace_digest": "1794399ddbfd6256d6f21b5dd2ca136a053bbd0133f233be45287675199d6888",
+  "acceptance_input_digest": "8a5a542de31b6233993243728029e6b3fa11a22454723ce0ba02af340712ba35",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "465fc091650ff09ea77e7797f815f2a76b088d6e559e16fa293e9aca26617086",
+        "entry_digest": "c5505c687a551c3dbd97138343882321101fbd922d71c9ce211faa0f0a85de69",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/rune/pty_runner_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "877c9ee92199356241feb77ecef496cb609087a5db9e86b7917a7b6b849a569b",
+        "entry_digest": "f972b111ba2723a7e92f295810bbe6e00e652f9c159d440c908badbd347d9265",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}
