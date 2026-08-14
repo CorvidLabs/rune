@@ -7,7 +7,7 @@ module Rune
     class RunCommand < Command
       name 'run'
       summary 'Execute any CLI command in a PTY and return structured output'
-      usage 'rune run [--timeout=SECONDS] [--max-output=BYTES] [--tail=N] [--] <command...>'
+      usage 'rune run [--timeout=SECONDS] [--max-output=BYTES] [--tail=N] [--separate-streams] [--] <command...>'
       flag '--timeout=SECONDS', 'Kill the wrapped command after N seconds (default 30). Before `--` only.'
       flag '--max-output=BYTES',
            'Bound clean_output/raw_output to BYTES each, keeping head+tail. ' \
@@ -15,6 +15,9 @@ module Rune
       flag '--tail=N',
            'Keep only the last N lines of clean_output/raw_output. ' \
            'Mutually exclusive with --max-output. Before `--` only.'
+      flag '--separate-streams',
+           'Adds clean_stdout/clean_stderr (stderr on a pipe, not the pty) alongside the merged ' \
+           'view. Before `--` only.'
 
       def call(args, _options)
         flags, remaining, flag_error = extract_flags(args)
@@ -52,6 +55,8 @@ module Rune
       # message]. --max-output and --tail are mutually exclusive: both map to
       # bounding the same captured output in incompatible units (bytes vs.
       # lines), so combining them has no single sensible meaning.
+      # --separate-streams takes no value, so it's matched separately from
+      # FLAG_PATTERNS rather than forced into the same value-capturing shape.
       FLAG_PATTERNS = {
         timeout_seconds: [/\A--timeout=(.*)\z/, '--timeout', 'number of seconds'],
         max_output_bytes: [/\A--max-output=(.*)\z/, '--max-output', 'number of bytes'],
@@ -69,13 +74,20 @@ module Rune
         tail = separator_index ? args[separator_index..] : []
 
         raw_values = {}
+        separate_streams = false
         head = head.select do |arg|
+          if arg == '--separate-streams'
+            separate_streams = true
+            next false
+          end
+
           key, match = matching_flag(arg)
           raw_values[key] = match[1] if key
           key.nil?
         end
 
         flags, error = parse_flags(raw_values)
+        flags[:separate_streams] = true if separate_streams
         [flags, head + tail, error]
       end
 

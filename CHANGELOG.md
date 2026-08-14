@@ -17,6 +17,11 @@
   true`, `timeout_kind: "timeout"|"idle_timeout"`. Addresses #14 (`rune watch` previously had no
   timeout anywhere in its path, so an agent driving a child that never exits hung forever with no
   recovery).
+- `rune run --separate-streams` spawns stdout on a real pty and stderr on a plain pipe, adding
+  `clean_stdout`/`clean_stderr` to the result alongside the existing merged `clean_output`/
+  `raw_output` view. Opt-in — the wrapped child loses true controlling-terminal semantics on this
+  path, which is why it isn't the default. Addresses #15 (previously stdout and stderr arrived
+  merged with no way to distinguish them, a regression against plain `subprocess.run`).
 - `--help` and `-h`, at the top level (`rune --help`) and per command (`rune run --help`), plus
   `rune help <command>`. Command help lists that command’s own flags — `--timeout=SECONDS`,
   `--log=PATH` — which were previously discoverable only from `specs/` and from the error you got

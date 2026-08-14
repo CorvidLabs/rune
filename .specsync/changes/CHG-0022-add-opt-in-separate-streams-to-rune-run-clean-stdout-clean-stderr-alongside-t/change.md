@@ -1,0 +1,24 @@
+---
+id: CHG-0022-add-opt-in-separate-streams-to-rune-run-clean-stdout-clean-stderr-alongside-t
+state: accepted
+type: feature
+base_commit: 98894483a078c7e3fcf3739086d4b2cc88a00cd3
+---
+
+# Add opt-in --separate-streams to rune run: clean_stdout/clean_stderr alongside the merged view, closing #15
+
+## Intent
+
+Add opt-in --separate-streams to rune run: clean_stdout/clean_stderr alongside the merged view, closing #15
+
+## Affected Canonical Specs
+
+- `pty_runner`
+
+## Acceptance Criteria
+
+- rune run --separate-streams spawns the wrapped command with stdout on a real PTY and stderr on a plain pipe, adding clean_stdout and clean_stderr to the result data alongside the existing merged clean_output/raw_output; the flag is opt-in and mutually exclusive with the script: Ruby API option; not passing the flag leaves the result data shape byte-for-byte unchanged (no clean_stdout/clean_stderr keys); exit code, timeout kill+reap, and INT/TERM signal forwarding behave identically to the default single-stream mode; specs/pty_runner/pty_runner.spec.md documents the new flag, invariants, and error cases; new RSpec coverage for PTYRunner and RunCommand passes; fledge lanes run verify passes.
+
+## No-spec Rationale
+
+Not applicable

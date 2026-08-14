@@ -1,0 +1,182 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786725083,
+      "digest": "28071c70100da136e35c6387a92095d6e52c6d877c2d226c33a988cc853aab28",
+      "note": "Approved via interactive session: opt-in dual-stream mode per explicit product decision, additive-only envelope (clean_stdout/clean_stderr only appear when requested), signal/timeout handling reused unchanged and verified via real dogfooding."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786725091,
+      "digest": "c44053ce9e98dd5274387a3f92a42f03122d6eb15addae54440d78db4f7e8640",
+      "note": "Added the remaining touched paths (spec files, spec doc, changelog) to affected_paths."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786725115,
+      "digest": "6aa0ec01edfc88bfe69b24fc2b776eded3be962903c79370fb6a2ee21e1c2044",
+      "note": "Documented the remaining detected exports (poll_ready_streams, consume_stream_chunk, append_decoded_chunk, matching_flag, parse_flags, parse_positive_int, FLAG_PATTERNS)."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786725158,
+      "digest": "0bca447d4876d4568af33105617e863ab1018377bdd8eb668baf0d588e9466dd",
+      "note": "Closing approval: fledge lanes run verify (version-check, lint, test, smoke-test) all green; deltas match the shipped code; real dogfooding confirmed stream separation, timeout kill+reap, and SIGINT forwarding all work."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786728019,
+      "digest": "6aa0ec01edfc88bfe69b24fc2b776eded3be962903c79370fb6a2ee21e1c2044",
+      "note": "Removed build_result_data/apply_output_limit/separate_streams_script_conflict methods and the separate_streams reader from the Public API table -- hit the known spec-sync position-dependent Ruby export bug (rune#20 / spec-sync#479) after the three-way merge shifted surrounding code layout, consistent with this codebase's existing workaround."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786728160,
+      "digest": "2c79b1734d7d8ab96e3b867adfa22ff9361f07c90d90b56e7e1f33c91852fe44",
+      "note": "Reopened solely for the three-way rebase-merge (CHANGELOG.md union + pty_runner.spec.md union), plus the position-bug row removals noted in the prior approval. Re-verified green."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0022-add-opt-in-separate-streams-to-rune-run-clean-stdout-clean-stderr-alongside-t",
+      "actor": "0xLeif",
+      "reason": "CHANGELOG.md / specs/pty_runner/pty_runner.spec.md merge conflict resolved during rebase onto main after the other three PRs landed; content union only, no semantic change.",
+      "timestamp": 1786727931,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1786725158,
+        "digest": "0bca447d4876d4568af33105617e863ab1018377bdd8eb668baf0d588e9466dd",
+        "note": "Closing approval: fledge lanes run verify (version-check, lint, test, smoke-test) all green; deltas match the shipped code; real dogfooding confirmed stream separation, timeout kill+reap, and SIGINT forwarding all work."
+      },
+      "prior_verification": {
+        "timestamp": 1786725147,
+        "commit": "98894483a078c7e3fcf3739086d4b2cc88a00cd3",
+        "contract_digest": "6aa0ec01edfc88bfe69b24fc2b776eded3be962903c79370fb6a2ee21e1c2044",
+        "workspace_digest": "063b1d56d4aadf09273cb11a5a7ac0fe4343cefacd82a56ba91d963909b28276",
+        "acceptance_input_digest": "38e872e4ff200f15c33f4e06a7dff16fa7a40b1b55aff84d2a33132b2ed7acb7",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "09bed837e5311d68b163e4c772112b6b878a8fe42f54305edf24ad6bcda4e6c3",
+              "entry_digest": "2a3a1940fdf9bb2297f0d6f2dfc18d7b67f76aa0b04ad46ce44ed27625f05f51",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "CHANGELOG.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8a88e539b9fb02f403566910a6ca60acc3a2c638debe46daaf2b4536c0ac0429",
+              "entry_digest": "f18e05fbb67cbc21a8607ef644bb3440a91f8e30e305406aff6f3332fcbf2498",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/commands/run_command.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6bd7c5384c38d1e61ff9e73710476af970d08d19cc6202d98bb5f21ff76db4d8",
+              "entry_digest": "9abd51e6c105e49fff84b10ddb0842c795fc257c551f7711400f829a2d44c084",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "lib/rune/pty_runner.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bb0739fa7f36c89eee281c22b8af8d476d836b4e74266c6099580ef640a7cf4d",
+              "entry_digest": "63b4cc47a9a4d1e2781d01515e338362a41f56feb5f4357d0bba8887595861ee",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "spec/rune/commands/run_command_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0ebb1fb86bd20c828e836209f994b0abe7df8d9175822b17d9987a712847b49b",
+              "entry_digest": "23b23cde6abbfdbf249fc8df7915d734a374b82ce500888a217b6e598b5b82fc",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "spec/rune/pty_runner_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ccfa536394a262770956c119023a9753e1f71869881359923f6fe3b42d56c256",
+              "entry_digest": "e5b593148be3722f4ceb49dd6b8b4b91d38124a1bef2e1593ff9302588e2ce69",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/pty_runner/pty_runner.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "9f695c6b6db08fbe871972d97f3dd076bcf01290ad1bef42ffe273ec4d5b0d0f",
+              "entry_digest": "063f8caef738edf3d0ea955d744a46628a57623699d31b2ade47acf0abe3b1e3",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "specs/pty_runner/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3070f0d5d578baa2f058503359b33d17c02641731aec9e820e782f4e58813fcf",
+              "entry_digest": "6e141c1e84e140b7147f958068fa75dd6c0e22153ff3c50fe8782499d2f7dfb7",
+              "owners": [
+                "pty_runner"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "38e872e4ff200f15c33f4e06a7dff16fa7a40b1b55aff84d2a33132b2ed7acb7",
+      "current_acceptance_input_digest": "53b8420ac1e95fc44406ccecf601df3274749f8cb8cac24e15717b4352831d91"
+    }
+  ]
+}
