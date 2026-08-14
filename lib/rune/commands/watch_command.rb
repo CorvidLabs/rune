@@ -6,20 +6,33 @@ require_relative '../pty_watcher'
 
 module Rune
   module Commands
+    # rubocop:disable Metrics/ClassLength -- the --timeout/--idle-timeout argv parsing added here
+    # is its own small, self-contained concern (mirrors RunCommand's --max-output/--tail parsing);
+    # splitting it into another file for a line-count metric alone would hurt readability more
+    # than it helps, matching this codebase's existing tolerance for organic growth.
     class WatchCommand < Command
       name 'watch'
       summary 'Interactively drive a command in a PTY with live passthrough and an NDJSON event log'
-      usage 'rune watch [--log=PATH] [--] <command...>'
+      usage 'rune watch [--log=PATH] [--timeout=SECONDS] [--idle-timeout=SECONDS] [--] <command...>'
       flag '--log=PATH', 'Write the NDJSON event log here instead of a temp file. Before `--` only.'
+      flag '--timeout=SECONDS',
+           'Kill the session after N total seconds (default: no limit). Before `--` only.'
+      flag '--idle-timeout=SECONDS',
+           'Kill the session after N seconds with no output and no input (default: no limit). Before `--` only.'
 
       def call(args, options)
         return Result.failure('rune watch requires a real terminal (stdin is not a TTY).') unless $stdin.tty?
 
-        log_path, remaining, log_error = extract_log(args)
-        return Result.failure(log_error) if log_error
+        log_path, watcher_options, remaining, error = extract_options(args)
+        return Result.failure(error) if error
 
         clean_args = remaining.first == '--' ? remaining[1..] : remaining
-        return Result.failure('No command specified. Usage: rune watch [--log=PATH] <command...>') if clean_args.empty?
+        if clean_args.empty?
+          return Result.failure(
+            'No command specified. Usage: rune watch [--log=PATH] [--timeout=SECONDS] ' \
+            '[--idle-timeout=SECONDS] <command...>'
+          )
+        end
 
         # Defaults to a temp file, not stderr: stderr shares the human's
         # terminal with the live passthrough by default, interleaving JSON
@@ -30,7 +43,7 @@ module Rune
         log_path, log = open_log(log_path)
         warn "[rune watch] live event log: #{log_path}"
         begin
-          result = PTYWatcher.new(clean_args, log: log, output: display_stream(options)).watch
+          result = PTYWatcher.new(clean_args, log: log, output: display_stream(options), **watcher_options).watch
         ensure
           log.close
         end
@@ -46,6 +59,11 @@ module Rune
         io.puts "#{icon} \e[1msession ended\e[0m (exit #{data[:exit_code]}, #{format_duration(data[:duration_ms])})"
         io.puts "  log: \e[36m#{data[:log_path]}\e[0m" if data[:log_path]
       end
+
+      TIMEOUT_FLAGS = {
+        timeout_seconds: [/\A--timeout=(.*)\z/, '--timeout', 'number of seconds'],
+        idle_timeout_seconds: [/\A--idle-timeout=(.*)\z/, '--idle-timeout', 'number of seconds']
+      }.freeze
 
       private
 
@@ -118,32 +136,65 @@ module Rune
         [log.path, log]
       end
 
+      # Recognized before a `--` separator only, same convention as RunCommand.
+      # Returns [log_path, PTYWatcher_timeout_kwargs, remaining_args, error].
       # --log=PATH: write the NDJSON event stream to a specific file instead
       # of the default temp path. Matches an empty value (`--log=`) too,
       # rather than leaving it unrecognized — previously that silently fell
       # through untouched into the wrapped command's own argv instead of
-      # producing a clear error.
-      def extract_log(args)
+      # producing a clear error. --timeout/--idle-timeout are validated as
+      # positive integers, same as RunCommand's --timeout/--max-output/--tail.
+      def extract_options(args)
         separator_index = args.index('--')
         head = separator_index ? args[0...separator_index] : args
         tail = separator_index ? args[separator_index..] : []
 
         log_path = nil
+        raw_timeouts = {}
         error = nil
-        head = head.reject do |arg|
-          match = arg.match(/\A--log=(.*)\z/)
-          next false unless match
-
-          if match[1].empty?
-            error = '--log requires a path, e.g. --log=/tmp/session.ndjson'
-          else
-            log_path = match[1]
+        head = head.select do |arg|
+          log_match = arg.match(/\A--log=(.*)\z/)
+          if log_match
+            log_path, error = extract_log_value(log_match[1], error)
+            next false
           end
-          true
+
+          key, match = matching_timeout_flag(arg)
+          raw_timeouts[key] = match[1] if key
+          key.nil?
         end
 
-        [log_path, head + tail, error]
+        watcher_options, timeout_error = parse_timeouts(raw_timeouts)
+        [log_path, watcher_options, head + tail, error || timeout_error]
+      end
+
+      def extract_log_value(value, error)
+        return [nil, '--log requires a path, e.g. --log=/tmp/session.ndjson'] if value.empty?
+
+        [value, error]
+      end
+
+      def matching_timeout_flag(arg)
+        TIMEOUT_FLAGS.each do |key, (pattern, _label, _unit)|
+          match = arg.match(pattern)
+          return [key, match] if match
+        end
+        [nil, nil]
+      end
+
+      def parse_timeouts(raw_timeouts)
+        parsed = {}
+        raw_timeouts.each do |key, value|
+          _pattern, label, unit = TIMEOUT_FLAGS.fetch(key)
+          unless value.match?(/\A\d+\z/) && value.to_i.positive?
+            return [{}, "Invalid #{label} value: #{value.inspect}. Must be a positive integer #{unit}."]
+          end
+
+          parsed[key] = value.to_i
+        end
+        [parsed, nil]
       end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end

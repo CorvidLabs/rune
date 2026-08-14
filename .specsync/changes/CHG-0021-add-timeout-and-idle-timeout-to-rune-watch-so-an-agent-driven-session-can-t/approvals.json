@@ -1,0 +1,175 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786723945,
+      "digest": "a925844d2a4c77143ef67467d60fe3006adf5d09465877dd441909b435fed169",
+      "note": "Approved via interactive session: additive-only design (timed_out/timeout_kind only appear when a bound fires), reuses PTYRunner's proven Timeout.timeout + kill/reap pattern for --timeout, cooperative in-loop check for --idle-timeout."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786723964,
+      "digest": "3a3b8094b39cb774110cdae4ee680dec22e44c954364019080fa5db3d0397740",
+      "note": "Added the remaining touched paths (spec files, spec doc, changelog) to affected_paths."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786723988,
+      "digest": "fd97b1910cecfbde017f152ea939aec6f92f10cb5a132291f2824b07ae9c8105",
+      "note": "Documented the remaining detected exports (extract_log_value, matching_timeout_flag, parse_timeouts, TIMEOUT_FLAGS)."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786724047,
+      "digest": "6bcfeb732507704a481fd345f442b6c46a48ade71232b8f7b0d3699e848461dc",
+      "note": "Closing approval: fledge lanes run verify (version-check, lint, test, smoke-test) all green; deltas match the shipped code."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786727226,
+      "digest": "2a31c0f11007439ffd56299d5610f2b6e6cf0320fb709a68bbd1b8e80a1e9c2e",
+      "note": "Reopened solely for the CHANGELOG.md rebase-merge union; re-verified green, no other change."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t",
+      "actor": "0xLeif",
+      "reason": "CHANGELOG.md merge conflict resolved during rebase onto main after CHG-0020/CHG-0023 landed; content union only, no semantic change.",
+      "timestamp": 1786727099,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1786724047,
+        "digest": "6bcfeb732507704a481fd345f442b6c46a48ade71232b8f7b0d3699e848461dc",
+        "note": "Closing approval: fledge lanes run verify (version-check, lint, test, smoke-test) all green; deltas match the shipped code."
+      },
+      "prior_verification": {
+        "timestamp": 1786724035,
+        "commit": "98894483a078c7e3fcf3739086d4b2cc88a00cd3",
+        "contract_digest": "fd97b1910cecfbde017f152ea939aec6f92f10cb5a132291f2824b07ae9c8105",
+        "workspace_digest": "cf00b46ee73c7c79128c145480592e3fc2d6e229aa44a8b7668217eb1d6d2ec6",
+        "acceptance_input_digest": "e3f7b5837d8845ac5eb681775b8d6d0059f23fdaf706b5bd9bc97031103a1512",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "62c428c7dd0ff64c6722416e887077fcadeda517f021c9a3ebf2fa2792e46f70",
+              "entry_digest": "c456848f484067f6e0c3db33ea1f4d8846a3231d5ba8ff5d4378f0427a990804",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "CHANGELOG.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "fedc4d9074f089c4a0ba6525d23bd557462b192490c816844a01831323cec842",
+              "entry_digest": "a9cbbdf7dbf5aec46079842c61ce40bbda15dff06172e38439b965eac8fb21ed",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/commands/watch_command.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "96b3995289c30eda33af34bdd05b2b5dd5f67f0c651e39ff365b458cc8ab5f84",
+              "entry_digest": "23d3112ac9407d5a864a0d65405f7ffc9529e6d77db7eb0b93c3aac894dac62d",
+              "owners": [
+                "watch"
+              ]
+            },
+            {
+              "path": "lib/rune/pty_watcher.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "52192b8b5a2702f160817b8f6ac4d3d2e3d24b6a4c3604a94485745ecb6a5b7e",
+              "entry_digest": "0f024da92e0464751363e567fb46e9f4055e8b5da55fbf8e1fcdcc763426ad01",
+              "owners": [
+                "watch"
+              ]
+            },
+            {
+              "path": "spec/rune/commands/watch_command_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "da74a48a9d73929c0a8c31ae27bb52bfb947d0bb5ccf8b73ef348a7e473f931c",
+              "entry_digest": "c3a870c4f3b865466996b6884ff00eb1cb09cd87b275e1c94eb42ffe8c58fad5",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "spec/rune/pty_watcher_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "724c9b55a33b50cedaa46b9dc2dfd8abaae6379a29eef1f5ffbd0f86475f1480",
+              "entry_digest": "afd384310c505268d4f962b28961106b5c2405211640d7930fd94b8c89b070c1",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/watch/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4120dc4e6971fe20155d57e0110ef66f1dc8560a9471fffb954222cb6d7fd81a",
+              "entry_digest": "4396e75507693c7f324e619de816b9b20564813b26b608ac4bc577d26759bbf2",
+              "owners": [
+                "watch"
+              ]
+            },
+            {
+              "path": "specs/watch/watch.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "e7620099c6eaac2eee50dfef0da774ae34c0f10190f293cc0edc6ce52cb6c848",
+              "entry_digest": "694f0d45241cbea23ecbebac688fb6d4a972b85406aa85775360b9f8db73f082",
+              "owners": [
+                "watch"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "e3f7b5837d8845ac5eb681775b8d6d0059f23fdaf706b5bd9bc97031103a1512",
+      "current_acceptance_input_digest": "5aade6065d9cfccb1fe1a75dd4454579338b292f1df9c537393677bf746f6ce5"
+    }
+  ]
+}

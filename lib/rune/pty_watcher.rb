@@ -2,6 +2,7 @@
 
 require 'json'
 require 'shellwords'
+require 'timeout'
 # IO#wait_readable is provided by this stdlib extension, not by 'pty' or
 # 'io/console' — without it, pump_output's #wait_readable call crashes with
 # a raw NoMethodError on Ruby versions where it isn't already autoloaded as
@@ -39,12 +40,20 @@ module Rune
   # rubocop:disable Metrics/ClassLength -- PTY lifecycle, terminal synchronization, and stream
   # cleanup are deliberately kept together so every spawned-child exit path remains auditable.
   class PTYWatcher
-    def initialize(command, log: $stderr, input: $stdin, output: $stdout)
+    # rubocop:disable Metrics/ParameterLists -- five independent constructor knobs (log/input/
+    # output injection plus the two opt-in timeout bounds) read more clearly as named kwargs than
+    # folded into one options hash; matches pty_runner.rb's tolerance for the same trade-off.
+    def initialize(command, log: $stderr, input: $stdin, output: $stdout, timeout_seconds: nil,
+                   idle_timeout_seconds: nil)
+      # rubocop:enable Metrics/ParameterLists
       @command = command.is_a?(Array) ? Shellwords.join(command) : command.to_s
       @spawn_arguments = command.is_a?(Array) ? command.map(&:to_s) : [@command]
       @log = log
       @input = input
       @output = output
+      @timeout_seconds = timeout_seconds
+      @idle_timeout_seconds = idle_timeout_seconds
+      @timed_out_kind = nil
       @window_size = nil
     end
 
@@ -68,7 +77,7 @@ module Rune
         SignalHandler.with_traps(pid) do |forward_signal|
           synchronize_window_size(w)
           log_event('start', command: @command, pid: pid)
-          exit_code = with_raw_input { pump_session(r, w, pid, forward_signal) }
+          exit_code = run_with_timeout(pid) { with_raw_input { pump_session(r, w, pid, forward_signal) } }
         end
       end
 
@@ -82,10 +91,32 @@ module Rune
       build_result(126, started_at)
     end
 
+    # Bounds total session wall-clock time with --timeout, same mechanism
+    # PTYRunner already uses (Timeout.timeout only interrupts rune's own
+    # control flow, so the orphaned child still needs an explicit kill+reap).
+    # A no-op wrapper when --timeout wasn't given, so the untimed path is
+    # identical to before this option existed. --idle-timeout is unrelated:
+    # it's checked cooperatively inside pump_output's own poll loop, since
+    # "no activity for N seconds" can't be expressed as a single deadline.
+    def run_with_timeout(pid, &block)
+      return block.call unless @timeout_seconds
+
+      Timeout.timeout(@timeout_seconds, &block)
+    rescue Timeout::Error
+      terminate_child(pid)
+      @timed_out_kind = :timeout
+      log_event('timeout', timeout_seconds: @timeout_seconds)
+      124
+    end
+
     def build_result(exit_code, started_at)
       duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round(2)
       log_event('exit', exit_code: exit_code)
       data = { command: @command, exit_code: exit_code || 0, duration_ms: duration_ms }
+      if @timed_out_kind
+        data[:timed_out] = true
+        data[:timeout_kind] = @timed_out_kind.to_s
+      end
       Result.success(data, exit_code: exit_code || 0)
     end
 
@@ -124,10 +155,15 @@ module Rune
 
     # Never blocks process exit on a thread stuck in a blocking read: the
     # human's terminal, once returned to cooked mode, needs no more forwarding.
+    # Touches @last_activity_at (also written from pump_output's thread) on
+    # every chunk read from the human, not just ones actually forwarded, so
+    # --idle-timeout counts genuine typing as activity even the instant before
+    # the child exits and the writer stops accepting more.
     def forward_input(writer)
       thread = Thread.new do
         loop do
           chunk = @input.readpartial(4096)
+          @last_activity_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           writer.write(chunk)
         rescue IOError, Errno::EIO, Errno::EBADF
           break
@@ -139,9 +175,11 @@ module Rune
 
     def pump_output(reader, writer, pid, forward_signal)
       decoder = UTF8StreamDecoder.new
+      @last_activity_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       loop do
         forward_signal.call
         synchronize_window_size(writer)
+        return idle_timeout_result(pid) if idle_timed_out?
         next unless reader.wait_readable(0.2)
 
         emit_output(decoder.decode(reader.readpartial(4096)))
@@ -157,9 +195,27 @@ module Rune
     def emit_output(chunk)
       return if chunk.empty?
 
+      @last_activity_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @output.write(chunk)
       @output.flush
       log_event('output', bytes: chunk.bytesize, text: chunk)
+    end
+
+    # --idle-timeout bounds "no output and no input", not total wall-clock —
+    # checked cooperatively here on the same ~0.2s cadence pump_output already
+    # polls at, rather than as a single Timeout.timeout deadline (which can
+    # only express a total duration, not a resettable idle window).
+    def idle_timed_out?
+      return false unless @idle_timeout_seconds
+
+      Process.clock_gettime(Process::CLOCK_MONOTONIC) - @last_activity_at >= @idle_timeout_seconds
+    end
+
+    def idle_timeout_result(pid)
+      terminate_child(pid)
+      @timed_out_kind = :idle_timeout
+      log_event('idle_timeout', idle_timeout_seconds: @idle_timeout_seconds)
+      124
     end
 
     def synchronize_window_size(writer)
