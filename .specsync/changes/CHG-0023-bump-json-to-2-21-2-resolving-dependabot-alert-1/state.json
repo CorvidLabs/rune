@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0023-bump-json-to-2-21-2-resolving-dependabot-alert-1",
+  "slug": "bump-json-to-2-21-2-resolving-dependabot-alert-1",
+  "title": "Bump json to 2.21.2, resolving Dependabot alert #1",
+  "description": "Bump json to 2.21.2, resolving Dependabot alert #1",
+  "kind": "operations",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "bb89221130e4fd18c63a56b59abd02ad67aec04b",
+  "created_at": 1786725747,
+  "updated_at": 1786725831,
+  "affected_specs": [],
+  "affected_paths": [
+    "Gemfile.lock",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Dependency lockfile-only version bump (transitive rubocop dep); no library code or canonical contract change.",
+  "acceptance_criteria": [
+    "Gemfile.lock pins json to 2.21.2 (was 2.21.1, the vulnerable version resolved by Dependabot alert #1); bundle check, fledge run lint, and fledge run test all pass; no library code or canonical spec changes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}
