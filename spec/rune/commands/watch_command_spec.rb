@@ -99,6 +99,57 @@ RSpec.describe Rune::Commands::WatchCommand do
       end
     end
 
+    it 'accepts --timeout and --idle-timeout and forwards both to PTYWatcher' do
+      allow($stdin).to receive(:tty?).and_return(true)
+      watcher = instance_double(Rune::PTYWatcher, watch: Rune::Result.success({ exit_code: 0 }))
+      allow(Rune::PTYWatcher).to receive(:new).and_return(watcher)
+
+      described_class.new.call(%w[--timeout=60 --idle-timeout=10 -- echo hi], {})
+
+      expect(Rune::PTYWatcher).to have_received(:new) do |command, **kwargs|
+        expect(command).to eq(%w[echo hi])
+        expect(kwargs[:timeout_seconds]).to eq(60)
+        expect(kwargs[:idle_timeout_seconds]).to eq(10)
+      end
+    end
+
+    it 'does not forward timeout kwargs to PTYWatcher when neither flag is given' do
+      allow($stdin).to receive(:tty?).and_return(true)
+      watcher = instance_double(Rune::PTYWatcher, watch: Rune::Result.success({ exit_code: 0 }))
+      allow(Rune::PTYWatcher).to receive(:new).and_return(watcher)
+
+      described_class.new.call(%w[-- echo hi], {})
+
+      expect(Rune::PTYWatcher).to have_received(:new) do |_command, **kwargs|
+        expect(kwargs).not_to have_key(:timeout_seconds)
+        expect(kwargs).not_to have_key(:idle_timeout_seconds)
+      end
+    end
+
+    %w[0 -5 abc 3.5].each do |bad_value|
+      it "rejects --timeout=#{bad_value} instead of silently leaking it into the command" do
+        allow($stdin).to receive(:tty?).and_return(true)
+        allow(Rune::PTYWatcher).to receive(:new)
+
+        result = described_class.new.call(["--timeout=#{bad_value}", '--', 'echo', 'hi'], {})
+
+        expect(result).to be_failure
+        expect(result.error).to include('Invalid --timeout value')
+        expect(Rune::PTYWatcher).not_to have_received(:new)
+      end
+
+      it "rejects --idle-timeout=#{bad_value} instead of silently leaking it into the command" do
+        allow($stdin).to receive(:tty?).and_return(true)
+        allow(Rune::PTYWatcher).to receive(:new)
+
+        result = described_class.new.call(["--idle-timeout=#{bad_value}", '--', 'echo', 'hi'], {})
+
+        expect(result).to be_failure
+        expect(result.error).to include('Invalid --idle-timeout value')
+        expect(Rune::PTYWatcher).not_to have_received(:new)
+      end
+    end
+
     it 'does not fold a log path into a failure result (there is nothing meaningful to attach it to)' do
       allow($stdin).to receive(:tty?).and_return(true)
       watcher = instance_double(Rune::PTYWatcher, watch: Rune::Result.failure('boom'))

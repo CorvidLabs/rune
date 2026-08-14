@@ -1,25 +1,6 @@
----
-module: watch
-version: 6
-status: active
-files:
-  - lib/rune/pty_watcher.rb
-  - lib/rune/commands/watch_command.rb
----
-# PTY Watcher (`rune watch`)
+## MODIFIED
 
-## Purpose
-Live, bidirectional interactive passthrough for a command in a PTY. Unlike `PTYRunner` (which
-buffers a command's entire output and only returns it once the command finishes), `PTYWatcher`
-forwards a human's keystrokes to the child as they're typed and streams the child's output to the
-screen as it arrives, while simultaneously logging every chunk as an NDJSON event so an agent can
-tail the session live. Deliberately a separate class from `PTYRunner`, not a mode bolted onto it:
-`PTYRunner`'s "run, capture, return once" contract is frozen for 0.2.0, and the execution model
-here (raw terminal mode, a background input-forwarding thread) is different enough not to belong
-there.
-
-## Public API
-
+### SPEC SECTION Public API
 | Name | Type | Description |
 |------|------|-------------|
 | `PTYWatcher` | class | Constructor: `(command, log: $stderr, input: $stdin, output: $stdout, timeout_seconds: nil, idle_timeout_seconds: nil)`. Method: `#watch` returns `Result`. |
@@ -51,7 +32,7 @@ there.
 | `parse_timeouts` | internal method | Parses every raw `--timeout`/`--idle-timeout` value, stopping at the first invalid one. |
 | `TIMEOUT_FLAGS` | constant | Maps each `PTYWatcher` timeout keyword option to its argv pattern, flag name, and error-message value description. |
 
-## Invariants
+### SPEC SECTION Invariants
 
 1. Refuses to run (returns `Result.failure`) unless `input` is a real TTY — live passthrough
    requires an actual terminal to put into raw mode; there is no meaningful non-interactive mode.
@@ -131,7 +112,7 @@ there.
     reached first fires. Both report exit code 124 and `data[:timed_out]: true`, distinguished by
     `data[:timeout_kind]`: `"timeout"` or `"idle_timeout"`.
 
-## Behavioral Examples
+### SPEC SECTION Behavioral Examples
 
 - `rune watch -- ruby examples/demo_tui.rb` puts your terminal in raw mode, runs the demo TUI
   interactively exactly as if you'd run it directly, prints
@@ -162,8 +143,7 @@ there.
 - `rune watch --timeout=1800 --idle-timeout=120 -- cmd` combines both; whichever fires first ends
   the session.
 
-## Error Cases
-
+### SPEC SECTION Error Cases
 | Condition | Behavior |
 |-----------|----------|
 | `input` is not a TTY (e.g. piped/non-interactive invocation) | Returns `Result.failure("...requires a real terminal...")` before spawning anything |
@@ -176,15 +156,14 @@ there.
 | `--timeout` elapses | Kills and reaps the child; `Result` succeeds with `data[:exit_code]: 124`, `data[:timed_out]: true`, `data[:timeout_kind]: "timeout"` |
 | `--idle-timeout` elapses with no output and no input | Kills and reaps the child; `Result` succeeds with `data[:exit_code]: 124`, `data[:timed_out]: true`, `data[:timeout_kind]: "idle_timeout"` |
 
-## Dependencies
-
+### SPEC SECTION Dependencies
 - Ruby stdlib: `pty`, `io/console` (required unconditionally, rescued on `LoadError` the same way
   `pty_runner.rb` rescues `pty` — expected almost everywhere but not guaranteed on every platform),
   `io/wait` (required explicitly for `IO#wait_readable`, same reasoning as `pty_runner.rb`),
   `timeout` (required explicitly for `--timeout`, same as `pty_runner.rb`), `json`, `tempfile`,
   `tmpdir`
 
-## Change Log
+### SPEC SECTION Change Log
 
 - v1: Active spec — initial `rune watch` / `PTYWatcher` contract
 - v1: Fixed the root cause of arrow keys/raw input never registering in real `rune watch` usage —
@@ -210,4 +189,3 @@ there.
 | 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
 | 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |
 | 2026-08-14 | CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t: Add opt-in `--timeout=SECONDS` (total wall-clock) and `--idle-timeout=SECONDS` (no output/input) to `rune watch`, so an agent-driven session can no longer hang forever. Fully additive: the result data shape is unchanged when neither flag is passed. Closes #14. |
-| 2026-08-14 | CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t: Add --timeout and --idle-timeout to rune watch so an agent-driven session can't hang forever, closing #14 |

@@ -181,6 +181,71 @@ RSpec.describe Rune::PTYWatcher do
       expect(result.data[:exit_code]).to eq(0)
     end
 
+    it 'kills the session and reports exit code 124 when --timeout elapses, without hanging ' \
+       'past the limit' do
+      log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+      watcher = described_class.new('sleep 10', log: log_w, input: FakeTerminal.new(IO.pipe.first),
+                                                output: fake_writer(+''), timeout_seconds: 1)
+
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = watcher.watch
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+      log_w.close
+
+      expect(elapsed).to be < 5
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(124)
+      expect(result.data[:timed_out]).to be true
+      expect(result.data[:timeout_kind]).to eq('timeout')
+    end
+
+    it 'kills the session and reports exit code 124 when --idle-timeout elapses with no output ' \
+       'and no input, even though the child is still running' do
+      log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+      watcher = described_class.new('sleep 10', log: log_w, input: FakeTerminal.new(IO.pipe.first),
+                                                output: fake_writer(+''), idle_timeout_seconds: 1)
+
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = watcher.watch
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+      log_w.close
+
+      expect(elapsed).to be < 5
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(124)
+      expect(result.data[:timed_out]).to be true
+      expect(result.data[:timeout_kind]).to eq('idle_timeout')
+    end
+
+    it 'does not idle-time-out a session that keeps producing output' do
+      log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+      watcher = described_class.new(
+        ['ruby', '-e', '5.times { puts "tick"; sleep 0.3 }'],
+        log: log_w, input: FakeTerminal.new(IO.pipe.first), output: fake_writer(+''),
+        idle_timeout_seconds: 2
+      )
+
+      result = watcher.watch
+      log_w.close
+
+      expect(result).to be_success
+      expect(result.data[:exit_code]).to eq(0)
+      expect(result.data[:timed_out]).to be_nil
+    end
+
+    it 'does not add timed_out/timeout_kind to the result data for an ordinary session ' \
+       '(regression guard: neither option is set by default)' do
+      log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+      watcher = described_class.new('echo hi', log: log_w, input: FakeTerminal.new(IO.pipe.first),
+                                               output: fake_writer(+''))
+
+      result = watcher.watch
+      log_w.close
+
+      expect(result.data).not_to have_key(:timed_out)
+      expect(result.data).not_to have_key(:timeout_kind)
+    end
+
     def type(io, bytes)
       sleep 0.3
       io.write(bytes)

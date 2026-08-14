@@ -10,6 +10,13 @@
   opt-in and mutually exclusive; the default result data shape is unchanged when neither is
   passed. Addresses #12 (`rune run` previously buffered a chatty command's entire output
   unbounded — 18.7MB of JSON from 5 seconds of `yes`).
+- `rune watch --timeout=SECONDS` kills the session after N total seconds; `rune watch
+  --idle-timeout=SECONDS` kills it after N seconds with no output and no input. Both are opt-in,
+  may be combined, and default to unset (preserving today's unbounded interactive behavior). On
+  expiry the child is killed and reaped, and the result reports `exit_code: 124`, `timed_out:
+  true`, `timeout_kind: "timeout"|"idle_timeout"`. Addresses #14 (`rune watch` previously had no
+  timeout anywhere in its path, so an agent driving a child that never exits hung forever with no
+  recovery).
 - `--help` and `-h`, at the top level (`rune --help`) and per command (`rune run --help`), plus
   `rune help <command>`. Command help lists that command’s own flags — `--timeout=SECONDS`,
   `--log=PATH` — which were previously discoverable only from `specs/` and from the error you got
