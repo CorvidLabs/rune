@@ -1,6 +1,6 @@
 ---
 id: CHG-0023-bump-json-to-2-21-2-resolving-dependabot-alert-1
-state: accepted
+state: archived
 type: operations
 base_commit: bb89221130e4fd18c63a56b59abd02ad67aec04b
 ---

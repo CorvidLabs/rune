@@ -1,6 +1,6 @@
 ---
 id: CHG-0022-add-opt-in-separate-streams-to-rune-run-clean-stdout-clean-stderr-alongside-t
-state: accepted
+state: archived
 type: feature
 base_commit: 98894483a078c7e3fcf3739086d4b2cc88a00cd3
 ---

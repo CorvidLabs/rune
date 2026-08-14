@@ -1,6 +1,6 @@
 ---
 id: CHG-0020-add-opt-in-bounded-output-to-rune-run-max-output-bytes-head-tail-truncation-a
-state: accepted
+state: archived
 type: feature
 base_commit: 98894483a078c7e3fcf3739086d4b2cc88a00cd3
 ---

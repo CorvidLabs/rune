@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t",
+  "slug": "add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t",
+  "title": "Add --timeout and --idle-timeout to rune watch so an agent-driven session can't hang forever, closing #14",
+  "description": "Add --timeout and --idle-timeout to rune watch so an agent-driven session can't hang forever, closing #14",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "98894483a078c7e3fcf3739086d4b2cc88a00cd3",
+  "created_at": 1786723794,
+  "updated_at": 1786732133,
+  "affected_specs": [
+    "watch"
+  ],
+  "affected_paths": [
+    "lib/rune/pty_watcher.rb",
+    "lib/rune/commands/watch_command.rb",
+    ".specsync/change-sequence.json",
+    "spec/rune/pty_watcher_spec.rb",
+    "spec/rune/commands/watch_command_spec.rb",
+    "specs/watch/watch.spec.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "rune watch --timeout=SECONDS kills the session after N total seconds and rune watch --idle-timeout=SECONDS kills it after N seconds with no output and no input, in both cases via SIGKILL+reap (no orphaned child), reporting exit code 124 and truncated result fields (timed_out: true, timeout_kind); neither option changes default result data when unset; both options may be combined; malformed values are rejected before spawning anything; specs/watch/watch.spec.md documents the new flags, invariants, and error cases; new RSpec coverage for PTYWatcher and WatchCommand passes; fledge lanes run verify passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

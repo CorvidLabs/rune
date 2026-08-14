@@ -1,6 +1,6 @@
 ---
 id: CHG-0019-archive-chg-0018-and-set-gha-git-identity-before-attest-forward
-state: accepted
+state: archived
 type: bug_fix
 base_commit: c6aa0fee4ce742207ab5de2dd4fa7e82971051d6
 ---
