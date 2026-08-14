@@ -1,0 +1,1 @@
+{"commit":"1a381ee5bba08a83582a5374dab1702aae0bfb61","confidence":0.9,"humanApproved":false,"note":"CHG-0020: fledge lanes run verify (version-check, lint, test 236 examples, spec-check, spec-lifecycle) and fledge trust verify all green. Adds opt-in rune run --max-output/--tail.","reviewer":"agent:claude","testsPassed":true,"timestamp":1786725580,"verdict":"proceed"}
