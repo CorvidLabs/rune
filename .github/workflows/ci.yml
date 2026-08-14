@@ -50,9 +50,14 @@ jobs:
           fledge run test
           fledge run lint
 
+  # Deliberately not `needs: verify`. The two jobs check different things and
+  # neither depends on the other, so gating one on the other only adds latency:
+  # measured on this repo the matrix takes ~66s and Spec Sync ~87s, so running
+  # them in sequence costs ~2m40s for a result available in ~90s side by side.
+  # Spec Sync is also the slower of the two and re-runs the same lint/test lane
+  # internally, so "fail fast on the cheap check first" does not apply here.
   spec-sync:
     name: Spec Sync
-    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
