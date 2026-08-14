@@ -186,6 +186,23 @@ deciding who talks to whom stays the calling agent's job.
 | `ACTIVITY_TAIL_BYTES` | constant | How much of a transcript's tail `list` reads for activity reporting. |
 | `ACTIVITY_LINE_LIMIT` | constant | Maximum length of the reported last line. |
 | `DEATH_TIMEOUT` | constant | How long `stop` waits for signalled processes to actually exit. |
+| `pending_client` | internal method | The in-flight send's socket, watched so a caller that goes away is noticed. |
+| `discard_disconnected_pending` | internal method | Releases an in-flight send whose caller has closed its socket. |
+| `client_gone?` | internal predicate | True when a readable client socket is at EOF rather than carrying data. |
+| `read_request_line` | internal method | Reads one control request within a bound, so a partial line cannot freeze the loop. |
+| `echo_still_arriving?` | internal predicate | True when the trailing bytes received are the start of the echo still in flight. |
+| `kill_group` | internal method | Signals the child's process group, falling back to the single pid. |
+| `socket_live?` | internal predicate | True when a control socket still has a supervisor answering on it. |
+| `REQUEST_READ_TIMEOUT` | constant | How long one control request may take to deliver a complete line. |
+| `MAX_REQUEST_BYTES` | constant | Largest control request accepted before the client is dropped. |
+| `readiness` | internal method | Reports :ready, an error, or nil to keep waiting during start. |
+| `serving?` | internal predicate | True when a session records running, has a socket, and its supervisor is alive. |
+| `supervisor_died` | internal method | Message pointing at supervisor.log when the supervisor exited during start. |
+| `client_ceiling` | internal method | Caller-side bound on a send, so a wedged supervisor cannot hang the caller. |
+| `kill_process_group` | internal method | Force-kills a child and its workers by process group. |
+| `kill_pid` | internal method | Force-kills a single pid, tolerating one already gone. |
+| `DEFAULT_SEND_TIMEOUT_MS` | constant | Mirrors the supervisor's send timeout so the caller's ceiling is never tighter. |
+| `CLIENT_TIMEOUT_MARGIN` | constant | Slack added to the caller's ceiling so it never pre-empts a legitimate wait. |
 
 > Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base`, `start_name` and
 > `start_rejection` are intentionally absent from the table above. They exist and are exercised by
