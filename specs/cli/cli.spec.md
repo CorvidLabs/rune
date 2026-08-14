@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 10
+version: 11
 status: active
 files:
   - lib/rune.rb
@@ -160,6 +160,7 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 - No external runtime dependencies
 
 ## Change Log
+
 - v1: Active spec — CLI framework with dual-mode output and NDJSON envelopes
 - v1: Restricted global output-flag extraction to arguments before the first `--`, preserving
   identically named flags for wrapped commands.
@@ -173,3 +174,5 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-07-29 | CHG-0015-record-exact-supersession-for-the-committed-cli-help-contract-and-document-cli-r: Finalize the committed CLI help contract and document CLI reuse recovery |
 | 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |
 | 2026-08-14 | CHG-0025-prep-0-3-0-release-bump-version-roll-up-changelog: Bump `Rune::VERSION` to 0.3.0 for the 0.3.0 release prep. No public API or contract change — version constant value only. |
+| 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Register the new `rune session` subcommand by requiring the session module and `SessionCommand` from `lib/rune.rb`. No change to the CLI framework's own public API, output modes, or help contract — the session surface is specified in its own `session` canonical spec. |
+| 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously |

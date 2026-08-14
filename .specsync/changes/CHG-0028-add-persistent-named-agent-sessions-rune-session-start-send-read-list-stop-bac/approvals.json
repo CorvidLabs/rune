@@ -34,6 +34,20 @@
       "timestamp": 1786746248,
       "digest": "c14fc060881e2c5aa83f95d17f7518415efaa412a195a6034fc6818417907bbf",
       "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786747446,
+      "digest": "88cd1aa79b6b98e40754e8afa65f2301e44364c429f1c7acfd7c839c3aa270bd",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786747543,
+      "digest": "3da7264c9a6d3c93d02b79f84f73dfa1066d89673293bbd8c3d10257718aad33",
+      "note": null
     }
   ],
   "reopenings": []

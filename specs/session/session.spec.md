@@ -1,6 +1,6 @@
 ---
 module: session
-version: 1
+version: 2
 status: active
 files:
   - lib/rune/session/store.rb
@@ -13,6 +13,7 @@ files:
 # Sessions (`rune session`)
 
 ## Purpose
+
 Persistent, named PTY sessions that outlive a single `rune` invocation, so one agent CLI can drive
 another conversationally instead of one-shot.
 
@@ -379,4 +380,6 @@ deciding who talks to whom stays the calling agent's job.
   `Parsers::TextSanitizer`, `Result`, `Command`
 
 ## Change Log
+
 - v1: Active spec — initial `rune session` broker and send-and-settle contract
+| 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously |
