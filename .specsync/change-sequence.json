@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 23,
-  "id": "CHG-0023-bump-json-to-2-21-2-resolving-dependabot-alert-1",
+  "sequence": 24,
+  "id": "CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e",
   "acknowledged_collisions": []
 }

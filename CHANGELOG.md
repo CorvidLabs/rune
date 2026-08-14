@@ -33,6 +33,14 @@
 
 ### Fixed
 
+- `prompt_detected` in `rune run`'s result now reflects whether the *last* non-blank line of
+  output looks like an interactive prompt, not whether any line anywhere in the entire run ever
+  did. `rune run`'s result is only ever read after the process has already exited or been killed
+  by `--timeout`, so "did a prompt-shaped line ever appear" was never the useful question — for a
+  long TUI-heavy session it was nearly always `true` and told an agent nothing (#30, found via
+  real dogfooding). Also fixes a related latent bug: on an actual `--timeout` kill,
+  `prompt_detected` was unconditionally `false` regardless of what was actually on screen when the
+  process was killed — exactly the case where the field is most useful.
 - `rune --help` returned `Unknown command: --help` and exit 1; `rune run --help` tried to *execute*
   `--help` in a pty and exited 127.
 - Route `rune watch`'s live passthrough to stderr in agent mode (`--json`, `--ndjson`, or piped
