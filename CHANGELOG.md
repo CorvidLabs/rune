@@ -47,7 +47,9 @@
   without `--strict`/`--stale`. The contract itself — specs matching code, coverage staying
   complete — is the part worth gating on; the rest was rejecting work for bookkeeping reasons
   rather than for drift between specs and code. To be revisited when spec-sync 6 lands, which
-  reworks the change-verification model. `scripts/trust_range.sh` and
+  reworks the change-verification model. The spec-sync job also no longer waits on the Ruby matrix:
+  the two check different things and neither needs the other, so running them side by side returns
+  a result in ~90s instead of ~2m40s. `scripts/trust_range.sh` and
   `scripts/squash_attest_forwards.sh` existed only to make those gates non-vacuous and are removed
   with them.
 
