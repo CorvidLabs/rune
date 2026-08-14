@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 25,
-  "id": "CHG-0025-prep-0-3-0-release-bump-version-roll-up-changelog",
+  "sequence": 26,
+  "id": "CHG-0026-touch-cli-spec-md-change-log-to-close-the-stale-gate-for-the-0-3-0-version-bum",
   "acknowledged_collisions": []
 }

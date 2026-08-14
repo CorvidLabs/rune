@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786735693,
+      "digest": "c5bd623a05a3ee50b9e500a5122d7f8e8fc5036b966a621177d2b8f3f1466cf9",
+      "note": "Approved via interactive session: pure Change Log audit entry, closes the CI --stale gate, no contract change."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786735773,
+      "digest": "e24badd7822c641c0a06983ac4355441df25c9b61ce343d80007e74cd26dcf4a",
+      "note": "Closing approval: verification passed; this is the fix for CI's --stale 1 failure on PR #37."
+    }
+  ],
+  "reopenings": []
+}

@@ -58,7 +58,11 @@ RSpec.describe Rune::PTYRunner do
        'prompt (previously hardcoded false on every timeout regardless of actual content, since ' \
        'the old per-chunk accumulator never received its final value once Timeout::Error ' \
        'interrupted execution before that assignment completed)' do
-      runner = described_class.new(['ruby', '-e', 'puts "Password: "; sleep 5'], timeout_seconds: 1)
+      # timeout_seconds: 3, not 1 — under real system load a `ruby -e` child's own interpreter
+      # boot time can stretch enough to approach a 1s timeout, racing the "Password: " print
+      # against the kill and turning this into a test-only flake rather than exercising the fix
+      # under test (same reasoning as the orphan-process timeout test above).
+      runner = described_class.new(['ruby', '-e', 'puts "Password: "; sleep 10'], timeout_seconds: 3)
       result = runner.run
 
       expect(result.data[:exit_code]).to eq(124)
