@@ -5,11 +5,11 @@
   "title": "Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously",
   "description": "Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "451a5752b135c54a2324c61f087eacb2bd79252d",
   "created_at": 1786740496,
-  "updated_at": 1786750616,
+  "updated_at": 1786748375,
   "affected_specs": [
     "session",
     "cli",

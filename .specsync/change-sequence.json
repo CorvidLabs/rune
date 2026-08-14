@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 28,
-  "id": "CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac",
+  "sequence": 29,
+  "id": "CHG-0029-fix-seven-session-defects-found-by-an-independent-grok-kimi-agy-review-wait-for",
   "acknowledged_collisions": []
 }
