@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-08-14
+
 ### Added
 
 - `rune run --max-output=BYTES` bounds `clean_output`/`raw_output` to BYTES each, keeping head and

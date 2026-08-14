@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 24,
-  "id": "CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e",
+  "sequence": 25,
+  "id": "CHG-0025-prep-0-3-0-release-bump-version-roll-up-changelog",
   "acknowledged_collisions": []
 }

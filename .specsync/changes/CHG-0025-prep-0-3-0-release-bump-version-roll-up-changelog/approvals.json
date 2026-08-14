@@ -1,0 +1,33 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786733417,
+      "digest": "a9bfec9a54ee31a5823eeeea2b485bc94e6f496bad5b1e2f4a0ff2e30ffee99f",
+      "note": "Approved via interactive session: 0.3.0 minor bump confirmed by user (backward-compatible additions + one bug fix since 0.2.1); prep-only scope, tag/publish/homebrew deliberately deferred."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786733636,
+      "digest": "c9075289f7121c6123602a394eca53b7d9bb40ba73d547aa3b164f70ad717111",
+      "note": "Added Gemfile.lock (self-referential rune version bump) to affected_paths."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786733887,
+      "digest": "6893646c6609346134928c93b25ab0bcb3e371edec4e60e5be28ba3fe1c6b0c4",
+      "note": "Declared cli as the affected canonical spec owning lib/rune/version.rb (no textual delta needed — the VERSION constant's value isn't documented verbatim in cli.spec.md)."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786733945,
+      "digest": "47677a19de8be63ad2fb751f6d7ea5388e909b1ce927609f7987f1fcf5d6292f",
+      "note": "Closing approval: fledge lanes run release (version-check, fmt-check, lint, test, spec-check, spec-lifecycle, smoke-test, build) all green, including a successful 0.3.0 gem build."
+    }
+  ],
+  "reopenings": []
+}
