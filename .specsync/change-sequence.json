@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 19,
-  "id": "CHG-0019-archive-chg-0018-and-set-gha-git-identity-before-attest-forward",
+  "sequence": 23,
+  "id": "CHG-0023-bump-json-to-2-21-2-resolving-dependabot-alert-1",
   "acknowledged_collisions": []
 }

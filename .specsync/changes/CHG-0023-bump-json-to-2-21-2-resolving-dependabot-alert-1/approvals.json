@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786725789,
+      "digest": "b63d4edab3bcf8dd514b8775b92eadf345c86606b1264ce4336167745fcc90a5",
+      "note": "Approved via interactive session: dependency-lockfile-only bump, no-spec-change."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786725831,
+      "digest": "fb4962eba1da041e532ee4a688e70c2a23942a197107d64c309eb0f67f8019d9",
+      "note": "Closing approval: bundle check, fledge run lint, fledge run test all green."
+    }
+  ],
+  "reopenings": []
+}
