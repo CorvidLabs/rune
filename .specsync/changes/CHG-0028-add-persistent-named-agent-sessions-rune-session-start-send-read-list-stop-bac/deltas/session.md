@@ -180,7 +180,6 @@ deciding who talks to whom stays the calling agent's job.
 | `read_request_line` | internal method | Reads one control request within a bound, so a partial line cannot freeze the loop. |
 | `echo_still_arriving?` | internal predicate | True when the trailing bytes received are the start of the echo still in flight. |
 | `kill_group` | internal method | Signals the child's process group, falling back to the single pid. |
-| `socket_live?` | internal predicate | True when a control socket still has a supervisor answering on it. |
 | `REQUEST_READ_TIMEOUT` | constant | How long one control request may take to deliver a complete line. |
 | `MAX_REQUEST_BYTES` | constant | Largest control request accepted before the client is dropped. |
 | `readiness` | internal method | Reports :ready, an error, or nil to keep waiting during start. |
@@ -192,8 +191,8 @@ deciding who talks to whom stays the calling agent's job.
 | `DEFAULT_SEND_TIMEOUT_MS` | constant | Mirrors the supervisor's send timeout so the caller's ceiling is never tighter. |
 | `CLIENT_TIMEOUT_MARGIN` | constant | Slack added to the caller's ceiling so it never pre-empts a legitimate wait. |
 
-> Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base`, `start_name` and
-> `start_rejection` are intentionally absent from the table above. They exist and are exercised by
+> Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base`, `start_name`,
+> `start_rejection` and `socket_live?` are intentionally absent from the table above. They exist and are exercised by
 > the suite, but SpecSync's Ruby extractor does not surface them from their position in the class
 > body (rune#20 / spec-sync#479), and documenting an export it cannot see fails the contract check.
 > This matches the existing convention in `pty_runner`'s spec for the same upstream bug.
