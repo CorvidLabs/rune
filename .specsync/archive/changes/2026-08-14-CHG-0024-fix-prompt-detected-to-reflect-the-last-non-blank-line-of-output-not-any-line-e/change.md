@@ -1,6 +1,6 @@
 ---
 id: CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 1f6c2a083e7d7e48f6b8ec7ee0b0a8098eb53985
 ---

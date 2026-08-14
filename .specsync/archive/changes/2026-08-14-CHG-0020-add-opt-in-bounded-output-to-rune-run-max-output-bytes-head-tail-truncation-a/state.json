@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0020-add-opt-in-bounded-output-to-rune-run-max-output-bytes-head-tail-truncation-a",
+  "slug": "add-opt-in-bounded-output-to-rune-run-max-output-bytes-head-tail-truncation-a",
+  "title": "Add opt-in bounded output to rune run: --max-output=BYTES head+tail truncation and --tail=N, closing #12",
+  "description": "Add opt-in bounded output to rune run: --max-output=BYTES head+tail truncation and --tail=N, closing #12",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "98894483a078c7e3fcf3739086d4b2cc88a00cd3",
+  "created_at": 1786720647,
+  "updated_at": 1786732100,
+  "affected_specs": [
+    "pty_runner"
+  ],
+  "affected_paths": [
+    "lib/rune/pty_runner.rb",
+    "lib/rune/commands/run_command.rb",
+    "lib/rune/output_limiter.rb",
+    ".specsync/change-sequence.json",
+    "spec/rune/commands/run_command_spec.rb",
+    "spec/rune/output_limiter_spec.rb",
+    "spec/rune/pty_runner_spec.rb",
+    "specs/pty_runner/pty_runner.spec.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "rune run --max-output=BYTES truncates clean_output and raw_output to at most BYTES each, keeping head and tail and reporting truncated/omitted_bytes in the result data; rune run --tail=N keeps only the last N lines of each and reports truncated/omitted_lines; neither flag changes default output when unset; combining both flags fails with a clear error; specs/pty_runner/pty_runner.spec.md documents the new flags, invariants, and error cases; new RSpec coverage for OutputLimiter, PTYRunner, and RunCommand passes; fledge lanes run verify passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

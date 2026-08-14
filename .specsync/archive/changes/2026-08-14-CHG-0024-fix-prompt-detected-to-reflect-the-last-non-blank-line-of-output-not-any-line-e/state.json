@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e",
+  "slug": "fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e",
+  "title": "Fix prompt_detected to reflect the last non-blank line of output, not any line ever seen, closing #30",
+  "description": "Fix prompt_detected to reflect the last non-blank line of output, not any line ever seen, closing #30",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "1f6c2a083e7d7e48f6b8ec7ee0b0a8098eb53985",
+  "created_at": 1786729849,
+  "updated_at": 1786732228,
+  "affected_specs": [
+    "pty_runner"
+  ],
+  "affected_paths": [
+    "lib/rune/pty_runner.rb",
+    ".specsync/change-sequence.json",
+    "spec/rune/pty_runner_spec.rb",
+    "specs/pty_runner/pty_runner.spec.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "prompt_detected in rune run's result reflects whether the last non-blank line of the captured output (before ANSI/prompt-pattern matching) looks like an interactive prompt, not whether any line anywhere in the entire run ever did; this also fixes a pre-existing gap where a --timeout kill unconditionally reported prompt_detected: false regardless of what was actually on screen when the process was killed; the incremental per-chunk accumulator threaded through read_pty_stream/consume_output_chunk/read_separate_streams/poll_ready_streams/consume_stream_chunk/append_decoded_chunk is removed since it is no longer needed; specs/pty_runner/pty_runner.spec.md documents the corrected semantics; new RSpec coverage for the last-line behavior (including the timeout case) passes; fledge lanes run verify passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

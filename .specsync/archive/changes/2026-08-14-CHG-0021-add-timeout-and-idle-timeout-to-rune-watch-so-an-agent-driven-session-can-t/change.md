@@ -1,6 +1,6 @@
 ---
 id: CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t
-state: accepted
+state: archived
 type: feature
 base_commit: 98894483a078c7e3fcf3739086d4b2cc88a00cd3
 ---
