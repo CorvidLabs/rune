@@ -41,6 +41,13 @@
       "timestamp": 1786728160,
       "digest": "2c79b1734d7d8ab96e3b867adfa22ff9361f07c90d90b56e7e1f33c91852fe44",
       "note": "Reopened solely for the three-way rebase-merge (CHANGELOG.md union + pty_runner.spec.md union), plus the position-bug row removals noted in the prior approval. Re-verified green."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786731006,
+      "digest": "6774ede2efbb4b92e04e9bf17d444b7233ffcffefba998bba72245f6a6151054",
+      "note": "Reopened solely for the CHANGELOG.md/pty_runner.spec.md touch from CHG-0024 (prompt_detected fix). Re-verified green."
     }
   ],
   "reopenings": [
@@ -177,6 +184,140 @@
       },
       "stale_acceptance_input_digest": "38e872e4ff200f15c33f4e06a7dff16fa7a40b1b55aff84d2a33132b2ed7acb7",
       "current_acceptance_input_digest": "53b8420ac1e95fc44406ccecf601df3274749f8cb8cac24e15717b4352831d91"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0022-add-opt-in-separate-streams-to-rune-run-clean-stdout-clean-stderr-alongside-t",
+      "actor": "0xLeif",
+      "reason": "CHANGELOG.md / specs/pty_runner/pty_runner.spec.md touched again by CHG-0024 (prompt_detected fix); content addition only, no semantic change to this change's own delivered behavior.",
+      "timestamp": 1786730516,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1786728160,
+        "digest": "2c79b1734d7d8ab96e3b867adfa22ff9361f07c90d90b56e7e1f33c91852fe44",
+        "note": "Reopened solely for the three-way rebase-merge (CHANGELOG.md union + pty_runner.spec.md union), plus the position-bug row removals noted in the prior approval. Re-verified green."
+      },
+      "prior_verification": {
+        "timestamp": 1786728135,
+        "commit": "162ee50e6e0d386fa5372dd200512e3fe63b8551",
+        "contract_digest": "6aa0ec01edfc88bfe69b24fc2b776eded3be962903c79370fb6a2ee21e1c2044",
+        "workspace_digest": "3b5c3c2a814075b829e2e80dee470c05060545da7b55a6707a99b414a4bb417d",
+        "acceptance_input_digest": "30dbe0f8c264eba1f786f29c1b097b03dd4fda2edf455d43ec9d5197fb73ce6d",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "09bed837e5311d68b163e4c772112b6b878a8fe42f54305edf24ad6bcda4e6c3",
+              "entry_digest": "2a3a1940fdf9bb2297f0d6f2dfc18d7b67f76aa0b04ad46ce44ed27625f05f51",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "CHANGELOG.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b45700270c49eba908a09cf6a63034556f6459c6ad5107cd62dc8fe26973a5d1",
+              "entry_digest": "3ea4a25f4b25bd0ba276bd63f5fa32bccaeb820b0f2a118eaf911618df2b2e47",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/commands/run_command.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "647f64daa8db3d4616a8cc3a01248790db8b821732f59bfc319abe286ce614d3",
+              "entry_digest": "cb7d013b434de6114c4784338b9baee4ee10cf22bb4ee4e0ab77b7bcc2ee3d5e",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "lib/rune/pty_runner.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6b029881c39511ddfe0004a5453bd914a51a7a803378d510d33532e07c6a4494",
+              "entry_digest": "60542d683721e9968d621d53382b65abd263ac842be42bad27244736a9121e1f",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "spec/rune/commands/run_command_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "053d3adf95bff6d4a962f11c7abb7afc9ea2864e894f545ea05c20b37d731de6",
+              "entry_digest": "e4bf5273793bdecd378ab0365b0bbd90eb44edee3e131b5a364c1e39debb6042",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "spec/rune/pty_runner_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ac1217d809ecc193c7567bbca7d9b58616f6c1fa915cae8613bb88bd9ee72ae2",
+              "entry_digest": "1e8d5bfd1c4e4e92bd52d794c1abf2667025d48408054ef238c49dd7f41f20e8",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/pty_runner/pty_runner.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "2c5cee568e5cabaa7c99bb58558df6574e673585433fe62269021479728054c2",
+              "entry_digest": "7adad7baf71b15a9c88ba3084303640e88d03209eb4839083c868a803d057878",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "specs/pty_runner/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3070f0d5d578baa2f058503359b33d17c02641731aec9e820e782f4e58813fcf",
+              "entry_digest": "6e141c1e84e140b7147f958068fa75dd6c0e22153ff3c50fe8782499d2f7dfb7",
+              "owners": [
+                "pty_runner"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "30dbe0f8c264eba1f786f29c1b097b03dd4fda2edf455d43ec9d5197fb73ce6d",
+      "current_acceptance_input_digest": "b18c9c045ea1a6cccfdfe302701e16412d12a08cb6681828e5c8e9260765c146"
     }
   ]
 }

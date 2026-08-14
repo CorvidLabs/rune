@@ -1,22 +1,6 @@
----
-module: pty_runner
-version: 5
-status: active
-files:
-  - lib/rune/pty_runner.rb
-  - lib/rune/commands/run_command.rb
-  - lib/rune/script.rb
-  - lib/rune/signal_handler.rb
-  - lib/rune/utf8_stream_decoder.rb
-  - lib/rune/output_limiter.rb
----
-# PTY Runner
+## MODIFIED
 
-## Purpose
-Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured TTY CLI commands in a sandboxed PTY process, cleans ANSI formatting, tracks execution timing, and exposes structured execution contracts to AI agents and humans alike.
-
-## Public API
-
+### SPEC SECTION Public API
 | Name | Type | Description |
 |------|------|-------------|
 | `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, script: nil, timeout_seconds: 30, max_output_bytes: nil, tail_lines: nil, separate_streams: false, &on_output)`. Method: `#run` returns `Result`. Class method: `.pty_available?` reports whether the `pty` stdlib loaded successfully. |
@@ -75,7 +59,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `continuation_bytes?` | internal predicate | Validates UTF-8 continuation bytes. |
 | `scrub` | internal method | Force-encodes bytes as UTF-8 and replaces invalid sequences. |
 
-## Invariants
+### SPEC SECTION Invariants
 
 22. `data[:prompt_detected]` reflects only the *last* non-blank line of the finished output
     buffer (ANSI stripped), not whether any line anywhere in the run ever matched a prompt
@@ -92,8 +76,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 23. No output at all, or output consisting only of blank/whitespace lines, yields
     `data[:prompt_detected]: false` — never a crash from an absent "last line".
 
-## Behavioral Examples
-
+### SPEC SECTION Behavioral Examples
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.
 - `rune run -- nonexistent_binary` returns a *successful* `Result` with `data[:exit_code]: 127`; the `rune` process itself also exits `127`.
 - `rune run -- bash -c "exit 7"` — `rune run` (no `--json`) exits `7` at the shell, even though the `Result` is a success.
@@ -125,30 +108,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 - `rune run --timeout=1 -- ruby -e 'puts "Password: "; sleep 5'` reports `exit_code: 124` and
   `prompt_detected: true` — the timeout-killed run's last on-screen line was a genuine prompt.
 
-## Error Cases
-
-| Condition | Behavior |
-|-----------|----------|
-| No command argument | Returns `Result.failure("No command specified...")` |
-| Command times out | Returns exit code 124 with timeout message in output |
-| `--timeout` value is not a positive integer (`0`, negative, non-numeric, empty) | Returns `Result.failure("Invalid --timeout value...")` before spawning anything |
-| `--max-output` value is not a positive integer (`0`, negative, non-numeric, empty) | Returns `Result.failure("Invalid --max-output value...")` before spawning anything |
-| `--tail` value is not a positive integer (`0`, negative, non-numeric, empty) | Returns `Result.failure("Invalid --tail value...")` before spawning anything |
-| Both `--max-output` and `--tail` are given | Returns `Result.failure("Cannot combine --max-output and --tail...")` before spawning anything |
-| `pty` stdlib failed to load | `PTYRunner#run` returns `Result.failure("PTY unavailable: ...")` |
-| OS refuses pty allocation at runtime (sandbox/container/exhaustion) | `PTYRunner#run` returns `Result.failure("PTY allocation failed at runtime: ...")` |
-| Wrapped command emits bytes that are not valid UTF-8 | Bytes are force-encoded + scrubbed; `Result` still succeeds, no `Encoding::CompatibilityError` |
-| A valid UTF-8 character is split across reads | The incomplete suffix is buffered and combined with the following chunk without replacement corruption |
-| A `--max-output` cut lands inside a multi-byte UTF-8 character | The truncated head/tail is scrubbed rather than raising or leaving an invalid byte sequence |
-| `separate_streams: true` combined with `script:` | Returns `Result.failure(...)` before spawning anything |
-
-## Dependencies
-
-- Ruby stdlib: `pty`, `timeout`, `io/wait` (required explicitly — `IO#wait_readable` isn't
-  guaranteed to be autoloaded by `pty` alone on every Ruby version)
-
-## Change Log
-
+### SPEC SECTION Change Log
 - v1: Active PTY runner spec contract
 - v1: Added `Script` to this module's file/API coverage (previously untracked by spec-sync
   despite being public since `PTYRunner`'s `script:` constructor option shipped); documented the
@@ -162,4 +122,3 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | 2026-08-14 | CHG-0022-add-opt-in-separate-streams-to-rune-run-clean-stdout-clean-stderr-alongside-t: Add opt-in `--separate-streams` to `rune run`: stdout on a real pty, stderr on a plain pipe, adding `clean_stdout`/`clean_stderr` alongside the existing merged `clean_output`/`raw_output` view. Fully additive: the result data shape is unchanged when the flag is not passed. Closes #15. |
 | 2026-08-14 | CHG-0022-add-opt-in-separate-streams-to-rune-run-clean-stdout-clean-stderr-alongside-t: Add opt-in --separate-streams to rune run: clean_stdout/clean_stderr alongside the merged view, closing #15 |
 | 2026-08-14 | CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e: Fix `prompt_detected` to reflect only the last non-blank line of output instead of any line seen across the whole run; also fixes a latent bug where `--timeout` kills always reported `prompt_detected: false` regardless of actual content. Closes #30. |
-| 2026-08-14 | CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e: Fix prompt_detected to reflect the last non-blank line of output, not any line ever seen, closing #30 |

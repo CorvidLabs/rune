@@ -28,6 +28,43 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:prompt_detected]).to be false
     end
 
+    it 'does not misreport prompt_detected when a prompt-shaped line appears mid-run and is ' \
+       'followed by more real output (issue #30: a long TUI-heavy session almost always has ' \
+       'SOME line that looks prompt-shaped as ordinary chrome; only the truly last line matters)' do
+      ruby_code = 'puts "user@host:~$ "; puts "still working"; puts "done"'
+      result = described_class.new(['ruby', '-e', ruby_code]).run
+
+      expect(result).to be_success
+      expect(result.data[:clean_output]).to include('still working').and include('done')
+      expect(result.data[:prompt_detected]).to be false
+    end
+
+    it 'reports prompt_detected: true when the last non-blank line of output is genuinely ' \
+       'prompt-shaped, with nothing after it' do
+      result = described_class.new(['ruby', '-e', 'puts "Password: "']).run
+
+      expect(result).to be_success
+      expect(result.data[:prompt_detected]).to be true
+    end
+
+    it 'reports prompt_detected: false for a command with no output at all' do
+      result = described_class.new('true').run
+
+      expect(result).to be_success
+      expect(result.data[:prompt_detected]).to be false
+    end
+
+    it 'reports prompt_detected: true for a --timeout kill whose last on-screen line was a ' \
+       'prompt (previously hardcoded false on every timeout regardless of actual content, since ' \
+       'the old per-chunk accumulator never received its final value once Timeout::Error ' \
+       'interrupted execution before that assignment completed)' do
+      runner = described_class.new(['ruby', '-e', 'puts "Password: "; sleep 5'], timeout_seconds: 1)
+      result = runner.run
+
+      expect(result.data[:exit_code]).to eq(124)
+      expect(result.data[:prompt_detected]).to be true
+    end
+
     it 'handles wrapped commands emitting bytes that are not valid UTF-8 without crashing' do
       # printf interprets the \xHH escapes itself, emitting raw invalid-UTF-8
       # bytes on stdout — this is what a real command (e.g. a compiler

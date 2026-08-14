@@ -134,25 +134,40 @@ module Rune
       stdout_buffer = separate_streams ? +'' : nil
       stderr_buffer = separate_streams ? +'' : nil
       exit_code = nil
-      prompt_detected = false
       spawned_pid = nil
 
       Timeout.timeout(timeout_seconds) do
-        prompt_detected, exit_code = spawn_for_mode(raw_output, stdout_buffer, stderr_buffer) do |pid|
-          spawned_pid = pid
-        end
+        exit_code = spawn_for_mode(raw_output, stdout_buffer, stderr_buffer) { |pid| spawned_pid = pid }
       end
 
-      [raw_output, exit_code, prompt_detected, stdout_buffer, stderr_buffer]
+      [raw_output, exit_code, prompt_detected_in?(raw_output), stdout_buffer, stderr_buffer]
     rescue Errno::ENOENT then ["Command not found: #{command}", 127, false, stdout_buffer, stderr_buffer]
     rescue Errno::EACCES then ["Permission denied: #{command}", 126, false, stdout_buffer, stderr_buffer]
     rescue Timeout::Error
       # Timeout.timeout only interrupts Ruby's control flow — the spawned OS
-      # process keeps running as an orphan unless killed explicitly here.
+      # process keeps running as an orphan unless killed explicitly here. Checked against
+      # raw_output as captured up to the kill point (not the synthetic message appended below),
+      # so a genuine "stuck on a prompt, got killed" case is still reported accurately.
       kill_orphaned_child(spawned_pid)
-      ["#{raw_output}\n[rune] Execution timed out after #{timeout_seconds} seconds", 124, false, stdout_buffer,
-       stderr_buffer]
-    rescue PTY::ChildExited then [raw_output, 0, prompt_detected, stdout_buffer, stderr_buffer]
+      timed_out_prompt = prompt_detected_in?(raw_output)
+      ["#{raw_output}\n[rune] Execution timed out after #{timeout_seconds} seconds", 124, timed_out_prompt,
+       stdout_buffer, stderr_buffer]
+    rescue PTY::ChildExited then [raw_output, 0, prompt_detected_in?(raw_output), stdout_buffer, stderr_buffer]
+    end
+
+    # prompt_detected reflects whether the *last* non-blank line of output looks like an
+    # interactive prompt, not whether any line anywhere in the run ever did. A `rune run` result
+    # is only ever read after the process has already exited or been killed by --timeout, so "did
+    # a prompt-shaped line ever appear" was never the useful question — for a long TUI-heavy
+    # session it is nearly always true and tells an agent nothing (issue #30, found via real
+    # dogfooding). "Was the last thing on screen a prompt, with nothing after it" is the actual
+    # signature of "stuck waiting for input": if the process is genuinely blocked on a prompt, by
+    # definition nothing else arrives after it — no timing/idle-gap logic needed.
+    def prompt_detected_in?(text)
+      last_line = Parsers::TextSanitizer.strip_ansi(text).lines.reverse_each.find { |line| !line.strip.empty? }
+      return false unless last_line
+
+      detect_prompt?(last_line)
     end
 
     def spawn_for_mode(raw_output, stdout_buffer, stderr_buffer, &on_pid)
@@ -165,18 +180,17 @@ module Rune
 
     def spawn_and_stream(raw_output, &on_pid)
       exit_code = nil
-      prompt_detected = false
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
       PTY.spawn(env, *@spawn_arguments) do |r, w, pid|
         on_pid&.call(pid)
         SignalHandler.with_traps(pid) do |forward_signal|
           write_input(w, input) if input
-          prompt_detected = read_pty_stream(r, w, raw_output, forward_signal)
+          read_pty_stream(r, w, raw_output, forward_signal)
           exit_code = wait_for_process(pid)
         end
       end
-      [prompt_detected, exit_code]
+      exit_code
     end
 
     # Opt-in mode for issue #15: stdout keeps a real PTY (the child still believes it has a
@@ -188,7 +202,6 @@ module Rune
     # terminal-driven job control itself would notice).
     def spawn_and_stream_separate(raw_output, stdout_buffer, stderr_buffer, &on_pid)
       exit_code = nil
-      prompt_detected = false
 
       PTY.open do |master, slave|
         err_r, err_w = IO.pipe
@@ -199,14 +212,14 @@ module Rune
           SignalHandler.with_traps(pid) do |forward_signal|
             write_input(master, input) if input
             streams = [{ reader: master, buffer: stdout_buffer }, { reader: err_r, buffer: stderr_buffer }]
-            prompt_detected = read_separate_streams(streams, raw_output, forward_signal)
+            read_separate_streams(streams, raw_output, forward_signal)
             exit_code = wait_for_process(pid)
           end
         ensure
           err_r.close unless err_r.closed?
         end
       end
-      [prompt_detected, exit_code]
+      exit_code
     end
 
     def spawn_with_separated_stderr(slave, err_w, &on_pid)
@@ -250,7 +263,6 @@ module Rune
     # readpartial, so a caught signal gets forwarded promptly instead of
     # waiting for the next chunk of child output (which may never come).
     def read_pty_stream(reader, writer, output_buffer, forward_signal)
-      prompt_found = false
       script_step_index = 0
       decoder = UTF8StreamDecoder.new
       loop do
@@ -258,15 +270,11 @@ module Rune
         next unless reader.wait_readable(0.2)
 
         chunk = decoder.decode(reader.readpartial(4096))
-        prompt_found, script_step_index = consume_output_chunk(
-          chunk, output_buffer, writer, prompt_found, script_step_index
-        )
+        script_step_index = consume_output_chunk(chunk, output_buffer, writer, script_step_index)
       end
     rescue Errno::EIO, EOFError, PTY::ChildExited, Errno::EPIPE
-      prompt_found, = consume_output_chunk(
-        decoder.finish, output_buffer, writer, prompt_found, script_step_index
-      )
-      prompt_found
+      consume_output_chunk(decoder.finish, output_buffer, writer, script_step_index)
+      nil
     end
 
     # Multiplexes N independent readers (stdout's pty, stderr's pipe) with IO.select instead of
@@ -275,24 +283,21 @@ module Rune
     # stream decoded and appended to its own buffer plus the shared merged raw_output. `streams` is
     # `[{reader:, buffer:}, ...]`; a `decoder:` is added to each entry here.
     def read_separate_streams(streams, raw_output, forward_signal)
-      prompt_found = false
       streams.each { |stream| stream[:decoder] = UTF8StreamDecoder.new }
       open_streams = streams.dup
 
       until open_streams.empty?
         forward_signal.call
-        prompt_found = poll_ready_streams(open_streams, raw_output) || prompt_found
+        poll_ready_streams(open_streams, raw_output)
       end
-
-      prompt_found
     end
 
     def poll_ready_streams(open_streams, raw_output)
       ready, = IO.select(open_streams.map { |stream| stream[:reader] }, nil, nil, 0.2)
-      return false unless ready
+      return unless ready
 
-      open_streams.select { |stream| ready.include?(stream[:reader]) }.reduce(false) do |found, stream|
-        consume_stream_chunk(stream, raw_output, open_streams) || found
+      open_streams.select { |stream| ready.include?(stream[:reader]) }.each do |stream|
+        consume_stream_chunk(stream, raw_output, open_streams)
       end
     end
 
@@ -305,22 +310,19 @@ module Rune
     end
 
     def append_decoded_chunk(decoded, buffer, raw_output)
-      return false if decoded.empty?
+      return if decoded.empty?
 
       buffer << decoded
       raw_output << decoded
       on_output&.call(decoded)
-      decoded.split("\n").any? { |line| detect_prompt?(line) }
     end
 
-    def consume_output_chunk(chunk, output_buffer, writer, prompt_found, script_step_index)
-      return [prompt_found, script_step_index] if chunk.empty?
+    def consume_output_chunk(chunk, output_buffer, writer, script_step_index)
+      return script_step_index if chunk.empty?
 
       output_buffer << chunk
       on_output&.call(chunk)
-      prompt_found ||= chunk.split("\n").any? { |line| detect_prompt?(line) }
-      script_step_index = process_script_steps(script_step_index, output_buffer, writer) if script
-      [prompt_found, script_step_index]
+      script ? process_script_steps(script_step_index, output_buffer, writer) : script_step_index
     end
 
     def process_script_steps(current_index, buffer, writer)

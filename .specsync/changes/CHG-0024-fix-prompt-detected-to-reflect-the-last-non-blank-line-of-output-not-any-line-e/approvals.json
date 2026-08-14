@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786730168,
+      "digest": "c688ff9124679f41c554f3cbf372dfc3a567206519cec8041dc885d1cf5a3815",
+      "note": "Approved via interactive session: last-non-blank-line semantics, no timing/idle-gap logic, fixes a latent timeout-path bug for free."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786730177,
+      "digest": "8ad8a49f722efd063c49720abcdfd541993a05b697b18b2fac44dc78b4275e29",
+      "note": "Added the remaining touched paths (spec file, spec doc, changelog) to affected_paths."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786730277,
+      "digest": "a787747d68b5afa0fdd8e8cab66872cc453d298e98e2542d36cc25e91254b4ed",
+      "note": "Closing approval: fledge lanes run verify (version-check, lint, test, smoke-test) all green; manual dogfooding confirmed the exact false-positive from issue #30's report is fixed, plus the trailing-prompt and timeout cases behave correctly."
+    }
+  ],
+  "reopenings": []
+}
