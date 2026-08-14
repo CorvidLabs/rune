@@ -159,7 +159,7 @@ an AI agent can tail the session in real time while a human drives it.
 
 ```sh
 # A small interactive demo program ships with rune specifically to try this against:
-rune watch -- ruby examples/demo_tui.rb
+rune watch -- ruby examples/humans/demo_tui.rb
 ```
 
 The event log defaults to a collision-safe, owner-only (`0600`) temp file, not stderr — mixing
@@ -175,7 +175,7 @@ unreadable). The path is announced once, up front:
 your own terminal staying clean. Point it somewhere specific instead with `--log=PATH`:
 
 ```sh
-rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
+rune watch --log=/tmp/session.ndjson -- ruby examples/humans/demo_tui.rb
 ```
 
 Each log line is a JSON object: `{"event":"start","command":"...","pid":...}`, then one
@@ -190,14 +190,14 @@ only the result envelope — so a wrapping program can parse stdout directly whi
 keyboard still sees their session:
 
 ```sh
-rune watch --json -- ruby examples/demo_tui.rb 2>/dev/null | jq .
+rune watch --json -- ruby examples/humans/demo_tui.rb 2>/dev/null | jq .
 ```
 
 ```json
 {
   "status": "ok",
   "data": {
-    "command": "ruby examples/demo_tui.rb",
+    "command": "ruby examples/humans/demo_tui.rb",
     "exit_code": 0,
     "duration_ms": 4820.11,
     "log_path": "/tmp/rune-watch-20260728-12345-abcd.ndjson"
@@ -209,10 +209,10 @@ Drop the `2>/dev/null` to keep watching the session yourself while the JSON is c
 
 `rune watch` requires a real terminal (it refuses to run if stdin isn't a TTY — there's no
 meaningful non-interactive mode) and won't work over `rune run`'s own PTY inception, so it can't be
-demonstrated in a piped example the way the rest of this guide is. `examples/demo_tui.rb`'s top-level
+demonstrated in a piped example the way the rest of this guide is. `examples/humans/demo_tui.rb`'s top-level
 menu is a real arrow-key selector (↑/↓ + Enter, or `q` to quit) rather than type-a-number-and-press-
 Enter, specifically to exercise raw single-byte and escape-sequence forwarding — the thing a purely
-line-buffered menu never touches. `examples/demo_tui.rb`'s own header comment has copy-pasteable
+line-buffered menu never touches. `examples/humans/demo_tui.rb`'s own header comment has copy-pasteable
 commands, and `spec/rune/pty_watcher_spec.rb` shows how the underlying forwarding/logging mechanics
 are unit-tested, including a test that drives the arrow-key menu itself end-to-end (a fake terminal
 object plus `IO.pipe`s drives a real interactive child process without needing an actual controlling
@@ -242,10 +242,10 @@ heuristic's known limitations before relying on `:auto` against unfamiliar outpu
 - [`examples/smoke_test.rb`](../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` or `fledge
   run smoke-test`. A standalone, assertion-based tour of real behavior (no bundler/rspec required):
   output modes, `--timeout` validation, parsers, `Script`, signal forwarding, prompt detection.
-- [`examples/demo_tui.rb`](../examples/demo_tui.rb) — the interactive demo used throughout the
-  `rune watch` section above. [`examples/pty_runner_example.rb`](../examples/pty_runner_example.rb),
-  [`table_parser_example.rb`](../examples/table_parser_example.rb), and
-  [`script_automation_example.rb`](../examples/script_automation_example.rb) are smaller,
+- [`examples/humans/demo_tui.rb`](../examples/humans/demo_tui.rb) — the interactive demo used throughout the
+  `rune watch` section above. [`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb),
+  [`table_parser_example.rb`](../examples/agents/table_parser_example.rb), and
+  [`script_automation_example.rb`](../examples/agents/script_automation_example.rb) are smaller,
   single-concept scripts — each runnable directly (`ruby examples/<name>.rb`) with no setup beyond
   `require_relative '../lib/rune'`.
 - [PTY Architecture Guide](pty_architecture.md) — how the PTY runner, stream reading, prompt

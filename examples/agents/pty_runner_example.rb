@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative '../lib/rune'
+require_relative '../../lib/rune'
 
 puts '=== Rune PTY Runner Example ==='
 puts 'Running `git status` inside a pseudo-terminal...'

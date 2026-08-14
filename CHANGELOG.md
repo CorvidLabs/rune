@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+### Added
+
+- `rune session` — persistent, named PTY sessions that outlive a single `rune` invocation, so one
+  agent CLI can drive another conversationally instead of one-shot. `rune session start --name X --
+  <cmd>` spawns the child under a detached per-session supervisor that owns the pty; `rune session
+  send --name X "..."` writes to it and returns *only* the output that send produced; `rune session
+  read`/`list`/`stop` cover the rest. Neither existing execution model could do this: `rune run`
+  buffers and returns once, and `rune watch` hard-refuses to run without a human terminal on stdin,
+  so an agent had no way to hold a REPL-shaped child open across calls.
+- **Send-and-settle**, the primitive that makes the above usable: `--settle-ms` returns once the
+  child has been quiet for N ms, `--wait-for-regex` returns as soon as output matches, and
+  `--timeout-ms` caps the whole wait (reporting `settled: false`, `timed_out: true` rather than
+  failing). Together these turn an async TTY into a synchronous request/response call. Settle-time
+  is the primary completion signal deliberately: `prompt_detected` only matches shell-shaped
+  prompts, so it is usually `false` for exactly the agent REPLs this exists to drive, and is
+  reported as advisory metadata that never gates a reply.
+- `rune session attach` connects your real terminal to a running session — output streams to the
+  screen, keystrokes go to the agent, and the current screen is replayed on connect. **Ctrl-]**
+  detaches and leaves everything running, which is the whole difference from `rune watch` (which
+  owns the child it spawned). Ctrl-C deliberately still reaches the child so a runaway agent can be
+  interrupted.
+- Sessions are **named and project-scoped**. `--name` is optional for `start` — an unused
+  `<tool>-<word>` codename is generated otherwise — and names are scoped to the enclosing git
+  working tree, so `reviewer` in two checkouts is two sessions and neither is reachable from the
+  wrong directory. `rune session list --all-projects` opts out of the scoping.
+- `rune session archive` files a stopped session away, freeing its name and keeping history out of
+  the live list; `rune session list --archived` shows it.
+- `rune session list` reports `idle_ms` and a `last_line` summary per session, so "is this one stuck
+  and what is it doing" is answerable at a glance when several agents are running.
+- Session state lives under `RUNE_HOME` (default `~/.rune`) with owner-only `0700` directories and
+  `0600` files, and each session's transcript is an NDJSON event log in the **same format `rune
+  watch` already writes**, so `tail -f` works on a live session.
+
+### Fixed
+
+- `Parsers::TextSanitizer` now strips private-parameter CSI (`\e[?1049h`, `\e[?2026h`), OSC strings
+  (`\e]0;title\a`), DCS/SOS/PM/APC strings, and keypad/cursor-key modes, not just SGR-shaped
+  sequences. The old pattern left a full-screen TUI's escape traffic almost entirely intact, so
+  `clean_output` was unreadable for exactly the agent CLIs sessions exist to drive. Improves
+  `rune run` on any TUI command equally.
+
 ## [v0.3.0] - 2026-08-14
 
 ### Added

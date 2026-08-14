@@ -1,0 +1,681 @@
+# frozen_string_literal: true
+
+require 'rbconfig'
+require 'timeout'
+require_relative '../session/store'
+require_relative '../session/client'
+require_relative '../session/supervisor'
+require_relative '../session/attachment'
+require_relative '../output_limiter'
+
+module Rune
+  module Commands
+    # rubocop:disable Metrics/ClassLength -- one class per subcommand would scatter a single
+    # user-facing surface (`rune session ...`) across five files that all share the same store,
+    # name validation, and error vocabulary; kept together for the same reason pty_watcher.rb
+    # keeps its lifecycle in one place.
+    class SessionCommand < Command
+      name 'session'
+      summary 'Start and drive persistent named PTY sessions that outlive a single rune invocation'
+      usage 'rune session <start|send|read|attach|list|stop|archive> [--name=NAME] [options]'
+      flag '--name=NAME',
+           'Session name. Optional for start (an unused <tool>-<word> codename is generated); ' \
+           'required by send/read/attach/stop.'
+      flag '--settle-ms=N', 'send: return once the child has been quiet for N ms (default 800).'
+      flag '--timeout-ms=N', 'send: hard cap on the whole wait (default 120000).'
+      flag '--wait-for-regex=RE', 'send: return as soon as output matches RE, without waiting out the settle window.'
+      flag '--no-wait', 'send: write the input and return immediately, without waiting for a reply.'
+      flag '--no-newline',
+           'send: do not append the trailing carriage return that submits the line (Enter is CR, ' \
+           'which is what raw-mode TUIs listen for).'
+      flag '--since=CURSOR', 'read: return only transcript bytes at or after this cursor.'
+      flag '--tail=N', 'read: keep only the last N lines.'
+      flag '--max-output=BYTES', 'read: bound the returned text to BYTES, keeping head and tail.'
+      flag '--all-projects', 'list: include sessions from every project, not just this one.'
+      flag '--archived', 'list: show archived sessions instead of live ones.'
+
+      SUBCOMMANDS = %w[start send read attach list stop archive].freeze
+      # How long `start` waits for the supervisor to come up and report ready
+      # before giving up. Generous because it covers a Ruby process boot.
+      START_TIMEOUT = 10.0
+      # How long `stop` waits for a cooperative shutdown before force-killing.
+      GRACEFUL_STOP_TIMEOUT = 3.0
+      # How much of a transcript's tail `list` reads to report recent activity.
+      ACTIVITY_TAIL_BYTES = 8192
+      ACTIVITY_LINE_LIMIT = 100
+      # How long `stop` waits for SIGKILLed processes to actually disappear.
+      DEATH_TIMEOUT = 3.0
+
+      VALUE_FLAGS = {
+        name: [/\A--name=(.*)\z/, :string],
+        home: [/\A--home=(.*)\z/, :string],
+        project: [/\A--project=(.*)\z/, :string],
+        wait_for_regex: [/\A--wait-for-regex=(.*)\z/, :string],
+        settle_ms: [/\A--settle-ms=(.*)\z/, :positive_int],
+        timeout_ms: [/\A--timeout-ms=(.*)\z/, :positive_int],
+        since: [/\A--since=(.*)\z/, :non_negative_int],
+        tail_lines: [/\A--tail=(.*)\z/, :positive_int],
+        max_output_bytes: [/\A--max-output=(.*)\z/, :positive_int]
+      }.freeze
+      BOOLEAN_FLAGS = {
+        '--no-wait' => :no_wait, '--no-newline' => :no_newline,
+        '--all-projects' => :all_projects, '--archived' => :archived
+      }.freeze
+
+      # `_supervise` is deliberately absent from SUBCOMMANDS: it is how `start`
+      # re-invokes rune as the detached supervisor, so it must dispatch but must
+      # never appear in help or in an error's list of valid subcommands.
+      DISPATCH = {
+        'start' => :start, 'send' => :send_input, 'read' => :read_transcript,
+        'attach' => :attach, 'list' => :list, 'stop' => :stop,
+        'archive' => :archive_session, '_supervise' => :supervise
+      }.freeze
+
+      def call(args, _options)
+        remaining = args.dup
+        handler = DISPATCH[remaining.shift]
+        return unknown_subcommand(args.first) unless handler
+
+        send(handler, remaining)
+      end
+
+      def human_render(data, io)
+        case data[:action]
+        when 'list' then render_list(data, io)
+        # A human reading a driven TUI agent wants the stripped text, not its
+        # repaint traffic; agent mode still gets both fields in the envelope.
+        when 'send', 'read' then io.puts(data[:clean_output] || data[:output])
+        else io.puts(JSON.generate(data.except(:action)))
+        end
+      end
+
+      private
+
+      def unknown_subcommand(subcommand)
+        if subcommand.nil?
+          Result.failure("No subcommand given. Usage: rune session <#{SUBCOMMANDS.join('|')}> [options]")
+        else
+          Result.failure("Unknown session subcommand: #{subcommand}. Expected one of: #{SUBCOMMANDS.join(', ')}.")
+        end
+      end
+
+      # ---- start
+
+      def start(args)
+        options, rest, error = extract_options(args)
+        return Result.failure(error) if error
+
+        command = rest.first == '--' ? rest[1..] : rest
+        rejection = start_rejection(options, command)
+        return rejection if rejection
+
+        launch(start_name(options, command), command)
+      end
+
+      # `--name` is optional for start and required by every other subcommand:
+      # a session should always *have* a name, but an agent spinning one up
+      # should not have to invent an identifier. The generated `<tool>-<word>`
+      # also removes the ambiguity of "the grok session" once there are two.
+      def start_name(options, command) = options[:name] || store.generate_name(command)
+
+      def start_rejection(options, command)
+        if command.empty?
+          return Result.failure('No command specified. Usage: rune session start [--name=NAME] -- <command...>')
+        end
+        unless options[:name].nil? || Session::Store.valid_name?(options[:name])
+          return Result.failure(name_error(options[:name]))
+        end
+        return Result.failure('PTY unavailable: pty stdlib failed to load.') unless PTYRunner.pty_available?
+
+        running_conflict(start_name(options, command))
+      end
+
+      def running_conflict(name)
+        return nil unless store.exist?(name)
+
+        meta = store.read_meta(name)
+        return nil unless meta && Session::Store.alive?(meta[:supervisor_pid])
+
+        Result.failure("Session #{name.inspect} is already running (pid #{meta[:child_pid]}). " \
+                       'Stop it first or choose another name.')
+      end
+
+      def launch(name, command)
+        store.create(name)
+        # One transcript per supervisor lifetime. Reusing a name kept appending
+        # to the previous run's output.ndjson while the new supervisor's cursors
+        # restarted at zero, so `send` cursors and `read` offsets silently
+        # disagreed and `read` replayed a dead session's output as if it were
+        # this one's — a direct break of the cursor-agreement invariant.
+        store.reset_transcript(name)
+        store.write_meta(name, name: name, command: command, state: 'starting', started_at: Time.now.to_f)
+        pid = spawn_supervisor(name, command)
+        ready_error = await_ready(name)
+        if ready_error
+          # Without this the supervisor spawned just above keeps running after
+          # `start` reports failure, holding a pty for a session the caller was
+          # told does not exist — found by checking for stray processes after a
+          # `start` that failed on an unrelated bug, not by a test.
+          abandon(name, pid)
+          return Result.failure(ready_error)
+        end
+
+        meta = store.read_meta(name) || {}
+        Result.success({ action: 'start', name: name, command: command,
+                         child_pid: meta[:child_pid], supervisor_pid: pid,
+                         state: meta[:state], exit_code: meta[:exit_code] }.compact)
+      end
+
+      # Re-invokes rune's own executable rather than forking in-process: a fork
+      # would inherit this process's whole VM state (open fds, signal traps,
+      # RSpec's own runtime under test), and the supervisor needs a clean one.
+      # `bin/rune` uses require_relative, so this resolves correctly both from a
+      # source checkout and from an installed gem, where bin/ is packaged.
+      def spawn_supervisor(name, command)
+        log_path = File.join(store.session_dir(name), 'supervisor.log')
+        pid = File.open(log_path, File::WRONLY | File::CREAT | File::APPEND, Session::Store::FILE_MODE) do |log|
+          Process.spawn(
+            RbConfig.ruby, executable_path, 'session', '_supervise',
+            "--name=#{name}", "--home=#{store.home}", "--project=#{store.project}", '--', *command,
+            in: File::NULL, out: File::NULL, err: log, pgroup: true
+          )
+        end
+        Process.detach(pid)
+        pid
+      end
+
+      def executable_path = File.expand_path('../../../bin/rune', __dir__)
+
+      # Tears down a supervisor that was spawned but never became usable, so a
+      # failed `start` leaves nothing behind. Reuses the same tolerant kill
+      # path as `stop`, since the pids may already be gone.
+      def abandon(name, supervisor_pid)
+        meta = store.read_meta(name) || {}
+        kill_remaining(meta.merge(supervisor_pid: supervisor_pid))
+        store.update_meta(name, state: 'failed', failed_at: Time.now.to_f)
+      end
+
+      # `start` must not return before the session can actually be sent to,
+      # otherwise the very next `rune session send` races the supervisor's boot
+      # and fails against a socket that does not exist yet.
+      #
+      # A child that has already exited is a *ready* outcome, not a startup
+      # error: a short-lived command legitimately runs to completion faster
+      # than this can observe it (`bash -c 'exit 7'` reliably beats the first
+      # poll, since the poll only begins after a Ruby interpreter boot). This
+      # also keeps the missing/non-executable case consistent with `rune run`
+      # and `rune watch`, where 127/126 is the child's exit status on a
+      # successful Result rather than a rune-level failure.
+      def await_ready(name)
+        deadline = monotonic + START_TIMEOUT
+        while monotonic < deadline
+          meta = store.read_meta(name)
+          if meta
+            return nil if meta[:state] == 'running' && File.socket?(store.socket_path(name))
+            return nil if meta[:state] == 'exited'
+          end
+
+          sleep 0.02
+        end
+        "Session #{name.inspect} did not become ready within #{START_TIMEOUT.to_i}s."
+      end
+
+      # ---- send
+
+      def send_input(args)
+        options, rest, error = extract_options(args)
+        return Result.failure(error) if error
+        return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
+
+        text = (rest.first == '--' ? rest[1..] : rest).join(' ')
+        regex_error = validate_regex(options[:wait_for_regex])
+        return Result.failure(regex_error) if regex_error
+
+        exchange(options[:name], send_payload(options, text), action: 'send')
+      end
+
+      def send_payload(options, text)
+        {
+          op: 'send', text: text,
+          settle_ms: options[:settle_ms], timeout_ms: options[:timeout_ms],
+          wait_for_regex: options[:wait_for_regex],
+          no_wait: options[:no_wait], no_newline: options[:no_newline]
+        }.compact
+      end
+
+      def validate_regex(source)
+        return nil if source.nil?
+
+        Regexp.new(source)
+        nil
+      rescue RegexpError => e
+        "Invalid --wait-for-regex value: #{e.message}"
+      end
+
+      def exchange(name, payload, action:)
+        alive = alive_session(name)
+        return alive if alive.is_a?(Result)
+
+        reply = Session::Client.new(store.socket_path(name)).request(payload)
+        return Result.failure("Session #{name.inspect}: #{reply[:error]}") if reply[:error]
+
+        Result.success({ action: action, name: name }.merge(with_clean_output(reply)))
+      rescue Session::Client::Unavailable => e
+        Result.failure("Session #{name.inspect} is not reachable (#{e.message}). It may have exited; " \
+                       "run 'rune session list'.")
+      end
+
+      # `rune run` has always returned both an ANSI-stripped `clean_output` and
+      # the untouched `raw_output`; sessions returned only the raw text, so
+      # every caller driving a full-screen TUI agent had to write its own ANSI
+      # stripper before it could read a reply. That asymmetry was a real gap,
+      # not a stylistic one — it is the difference between a session being
+      # usable from a shell one-liner and needing a helper program.
+      def with_clean_output(reply)
+        return reply unless reply.key?(:output)
+
+        reply.merge(clean_output: Parsers::TextSanitizer.strip_ansi(reply[:output]))
+      end
+
+      def alive_session(name)
+        return Result.failure(no_such_session(name)) unless store.exist?(name)
+
+        meta = store.read_meta(name)
+        return Result.failure(no_such_session(name)) unless meta
+        return nil if Session::Store.alive?(meta[:supervisor_pid])
+
+        Result.failure("Session #{name.inspect} is not running (state #{meta[:state]}, " \
+                       "exit code #{meta[:exit_code].inspect}).")
+      end
+
+      # ---- read
+
+      def read_transcript(args)
+        options, _rest, error = extract_options(args)
+        return Result.failure(error) if error
+        return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
+        return Result.failure(no_such_session(options[:name])) unless store.exist?(options[:name])
+
+        transcript = transcript_for(options[:name])
+        sliced = slice_from(transcript, options[:since])
+        bounded, extra = bound_output(sliced, options)
+
+        Result.success({ action: 'read', name: options[:name], output: bounded,
+                         clean_output: Parsers::TextSanitizer.strip_ansi(bounded),
+                         cursor: transcript.bytesize,
+                         prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }.merge(extra))
+      end
+
+      # Reconstructed from the durable NDJSON transcript rather than over the
+      # control socket, so `read` works identically for a live session and for
+      # one whose supervisor has already exited. Cursor offsets agree with
+      # `send`'s because both count the same concatenated decoded output.
+      def transcript_for(name)
+        path = store.output_path(name)
+        return +'' unless File.exist?(path)
+
+        File.foreach(path).with_object(+'') do |line, buffer|
+          event = JSON.parse(line, symbolize_names: true)
+          buffer << event[:text].to_s if event[:event] == 'output'
+        rescue JSON::ParserError
+          next
+        end
+      end
+
+      # `--since` is a byte offset supplied by the caller, so unlike the
+      # supervisor's own cursor — which is only ever taken at a decoded-chunk
+      # boundary — it can land in the middle of a multi-byte character. Without
+      # scrubbing, the resulting invalid string blew up JSON rendering with a
+      # bare "invalid byte sequence in UTF-8" on any transcript containing
+      # non-ASCII, which for a TUI agent is every transcript. `OutputLimiter`
+      # already scrubs its own cut points for exactly this reason.
+      def slice_from(transcript, since)
+        return transcript if since.nil?
+
+        (transcript.byteslice(since..) || +'').scrub
+      end
+
+      def bound_output(text, options)
+        if options[:max_output_bytes]
+          bounded, omitted = OutputLimiter.truncate_middle(text, options[:max_output_bytes])
+          return [bounded, omitted.positive? ? { truncated: true, omitted_bytes: omitted } : {}]
+        end
+        if options[:tail_lines]
+          bounded, omitted = OutputLimiter.tail_lines(text, options[:tail_lines])
+          return [bounded, omitted.positive? ? { truncated: true, omitted_lines: omitted } : {}]
+        end
+
+        [text, {}]
+      end
+
+      # ---- attach
+
+      # Hands a live session to a human terminal. `start` and `send` are the
+      # agent-facing half of the feature; this is the half that makes a named
+      # session something you can come back to yourself — take the wheel, then
+      # detach and leave the agent running exactly where it was.
+      def attach(args)
+        options, _rest, error = extract_options(args)
+        return Result.failure(error) if error
+        return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
+
+        alive = alive_session(options[:name])
+        return alive if alive.is_a?(Result)
+        unless $stdin.tty?
+          return Result.failure('rune session attach requires a real terminal (stdin is not a TTY). ' \
+                                'Use `rune session send`/`read` for non-interactive access.')
+        end
+
+        Session::Attachment.new(store.socket_path(options[:name])).run
+      end
+
+      # ---- list
+
+      def list(args)
+        options, _rest, error = extract_options(args)
+        return Result.failure(error) if error
+        return list_archived if options[:archived]
+        return list_all_projects if options[:all_projects]
+
+        Result.success({ action: 'list', project: store.project,
+                         sessions: store.names.map { |name| describe(name) } })
+      end
+
+      def list_archived
+        Result.success({ action: 'list', project: store.project, archived: true,
+                         sessions: store.archived_names.map { |entry| { name: entry, state: 'archived' } } })
+      end
+
+      # Sessions are project-scoped by design, so seeing everything has to be
+      # asked for explicitly rather than being the default.
+      def list_all_projects
+        sessions = Session::Store.projects(store.home).flat_map do |project|
+          scoped = Session::Store.new(home: store.home, project: project)
+          scoped.names.map { |name| describe(name, scoped).merge(project: project) }
+        end
+        Result.success({ action: 'list', all_projects: true, sessions: sessions })
+      end
+
+      # State is always recomputed from real process liveness. A supervisor
+      # killed with SIGKILL never updates meta.json, so a recorded "running"
+      # is routinely stale and must never be reported as-is.
+      def describe(name, scoped = store)
+        meta = scoped.read_meta(name) || {}
+        alive = Session::Store.alive?(meta[:supervisor_pid])
+        # "dead" is reserved for a supervisor that vanished without recording
+        # why — the stale-state case. A session that exited on its own or was
+        # stopped deliberately reports that instead, so the two are
+        # distinguishable rather than collapsed into one alarming word.
+        state = if alive then 'running'
+                elsif %w[exited stopped].include?(meta[:state]) then meta[:state]
+                else 'dead'
+                end
+        { name: name, state: state, command: meta[:command], child_pid: meta[:child_pid],
+          supervisor_pid: meta[:supervisor_pid], exit_code: meta[:exit_code],
+          started_at: meta[:started_at] }.merge(activity(scoped, name))
+      end
+
+      # "Is it working or is it stuck, and what was it last doing" is the whole
+      # question when several agents are running at once, and the transcript
+      # already answers it — every event carries a timestamp. Read from the tail
+      # rather than the whole file: a driven TUI agent's transcript reaches
+      # megabytes quickly and `list` must stay cheap.
+      def activity(scoped, name)
+        path = scoped.output_path(name)
+        return {} unless File.exist?(path)
+
+        events = tail_events(path)
+        last = events.reverse.find { |event| event['event'] == 'output' && event['text'].to_s.strip != '' }
+        stamp = events.filter_map { |event| event['ts'] }.last
+        { idle_ms: stamp ? ((Time.now.to_f - stamp) * 1000).round : nil,
+          last_line: last && summarize(last['text']) }.compact
+      end
+
+      def tail_events(path, bytes: ACTIVITY_TAIL_BYTES)
+        size = File.size(path)
+        raw = File.open(path, 'rb') do |file|
+          file.seek([size - bytes, 0].max)
+          file.read.to_s
+        end
+        lines = raw.scrub.lines
+        # A seek into the middle of the file usually lands mid-line; that first
+        # fragment is not parseable JSON and is not ours to interpret.
+        lines.shift if size > bytes && lines.size > 1
+        lines.filter_map do |line|
+          JSON.parse(line)
+        rescue JSON::ParserError
+          nil
+        end
+      end
+
+      # One readable line: the last thing the agent actually printed, stripped
+      # of the escape traffic a full-screen TUI generates.
+      def summarize(text)
+        cleaned = Parsers::TextSanitizer.strip_ansi(text.to_s)
+        line = cleaned.lines.reverse_each.find { |candidate| candidate.strip != '' }
+        line.to_s.strip[0, ACTIVITY_LINE_LIMIT]
+      end
+
+      # ---- stop
+
+      def stop(args)
+        options, _rest, error = extract_options(args)
+        return Result.failure(error) if error
+        return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
+
+        name = options[:name]
+        return Result.failure(no_such_session(name)) unless store.exist?(name)
+
+        meta = store.read_meta(name) || {}
+        graceful_stop(name)
+        kill_remaining(meta)
+        # SIGKILL is asynchronous, so without waiting `stop` returned while the
+        # processes were still dying and the very next command saw the session
+        # as running — `archive` straight after `stop` failed on exactly this.
+        # A caller should be able to treat `stop` as done when it returns.
+        await_death(meta)
+        store.update_meta(name, state: 'stopped', stopped_at: Time.now.to_f)
+        Result.success({ action: 'stop', name: name, state: 'stopped' })
+      end
+
+      # Bounded on purpose. `Client` deliberately has no timeout because the
+      # supervisor guarantees a reply — but `stop` is the documented recovery
+      # path for a session that is *already* misbehaving, so it cannot depend on
+      # that guarantee holding. Without the bound, a wedged supervisor made
+      # `rune session stop` block here forever and never reach kill_remaining,
+      # leaving the very process the user was trying to kill running.
+      def graceful_stop(name)
+        Timeout.timeout(GRACEFUL_STOP_TIMEOUT) do
+          Session::Client.new(store.socket_path(name)).request(op: 'stop')
+        end
+      rescue Session::Client::Unavailable, Timeout::Error
+        nil
+      end
+
+      def await_death(meta)
+        pids = [meta[:child_pid], meta[:supervisor_pid]].compact
+        deadline = monotonic + DEATH_TIMEOUT
+        sleep 0.02 while pids.any? { |pid| Session::Store.alive?(pid) } && monotonic < deadline
+      end
+
+      # Idempotent by construction: every kill tolerates an already-dead pid,
+      # so stopping a stopped session succeeds rather than erroring.
+      def kill_remaining(meta)
+        [meta[:child_pid], meta[:supervisor_pid]].compact.each do |pid|
+          next unless Session::Store.alive?(pid)
+
+          Process.kill('KILL', Integer(pid))
+        rescue Errno::ESRCH, Errno::EPERM, TypeError, ArgumentError
+          next
+        end
+      end
+
+      # ---- hidden supervisor entry point
+
+      def supervise(args)
+        options, rest, error = extract_options(args)
+        return Result.failure(error) if error
+
+        command = rest.first == '--' ? rest[1..] : rest
+        # The project is passed explicitly rather than re-derived: the
+        # supervisor is detached and must not depend on inheriting a cwd.
+        Session::Supervisor.run(name: options[:name], command: command,
+                                home: options[:home], project: options[:project])
+        Result.success({ action: 'supervise', name: options[:name] })
+      end
+
+      # ---- archive
+
+      # Moves a finished session out of the live namespace. Without this a name
+      # stays taken by something long dead, and `list` mixes history in with
+      # what is actually running.
+      def archive_session(args)
+        options, _rest, error = extract_options(args)
+        return Result.failure(error) if error
+
+        rejection = archive_rejection(options[:name])
+        return rejection if rejection
+
+        target = store.archive(options[:name], stamp: Time.now.strftime('%Y%m%d-%H%M%S'))
+        Result.success({ action: 'archive', name: options[:name], archived_to: File.basename(target) })
+      end
+
+      def archive_rejection(name)
+        return Result.failure(name_error(name)) unless Session::Store.valid_name?(name)
+        return Result.failure(no_such_session(name)) unless store.exist?(name)
+
+        supervisor = (store.read_meta(name) || {})[:supervisor_pid]
+        return Result.failure(still_running(name)) if Session::Store.alive?(supervisor)
+
+        nil
+      end
+
+      def still_running(name)
+        "Session #{name.inspect} is still running. Stop it first: rune session stop --name=#{name}"
+      end
+
+      # ---- shared option parsing
+
+      # Same separator discipline as `rune run`: rune's flags are recognized
+      # only before the first `--`, so a wrapped command's identically named
+      # flags are passed through untouched.
+      #
+      # Both `--name=x` and `--name x` are accepted. The space-separated form
+      # is not sugar here: `--name` is the flag nearly every invocation passes,
+      # and in the `=`-only parsing this started with, `--name foo -- cmd`
+      # silently swallowed `foo` into the wrapped command's argv and then failed
+      # with "a session name is required" — a confusing error a long way from
+      # its cause.
+      def extract_options(args)
+        separator_index = args.index('--')
+        head = separator_index ? args[0...separator_index] : args
+        tail = separator_index ? args[separator_index..] : []
+
+        options = {}
+        error = nil
+        rest = []
+        index = 0
+        while index < head.length
+          consumed, message = consume_flag(head, index, options)
+          error ||= message
+          rest << head[index] if consumed.zero?
+          index += consumed.zero? ? 1 : consumed
+        end
+
+        [options, rest + tail, error]
+      end
+
+      # Returns [tokens_consumed, error]. Zero means "not one of our flags".
+      def consume_flag(head, index, options)
+        boolean = BOOLEAN_FLAGS[head[index]]
+        if boolean
+          options[boolean] = true
+          return [1, nil]
+        end
+
+        consume_value_flag(head, index, options)
+      end
+
+      def consume_value_flag(head, index, options)
+        arg = head[index]
+        VALUE_FLAGS.each do |key, (pattern, kind)|
+          inline = arg.match(pattern)
+          return assign(options, key, kind, inline[1], 1) if inline
+          next unless separate_form?(arg, key)
+          return [2, "--#{dashed(key)} requires a value."] if head[index + 1].nil?
+
+          return assign(options, key, kind, head[index + 1], 2)
+        end
+        [0, nil]
+      end
+
+      def assign(options, key, kind, raw, consumed)
+        value, message = coerce(raw, kind, key)
+        options[key] = value unless message
+        [consumed, message]
+      end
+
+      def separate_form?(arg, key) = arg == "--#{dashed(key)}" || arg == flag_alias(key)
+
+      def dashed(key) = key.to_s.tr('_', '-')
+
+      # `tail_lines`/`max_output_bytes` are internal keys whose user-facing
+      # flags are `--tail`/`--max-output`, so the derived name does not match.
+      def flag_alias(key)
+        { tail_lines: '--tail', max_output_bytes: '--max-output' }[key]
+      end
+
+      def coerce(raw, kind, key)
+        case kind
+        when :string then raw.empty? ? [nil, "--#{dashed(key)} requires a value."] : [raw, nil]
+        when :positive_int then integer(raw, key, positive: true)
+        else integer(raw, key, positive: false)
+        end
+      end
+
+      def integer(raw, key, positive:)
+        return [raw.to_i, nil] if raw.match?(/\A\d+\z/) && (!positive || raw.to_i.positive?)
+
+        [nil, "Invalid --#{dashed(key)} value: #{raw.inspect}. " \
+              "Must be a #{positive ? 'positive' : 'non-negative'} integer."]
+      end
+
+      def name_error(name)
+        return 'A session name is required: --name=NAME.' if name.nil? || name.empty?
+
+        "Invalid session name #{name.inspect}. Use letters, digits, '.', '_' or '-' (max 64 chars), " \
+          'starting with a letter or digit.'
+      end
+
+      def no_such_session(name) = "No such session: #{name.inspect}. Run 'rune session list'."
+
+      def render_list(data, io)
+        return io.puts('No sessions.') if data[:sessions].empty?
+
+        data[:sessions].each do |session|
+          icon = session[:state] == 'running' ? "\e[32m●\e[0m" : "\e[90m○\e[0m"
+          scope = session[:project] ? "\e[90m[#{session[:project]}]\e[0m " : ''
+          io.puts "#{icon} #{scope}\e[1m#{session[:name]}\e[0m  #{session[:state]}#{idle_suffix(session)}  " \
+                  "#{Array(session[:command]).join(' ')}"
+          io.puts "    \e[90m#{session[:last_line]}\e[0m" if session[:last_line]
+        end
+      end
+
+      # Idle time is the fastest read on "is this one stuck": a running agent
+      # that has printed nothing for minutes is the thing you want to notice.
+      def idle_suffix(session)
+        return '' unless session[:idle_ms]
+
+        seconds = session[:idle_ms] / 1000
+        return "  \e[90midle #{seconds}s\e[0m" if seconds < 90
+
+        "  \e[90midle #{(seconds / 60.0).round}m\e[0m"
+      end
+
+      def store = @store ||= Session::Store.new(project: @project_override)
+
+      def monotonic = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+    # rubocop:enable Metrics/ClassLength
+  end
+end

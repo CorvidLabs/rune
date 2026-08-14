@@ -57,7 +57,11 @@ RSpec.describe 'rune binary E2E' do
         'help' => [],
         'version' => [],
         'run' => ['--', 'echo', 'PURITY_PROBE'],
-        'watch' => ['--', 'echo', 'PURITY_PROBE']
+        'watch' => ['--', 'echo', 'PURITY_PROBE'],
+        # `list` rather than `start`: it exercises the full render path in every
+        # output mode without leaving a detached supervisor behind for each of
+        # the three modes this group runs.
+        'session' => ['list']
       }
     end
 
@@ -71,7 +75,11 @@ RSpec.describe 'rune binary E2E' do
       Dir.mktmpdir do |dir|
         out = File.join(dir, 'stdout')
         err = File.join(dir, 'stderr')
-        command = "#{Shellwords.escape(RbConfig.ruby)} #{Shellwords.escape(bin_path)} " \
+        # Pointed at the throwaway dir so `rune session` inspects an empty
+        # store instead of whatever real sessions the developer running the
+        # suite happens to have open.
+        command = "RUNE_HOME=#{Shellwords.escape(File.join(dir, 'rune-home'))} " \
+                  "#{Shellwords.escape(RbConfig.ruby)} #{Shellwords.escape(bin_path)} " \
                   "#{argv.shelljoin} > #{Shellwords.escape(out)} 2> #{Shellwords.escape(err)}"
         tty_stdin ? run_under_pty(command) : system(command, in: File::NULL)
         { stdout: File.read(out), stderr: File.read(err) }

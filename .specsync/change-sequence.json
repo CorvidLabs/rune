@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 27,
-  "id": "CHG-0027-fix-too-tight-1s-timeout-margin-in-a-pty-runner-spec-rb-prompt-detected-test",
+  "sequence": 28,
+  "id": "CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac",
   "acknowledged_collisions": []
 }
