@@ -63,6 +63,53 @@ RSpec.describe Rune::Commands::RunCommand do
       expect(result).to be_failure
       expect(result.error).to include('Invalid --timeout value')
     end
+
+    it 'accepts a --max-output flag and forwards it to PTYRunner' do
+      runner = instance_double(Rune::PTYRunner, run: Rune::Result.success({}))
+      allow(Rune::PTYRunner).to receive(:new).and_return(runner)
+
+      described_class.new.call(%w[--max-output=1024 -- echo hi], {})
+
+      expect(Rune::PTYRunner).to have_received(:new).with(%w[echo hi], max_output_bytes: 1024)
+    end
+
+    it 'accepts a --tail flag and forwards it to PTYRunner' do
+      runner = instance_double(Rune::PTYRunner, run: Rune::Result.success({}))
+      allow(Rune::PTYRunner).to receive(:new).and_return(runner)
+
+      described_class.new.call(%w[--tail=20 -- echo hi], {})
+
+      expect(Rune::PTYRunner).to have_received(:new).with(%w[echo hi], tail_lines: 20)
+    end
+
+    it 'combines --timeout with --max-output in the same invocation' do
+      runner = instance_double(Rune::PTYRunner, run: Rune::Result.success({}))
+      allow(Rune::PTYRunner).to receive(:new).and_return(runner)
+
+      described_class.new.call(%w[--timeout=5 --max-output=1024 -- echo hi], {})
+
+      expect(Rune::PTYRunner).to have_received(:new).with(%w[echo hi], timeout_seconds: 5, max_output_bytes: 1024)
+    end
+
+    it 'rejects combining --max-output and --tail in the same invocation' do
+      result = described_class.new.call(%w[--max-output=1024 --tail=20 -- echo hi], {})
+      expect(result).to be_failure
+      expect(result.error).to include('Cannot combine --max-output and --tail')
+    end
+
+    %w[0 -5 abc 3.5].each do |bad_value|
+      it "rejects --max-output=#{bad_value} instead of silently leaking it into the command" do
+        result = described_class.new.call(["--max-output=#{bad_value}", '--', 'echo', 'hi'], {})
+        expect(result).to be_failure
+        expect(result.error).to include('Invalid --max-output value')
+      end
+
+      it "rejects --tail=#{bad_value} instead of silently leaking it into the command" do
+        result = described_class.new.call(["--tail=#{bad_value}", '--', 'echo', 'hi'], {})
+        expect(result).to be_failure
+        expect(result.error).to include('Invalid --tail value')
+      end
+    end
   end
 
   describe '#human_render' do

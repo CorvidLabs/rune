@@ -1,22 +1,6 @@
----
-module: pty_runner
-version: 4
-status: active
-files:
-  - lib/rune/pty_runner.rb
-  - lib/rune/commands/run_command.rb
-  - lib/rune/script.rb
-  - lib/rune/signal_handler.rb
-  - lib/rune/utf8_stream_decoder.rb
-  - lib/rune/output_limiter.rb
----
-# PTY Runner
+## MODIFIED
 
-## Purpose
-Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured TTY CLI commands in a sandboxed PTY process, cleans ANSI formatting, tracks execution timing, and exposes structured execution contracts to AI agents and humans alike.
-
-## Public API
-
+### SPEC SECTION Public API
 | Name | Type | Description |
 |------|------|-------------|
 | `PTYRunner` | class | Spawns command in PTY. Constructor: `(command, input: nil, script: nil, timeout_seconds: 30, max_output_bytes: nil, tail_lines: nil, &on_output)`. Method: `#run` returns `Result`. Class method: `.pty_available?` reports whether the `pty` stdlib loaded successfully. |
@@ -67,8 +51,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `continuation_bytes?` | internal predicate | Validates UTF-8 continuation bytes. |
 | `scrub` | internal method | Force-encodes bytes as UTF-8 and replaces invalid sequences. |
 
-## Invariants
-
+### SPEC SECTION Invariants
 1. Executed commands run inside a PTY session so TTY-dependent CLIs behave naturally.
 2. Output is stripped of ANSI escape sequences before being returned in `clean_output`.
 3. Duration of process execution is measured and returned in milliseconds.
@@ -127,8 +110,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 17. `--max-output` and `--tail` are mutually exclusive; passing both fails before spawning
     anything.
 
-## Behavioral Examples
-
+### SPEC SECTION Behavioral Examples
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.
 - `rune run -- nonexistent_binary` returns a *successful* `Result` with `data[:exit_code]: 127`; the `rune` process itself also exits `127`.
 - `rune run -- bash -c "exit 7"` — `rune run` (no `--json`) exits `7` at the shell, even though the `Result` is a success.
@@ -146,8 +128,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
   `clean_output`/`raw_output`, with `truncated: true` and `omitted_lines` set to however many lines
   were dropped.
 
-## Error Cases
-
+### SPEC SECTION Error Cases
 | Condition | Behavior |
 |-----------|----------|
 | No command argument | Returns `Result.failure("No command specified...")` |
@@ -162,12 +143,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | A valid UTF-8 character is split across reads | The incomplete suffix is buffered and combined with the following chunk without replacement corruption |
 | A `--max-output` cut lands inside a multi-byte UTF-8 character | The truncated head/tail is scrubbed rather than raising or leaving an invalid byte sequence |
 
-## Dependencies
-- Ruby stdlib: `pty`, `timeout`, `io/wait` (required explicitly — `IO#wait_readable` isn't
-  guaranteed to be autoloaded by `pty` alone on every Ruby version)
-
-## Change Log
-
+### SPEC SECTION Change Log
 - v1: Active PTY runner spec contract
 - v1: Added `Script` to this module's file/API coverage (previously untracked by spec-sync
   despite being public since `PTYRunner`'s `script:` constructor option shipped); documented the
@@ -177,4 +153,3 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |
 | 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
 | 2026-08-14 | CHG-0020-add-opt-in-bounded-output-to-rune-run-max-output-bytes-head-tail-truncation-a: Add opt-in `--max-output=BYTES` (head+tail truncation) and `--tail=N` to `rune run`, plus the new `OutputLimiter` module. Fully additive: the result data shape is unchanged when neither flag is passed. Closes #12. |
-| 2026-08-14 | CHG-0020-add-opt-in-bounded-output-to-rune-run-max-output-bytes-head-tail-truncation-a: Add opt-in bounded output to rune run: --max-output=BYTES head+tail truncation and --tail=N, closing #12 |

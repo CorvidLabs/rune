@@ -24,13 +24,14 @@ require_relative 'parsers/text_sanitizer'
 require_relative 'parsers/prompt_detector'
 require_relative 'signal_handler'
 require_relative 'utf8_stream_decoder'
+require_relative 'output_limiter'
 
 module Rune
   # rubocop:disable Metrics/ClassLength -- grew past the limit from the timeout-kill and io/wait
   # fixes; the spawn/read/signal-forwarding logic here is tightly coupled and splitting it across
   # files for a line-count metric alone would hurt readability more than it helps.
   class PTYRunner
-    attr_reader :command, :input, :script, :timeout_seconds, :on_output
+    attr_reader :command, :input, :script, :timeout_seconds, :on_output, :max_output_bytes, :tail_lines
 
     # Raised when the OS itself refuses to allocate a pty (device exhaustion,
     # a sandbox/container denying it), as opposed to Errno::ENOENT/EACCES from
@@ -40,12 +41,21 @@ module Rune
 
     def self.pty_available? = PTY_LOAD_ERROR.nil?
 
-    def initialize(command, input: nil, script: nil, timeout_seconds: 30, &on_output)
+    # rubocop:disable Metrics/ParameterLists -- five independent execution knobs (input, script,
+    # timeout, and the two mutually-exclusive output-bounding options) read more clearly as named
+    # kwargs at the call site (PTYRunner.new(cmd, max_output_bytes: N)) than folded into one
+    # options hash; matches this file's existing tolerance for organic growth (see ClassLength
+    # disable above).
+    def initialize(command, input: nil, script: nil, timeout_seconds: 30, max_output_bytes: nil, tail_lines: nil,
+                   &on_output)
+      # rubocop:enable Metrics/ParameterLists
       @command = command.is_a?(Array) ? Shellwords.join(command) : command.to_s
       @spawn_arguments = command.is_a?(Array) ? command.map(&:to_s) : [@command]
       @input = input
       @script = script
       @timeout_seconds = timeout_seconds
+      @max_output_bytes = max_output_bytes
+      @tail_lines = tail_lines
       @on_output = on_output
     end
 
@@ -57,9 +67,11 @@ module Rune
 
       duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time) * 1000).round(2)
       clean_output = Parsers::TextSanitizer.strip_ansi(raw_output)
+      clean_output, raw_output, limit_data = apply_output_limit(clean_output, raw_output)
 
       Result.success({ command: command, exit_code: exit_code || 0, clean_output: clean_output,
-                       raw_output: raw_output, prompt_detected: prompt_detected, duration_ms: duration_ms },
+                       raw_output: raw_output, prompt_detected: prompt_detected,
+                       duration_ms: duration_ms }.merge(limit_data),
                      exit_code: exit_code || 0)
     rescue *PTY_ALLOCATION_ERRORS => e
       Result.failure("PTY allocation failed at runtime: #{e.class} - #{e.message}. Platform/sandbox may restrict it.")
@@ -73,6 +85,27 @@ module Rune
 
     def pty_unavailable_result
       Result.failure("PTY unavailable: pty stdlib failed to load (#{PTY_LOAD_ERROR&.message}).")
+    end
+
+    # Bounds clean_output/raw_output when --max-output or --tail was requested. Both fields are
+    # bounded to the same budget independently, but the reported omitted_bytes/omitted_lines count
+    # reflects clean_output only (the primary agent-facing field) — raw_output still includes ANSI
+    # codes and cursor movements, so its own omitted count is not necessarily identical and isn't
+    # separately surfaced. Returns [clean_output, raw_output, extra_data] where extra_data is {}
+    # (no new keys at all) unless one of the options is set — the result data shape is
+    # byte-for-byte unchanged by default.
+    def apply_output_limit(clean_output, raw_output)
+      if max_output_bytes
+        clean_output, omitted = OutputLimiter.truncate_middle(clean_output, max_output_bytes)
+        raw_output, = OutputLimiter.truncate_middle(raw_output, max_output_bytes)
+        [clean_output, raw_output, { truncated: omitted.positive?, omitted_bytes: omitted }]
+      elsif tail_lines
+        clean_output, omitted = OutputLimiter.tail_lines(clean_output, tail_lines)
+        raw_output, = OutputLimiter.tail_lines(raw_output, tail_lines)
+        [clean_output, raw_output, { truncated: omitted.positive?, omitted_lines: omitted }]
+      else
+        [clean_output, raw_output, {}]
+      end
     end
 
     def execute_pty
