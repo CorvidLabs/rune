@@ -54,8 +54,13 @@ jobs:
   # neither depends on the other, so gating one on the other only adds latency:
   # measured on this repo the matrix takes ~66s and Spec Sync ~87s, so running
   # them in sequence costs ~2m40s for a result available in ~90s side by side.
-  # Spec Sync is also the slower of the two and re-runs the same lint/test lane
-  # internally, so "fail fast on the cheap check first" does not apply here.
+  # Spec Sync is also the slower of the two today and re-runs the same
+  # lint/test lane internally, so "fail fast on the cheap check first" does not
+  # apply — putting it first would cost the same ~2m40s.
+  #
+  # Revisit when spec-sync 6 lands: it is expected to be the *fast* check, at
+  # which point the fail-fast ordering does pay off and this should become the
+  # first job with the matrix gated behind it.
   spec-sync:
     name: Spec Sync
     runs-on: ubuntu-latest
