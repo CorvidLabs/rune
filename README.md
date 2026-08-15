@@ -226,6 +226,13 @@ check the directory you are in and `RUNE_HOME`:
 rune session list --all-projects
 ```
 
+**Finding one thing in a long transcript.** A day's work with a driven agent reached 379KB, and
+neither `--since` nor `--tail` helps when what you want is in the middle:
+
+```sh
+rune session read --name reviewer --grep 'THE BOARD' --context 2
+```
+
 📖 Full guide, including settle tuning and the known limitations:
 **[docs/sessions.md](docs/sessions.md)**.
 

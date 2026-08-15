@@ -118,7 +118,12 @@ generous because agents are slow, so a mistaken call costs two minutes.
 
 ### The other fields on a reply
 
-- `settled: true` — the child went quiet for the settle window. The normal success.
+- `settled: true` — the child went quiet for the settle window. The normal success, but quiet has
+  three causes and this cannot tell them apart: the turn finished, the child is waiting on a human,
+  or **the child backgrounded a long command and stopped printing**. That third case is the one that
+  bites: a caller polling for the disappearance of a busy marker read a frame without it and
+  concluded the work was done, 260 seconds before it was. If you are deciding on the *absence* of
+  something, `settled` is not enough evidence on its own.
 - `timed_out: true` — `--timeout-ms` was reached first. A result, not a failure.
 - `matched: true` — `--wait-for-regex` matched.
 - `child_exited: true` — the child ended while the send was in flight.
@@ -127,11 +132,34 @@ generous because agents are slow, so a mistaken call costs two minutes.
   the previous question.
 - `regex_timed_out: true` — the `--wait-for-regex` pattern exceeded its match budget and was
   abandoned. Almost always a catastrophically backtracking pattern; simplify it.
-- `dropped_bytes` — earlier output was rotated away before this read.
+- `dropped_bytes` — a count of earlier output rotated away before this read. It does **not**
+  invalidate a `--since` cursor: cursors stay absolute, so one from before the rotation returns
+  everything still held rather than an error.
+
+### Finding something in a long transcript
+
+`--since` and `--tail` do not help when what you want is in the middle. A day's work with a driven
+agent reached 379KB.
+
+```console
+$ rune session read --name grok --grep 'THE BOARD' --context 2
+```
+
+It matches the *cleaned* text rather than the raw stream, because a full-screen agent's repaint
+frames split words across escape sequences — a pattern you can plainly see on screen will not match
+the bytes. The reply carries `grep_matches`, and an unparseable pattern comes back as `grep_error`
+rather than an exception.
 
 ### `prompt_detected` is advisory only
 
-Every `send`/`read` result carries `prompt_detected`, but **do not gate on it**. rune's prompt
+Every `send`/`read` result carries `prompt_detected`, but **do not gate on it**, and know which way it fails.
+
+Measured against real output: it is `false` for plain text, `false` for a bare `$ `, **`false` for
+`Do you want to proceed?`**, and `true` for `❯ `. So for grok it is `true` on essentially every read,
+because grok's composer always ends in `❯` — one caller saw it `true` 8 times out of 8 and concluded
+it discriminated nothing. It does discriminate; it is simply detecting *prompt-shaped last lines*,
+which is not the same question as "is this waiting for me". Note the third case above: it is `false`
+for exactly the permission dialog you would most want it to catch. Look at the screen for that. rune's prompt
 patterns match shell-shaped prompts (`user@host:~$`, `[y/N]`, `Password:`) and are deliberately
 conservative. Agent REPLs mostly look like none of those, so for exactly the CLIs you want to drive
 it is usually `false`. Waiting for a prompt would hang against most real targets — that's why

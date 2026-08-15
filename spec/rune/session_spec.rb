@@ -864,6 +864,64 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'searching a transcript' do
+    # `--since` and `--tail` do not help when what you want is in the middle. A
+    # day's work with a driven agent reached 379KB, and pulling it into a
+    # caller's context to find one line is what this avoids.
+    def chatty_child
+      ['ruby', '-e', <<~CHILD]
+        STDOUT.sync = true
+        while (line = STDIN.gets)
+          puts 'before-' + line.strip
+          puts 'THE BOARD: alpha beta'
+          puts 'after-' + line.strip
+        end
+      CHILD
+    end
+
+    def seeded(name, turns: 2)
+      start_session(name, chatty_child)
+      turns.times { |i| session('send', "--name=#{name}", '--settle-ms=300', '--timeout-ms=15000', '--', "t#{i}") }
+    end
+
+    it 'keeps only matching lines and counts them' do
+      seeded('gr1')
+
+      result = session('read', '--name=gr1', '--grep=THE BOARD')
+
+      expect(result.data[:grep_matches]).to eq(2)
+      expect(result.data[:output].lines.map(&:strip).uniq).to eq(['THE BOARD: alpha beta'])
+    end
+
+    it 'includes surrounding lines with --context' do
+      seeded('gr2', turns: 1)
+
+      result = session('read', '--name=gr2', '--grep=THE BOARD', '--context=1')
+
+      expect(result.data[:output]).to include('before-t0')
+      expect(result.data[:output]).to include('after-t0')
+    end
+
+    # A full-screen agent's repaint frames split words across escape sequences,
+    # so matching the raw stream would miss patterns that are plainly on screen.
+    it 'matches the cleaned text rather than the repaint stream' do
+      painter = 'STDOUT.sync = true; print("\e[1mFOUND\e[0m-IT\r\n")'
+      start_session('gr3', ['ruby', '-e', painter])
+      wait_until(reason: 'output') { session('read', '--name=gr3').data[:output].include?('IT') }
+
+      expect(session('read', '--name=gr3', '--grep=FOUND-IT').data[:grep_matches]).to eq(1)
+    end
+
+    it 'reports an unparseable pattern instead of raising' do
+      seeded('gr4', turns: 1)
+
+      result = session('read', '--name=gr4', '--grep=(')
+
+      expect(result).to be_success
+      expect(result.data[:grep_error]).to include('invalid --grep pattern')
+    end
+  end
+
   describe 'how an attachment reports the way it ended' do
     # Reported from real use against a grok session: rune printed both
     # "detached; the session is still running" and "Session ended while
