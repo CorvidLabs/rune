@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 45,
-  "id": "CHG-0045-record-what-running-many-sessions-at-once-costs-measured-across-24-and-60-concu",
+  "sequence": 46,
+  "id": "CHG-0046-rotate-a-session-transcript-without-reading-it-seek-to-the-cut-and-copy-the-tai",
   "acknowledged_collisions": []
 }

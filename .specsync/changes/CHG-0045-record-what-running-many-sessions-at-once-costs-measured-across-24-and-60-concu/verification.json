@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786819426,
-  "commit": "67222d94b486f2318658402340da04c598ea1199",
+  "timestamp": 1786826283,
+  "commit": "b89daa34de393815c5adbbbdf239bc732a51bb90",
   "contract_digest": "cf1ca8a276ab0828695f8b148d3d41d8767dde72b669273e38e87321553ca9cc",
-  "workspace_digest": "26f1b7f997acda8875c6ccf0b02b37c79f0e77c3e6f7568e9dd5f6a528ac75bf",
-  "acceptance_input_digest": "a47e4782d60f12964068595dcbfb9bfe44673ffa11e56f22dcd11434494559ed",
+  "workspace_digest": "bb64b36b7b76dd7e64c9cf92a6726132898305368185dc9c7e93b57520610223",
+  "acceptance_input_digest": "c61458499c88f7a6a0d287fdbe5bbef7c243c1504e213a45440f634294d5adb2",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -41,8 +41,8 @@
         "path": "specs/session/session.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "b1488a46585e7d542d36b6ee0ff4a4d017b1076473313ed6c9cde0d88a62ff14",
-        "entry_digest": "4e916f987a0f988dd6969e2ce572eae2de9fefb22cdeb20fe13c147041bcc9bb",
+        "payload_digest": "53202435c2944da199da6c807edd01295b964e86c9cf56a8209220482d6a192a",
+        "entry_digest": "f0ce39b401a0665ba3afeed254ffaffaf63be01a21651483d7727c9b247b2e78",
         "owners": [
           "session"
         ]
