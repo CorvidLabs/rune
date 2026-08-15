@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 30,
-  "id": "CHG-0030-close-the-deferred-session-limitations-non-blocking-writes-so-a-stalled-child-o",
+  "sequence": 31,
+  "id": "CHG-0031-fix-a-bytes-vs-characters-crash-in-session-echo-tracking-that-killed-real-agent",
   "acknowledged_collisions": []
 }
