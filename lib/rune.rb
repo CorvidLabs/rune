@@ -22,6 +22,7 @@ require_relative 'rune/pty_watcher'
 # Persistent named sessions
 require_relative 'rune/output_limiter'
 require_relative 'rune/session/prompt_scanner'
+require_relative 'rune/session/pending_send'
 require_relative 'rune/session/store'
 require_relative 'rune/session/client'
 require_relative 'rune/session/supervisor'

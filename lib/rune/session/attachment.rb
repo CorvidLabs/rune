@@ -32,10 +32,17 @@ module Rune
       DETACH_KEY = "\x1d"
       DETACH_HINT = 'Ctrl-] to detach (session keeps running)'
       CHUNK = 4096
+      # Says what is known rather than asserting a cause. The attachment can
+      # tell that output stopped; it cannot tell the difference between a child
+      # that exited, a supervisor that was stopped, and an attachment dropped
+      # for not keeping up, so it points at the command that can.
+      ENDED_WHILE_ATTACHED = 'The attachment ended without detaching: the session stopped sending ' \
+                             "output. Run 'rune session list' to see whether it is still running."
 
       def initialize(socket_path, input: $stdin, output: $stdout, announce: $stderr)
         @socket_path = socket_path
         @attached = false
+        @detached = false
         @resized = false
         @input = input
         @output = output
@@ -49,8 +56,8 @@ module Rune
 
         @announce&.puts("[rune session] attached — #{DETACH_HINT}")
         @attached = true
-        detached = with_resize_forwarding { with_raw_terminal { pump(socket) } }
-        return Result.failure('Session ended while attached (the child or its supervisor exited).') unless detached
+        @detached = with_resize_forwarding { with_raw_terminal { pump(socket) } }
+        return Result.failure(ENDED_WHILE_ATTACHED) unless @detached
 
         Result.success({ action: 'attach', detached: true })
       rescue Client::Unavailable => e
@@ -59,14 +66,15 @@ module Rune
         close_quietly(socket)
       end
 
-      # The closing note is deliberately unconditional: leaving the session
-      # running is the point of detaching, and a human who has just taken the
-      # wheel of an agent needs telling that it is still out there.
+      # Only when the human actually detached. Printing it whenever an
+      # attachment had been established contradicted the failure the caller was
+      # about to be shown: a session that ended underneath produced both
+      # "detached; the session is still running" and "Session ended while
+      # attached" in the same exit, one of which is always wrong. Reported from
+      # real use against a grok session.
       def close_quietly(socket)
         socket.close unless socket.nil? || socket.closed?
-        # Only after an attach actually happened. Printing it when `connect` or
-        # the handshake failed told the user a dead session was "still running".
-        @announce&.puts("\n[rune session] detached; the session is still running.") if @attached
+        @announce&.puts("\n[rune session] detached; the session is still running.") if @detached
       rescue IOError, SystemCallError
         nil
       end

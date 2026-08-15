@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 38,
-  "id": "CHG-0038-prep-0-5-0-release-bump-version-roll-up-changelog",
+  "sequence": 43,
+  "id": "CHG-0043-pin-fledge-in-ci-to-a-release-asset-instead-of-resolving-latest-on-every-job",
   "acknowledged_collisions": []
 }

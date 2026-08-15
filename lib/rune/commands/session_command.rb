@@ -588,6 +588,16 @@ module Rune
 
         meta = store.read_meta(name) || {}
         graceful_stop(name)
+        # The graceful path has to be given time to actually happen. Acking the
+        # stop only sets a flag; the supervisor tears down on its next tick, and
+        # SIGKILLing it in between meant the graceful path never once ran. The
+        # cost was not theoretical: an in-flight send's caller got "supervisor
+        # closed the connection without replying" instead of the output it had
+        # been waiting for, because `resolve_orphaned_pending` never executed —
+        # and the control socket was left on disk because `cleanup` did not
+        # either. `kill_remaining` is still called, and no-ops on a pid that has
+        # already gone.
+        await_exit(meta[:supervisor_pid])
         kill_remaining(meta)
         # SIGKILL is asynchronous, so without waiting `stop` returned while the
         # processes were still dying and the very next command saw the session
@@ -612,6 +622,15 @@ module Rune
         nil
       end
 
+      # Waits for a cooperative shutdown to complete, bounded so a wedged
+      # supervisor still gets force-killed rather than holding `stop` open.
+      def await_exit(pid)
+        return unless pid
+
+        deadline = monotonic + GRACEFUL_STOP_TIMEOUT
+        sleep 0.02 while Session::Store.alive?(pid) && monotonic < deadline
+      end
+
       def await_death(meta)
         pids = [meta[:child_pid], meta[:supervisor_pid]].compact
         deadline = monotonic + DEATH_TIMEOUT
@@ -629,8 +648,13 @@ module Rune
         kill_pid(meta[:supervisor_pid])
       end
 
+      # Not guarded on the leader being alive. A process group outlives its
+      # leader: an agent CLI whose wrapper exits while its workers keep running
+      # leaves a live group behind a dead pid, and checking the leader first
+      # skipped the kill and orphaned exactly those workers. Signalling a group
+      # with no members raises ESRCH, which the rescue already handles.
       def kill_process_group(pid)
-        return unless pid && Session::Store.alive?(pid)
+        return unless pid
 
         Process.kill('KILL', -Integer(pid))
       rescue Errno::ESRCH, Errno::EPERM, TypeError, ArgumentError

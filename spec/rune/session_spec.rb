@@ -782,8 +782,9 @@ RSpec.describe Rune::Commands::SessionCommand do
   end
 
   describe 'echo tracking with multibyte output' do
-    let(:supervisor) do
-      Rune::Session::Supervisor.new(name: 'unit', command: ['true'], store: store)
+    def pending(echo:, now: 0)
+      Rune::Session::PendingSend.new(client: nil, cursor: 0, echo: echo, now: now,
+                                     settle_ms: 800, timeout_ms: 15_000)
     end
 
     # Found by driving agy: the supervisor died reproducibly within a few turns,
@@ -791,19 +792,92 @@ RSpec.describe Rune::Commands::SessionCommand do
     # rules, so multibyte output inside the echo grace window is the norm, not
     # an edge case.
     it 'does not raise when the arriving slice is multibyte' do
-      expect { supervisor.send(:echo_still_arriving?, '⣟', 'run the command') }.not_to raise_error
+      expect { pending(echo: 'run the command').beyond_echo('⣟', now: 0) }.not_to raise_error
     end
 
-    it 'reports a multibyte slice that is not the echo as not-the-echo' do
-      expect(supervisor.send(:echo_still_arriving?, '⣟⣯⣷', 'hello')).to be false
+    it 'does not mistake a multibyte slice for a partly-arrived echo' do
+      expect(pending(echo: 'hello').beyond_echo('⣟⣯⣷', now: 0)).to eq('⣟⣯⣷')
     end
 
     # Advancing past the echo by its byte length overshoots for non-ASCII, which
     # silently ate the first characters of the reply.
     it 'strips exactly the echo when the sent text was not ASCII' do
-      supervisor.instance_variable_set(:@pending, { echo: 'héllo', sent_at: 0 })
+      expect(pending(echo: 'héllo').beyond_echo('hélloANSWER', now: 0)).to eq('ANSWER')
+    end
+  end
 
-      expect(supervisor.send(:beyond_echo, 'hélloANSWER')).to eq('ANSWER')
+  describe 'how an attachment reports the way it ended' do
+    # Reported from real use against a grok session: rune printed both
+    # "detached; the session is still running" and "Session ended while
+    # attached" in the same exit, and exited 1. One of those is always wrong.
+    # The note fired whenever an attachment had been established, rather than
+    # only when the human actually detached.
+    def attachment_after(pump_result)
+      announce = StringIO.new
+      attachment = Rune::Session::Attachment.new('/nonexistent.sock', announce: announce)
+      attachment.instance_variable_set(:@attached, true)
+      attachment.instance_variable_set(:@detached, pump_result)
+      attachment.send(:close_quietly, nil)
+      announce.string
+    end
+
+    it 'says the session is still running only when the human detached' do
+      expect(attachment_after(true)).to include('still running')
+    end
+
+    it 'says nothing about the session still running when it ended underneath' do
+      expect(attachment_after(false)).not_to include('still running')
+    end
+
+    # The attachment can tell that output stopped; it cannot tell a child that
+    # exited from a supervisor that was stopped, so it points at the command
+    # that can rather than asserting a cause.
+    it 'reports what it knows and where to look' do
+      expect(Rune::Session::Attachment::ENDED_WHILE_ATTACHED).to include('rune session list')
+      expect(Rune::Session::Attachment::ENDED_WHILE_ATTACHED).not_to include('supervisor exited')
+    end
+  end
+
+  describe 'what a long-running session costs' do
+    let(:supervisor) do
+      Rune::Session::Supervisor.new(name: 'unit', command: ['true'], store: store)
+    end
+
+    def backlog = Rune::Session::Supervisor::ATTACH_BACKLOG_BYTES
+
+    # A persistent session is the entire feature, so what the supervisor holds
+    # while one runs is not a detail. Measured before this bound existed:
+    # resident memory tracked output one-for-one — 27MB to 69MB in eighty
+    # seconds at 500KB/s — and never came down.
+    it 'holds a bounded window rather than every byte the child ever produced' do
+      12.times { supervisor.send(:append, 'x' * backlog) }
+
+      held = supervisor.instance_variable_get(:@transcript).bytesize
+      expect(held).to be <= (backlog * 2)
+      # ...while the cursor still counts everything, because clients read the
+      # full transcript from the log file, not from this process.
+      expect(supervisor.send(:transcript_bytes)).to eq(backlog * 12)
+    end
+
+    # Trimming must never outrun a send that is still waiting, however long its
+    # turn runs or however much the child prints during it.
+    it 'keeps everything an in-flight send has produced, past the backlog bound' do
+      supervisor.send(:append, 'earlier output')
+      cursor = supervisor.send(:transcript_bytes)
+      supervisor.instance_variable_set(
+        :@pending,
+        Rune::Session::PendingSend.new(client: nil, cursor: cursor, echo: '', now: 0,
+                                       settle_ms: 800, timeout_ms: 15_000)
+      )
+      6.times { supervisor.send(:append, 'y' * backlog) }
+
+      expect(supervisor.send(:slice_from, cursor).bytesize).to eq(backlog * 6)
+    end
+
+    it 'still replays only the backlog to an attaching terminal' do
+      4.times { supervisor.send(:append, 'z' * backlog) }
+
+      expect(supervisor.send(:recent_transcript).bytesize).to eq(backlog)
     end
   end
 

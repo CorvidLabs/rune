@@ -7,6 +7,7 @@ require 'io/wait'
 require 'shellwords'
 require_relative 'store'
 require_relative 'prompt_scanner'
+require_relative 'pending_send'
 require_relative '../utf8_stream_decoder'
 
 # IO#winsize= comes from this stdlib extension. Rescued on LoadError the same
@@ -52,11 +53,6 @@ module Rune
       CHILD_ENV = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }.freeze
       DEFAULT_ROWS = 40
       DEFAULT_COLUMNS = 120
-      # How long after a send a prefix-of-the-input may still be assumed to be
-      # the pty's own echo. A cooked-mode echo is produced by the kernel line
-      # discipline as we write, so it lands in single-digit milliseconds; this
-      # is deliberately generous against load.
-      ECHO_GRACE_SECONDS = 0.5
       # How much of the existing transcript an attaching terminal is replayed,
       # so it lands on a populated screen rather than a blank one.
       ATTACH_BACKLOG_BYTES = 64 * 1024
@@ -92,13 +88,9 @@ module Rune
       # is written, as its own write. Long enough that the child completes a read
       # in between, short enough to be invisible next to a model round trip.
       SUBMIT_DELAY = 0.05
-      # How long one `--wait-for-regex` match may run. Generous for any sane
-      # pattern against a screenful of output, and short enough that a
-      # pathological one costs a fraction of a tick rather than the session.
-      REGEX_MATCH_TIMEOUT = 0.25
-      # Ruby 3.0 and 3.1 have no Regexp::TimeoutError; a class that is never
-      # raised keeps the rescue clause valid there without widening it.
-      REGEX_TIMEOUT_ERROR = defined?(Regexp::TimeoutError) ? Regexp::TimeoutError : Class.new(StandardError)
+      # Hard cap on a whole send, when the caller does not set one.
+      DEFAULT_TIMEOUT_MS = 120_000
+      UNDELIVERED_INPUT_ERROR = 'previous input is still being delivered to the child'
       # Recorded as the session's exit code when the supervisor itself died
       # rather than the child. 70 is sysexits' EX_SOFTWARE: an internal fault,
       # distinct from any status the child could have returned.
@@ -112,7 +104,16 @@ module Rune
         @name = name
         @command = Array(command).map(&:to_s)
         @store = store
+        # A *window* onto the output, not all of it. Cursors stay absolute byte
+        # offsets into the whole stream — `read` serves them client-side from
+        # output.ndjson — so the supervisor only has to hold what it still uses:
+        # the attach backlog and whatever the current send has produced.
+        # Measured before this bound existed: resident memory tracked output
+        # one-for-one, 27MB to 69MB in eighty seconds at 500KB/s, and never came
+        # down. A persistent session is the entire feature, so unbounded growth
+        # in the process that provides it is not a theoretical problem.
         @transcript = +''
+        @window_start = 0
         @decoder = UTF8StreamDecoder.new
         @pending = nil
         @clients = []
@@ -137,8 +138,13 @@ module Rune
         reader, writer, pid = PTY.spawn(CHILD_ENV, *@command)
         @child_pid = pid
         @writer = writer
-        apply_window_size(writer)
+        # Recorded before anything else that could fail. A supervisor that dies
+        # between the spawn and this write leaves a child nothing knows about:
+        # `abandon` reads meta, finds no child_pid, and kills only the
+        # supervisor. The window cannot be closed entirely — the pid does not
+        # exist until spawn returns — but it should contain nothing but this.
         record_running(pid)
+        apply_window_size(writer)
         log_event('start', command: Shellwords.join(@command), pid: pid)
         event_loop(server, reader, writer)
       rescue Errno::ENOENT, Errno::EACCES => e
@@ -254,7 +260,7 @@ module Rune
       # supervisor holds @pending for the whole --timeout-ms and refuses every
       # later send with "a send is already in flight" — so one cancelled call
       # locks the session for two minutes at the default timeout.
-      def pending_client = @pending ? [@pending[:client]] : []
+      def pending_client = @pending ? [@pending.client] : []
 
       def discard_disconnected_pending(client)
         return unless client_gone?(client)
@@ -379,6 +385,7 @@ module Rune
         return if text.nil? || text.empty?
 
         @transcript << text
+        trim_transcript
         @last_output_at = monotonic
         log_event('output', bytes: text.bytesize, text: text)
         broadcast(text)
@@ -400,7 +407,7 @@ module Rune
         # Queued, not written: `puts`/`flush` here were the last blocking writes
         # left on the event-loop thread. The outbox is one ordered buffer per
         # peer, so the ack still precedes the backlog replay below.
-        enqueue(client, "#{JSON.generate(attached: true, cursor: @transcript.bytesize)}\n")
+        enqueue(client, "#{JSON.generate(attached: true, cursor: transcript_bytes)}\n")
         # The attaching terminal's real dimensions, so a full-screen agent
         # started headless at the default size reflows to the human's window
         # instead of rendering 40x120 inside it.
@@ -434,6 +441,31 @@ module Rune
         Process.kill('WINCH', @child_pid) if @child_pid && !@child_finished
       rescue TypeError, ArgumentError, IOError, SystemCallError, NoMethodError
         nil
+      end
+
+      # Total bytes the child has ever produced. Cursors are offsets into that,
+      # not into the window this process happens to still be holding.
+      def transcript_bytes = @window_start + @transcript.bytesize
+
+      # Everything from an absolute cursor onwards, as far as the window reaches.
+      def slice_from(cursor)
+        offset = cursor - @window_start
+        return @transcript.dup if offset.negative?
+
+        @transcript.byteslice(offset..).to_s
+      end
+
+      # Drops what nothing still needs: output older than the attach backlog and
+      # older than any in-flight send's cursor. Never trims past a live cursor,
+      # so a settle still returns everything that send produced however long the
+      # turn ran.
+      def trim_transcript
+        floor = transcript_bytes - ATTACH_BACKLOG_BYTES
+        floor = [floor, @pending.cursor].min if @pending
+        return if floor <= @window_start
+
+        @transcript = @transcript.byteslice((floor - @window_start)..).to_s
+        @window_start = floor
       end
 
       # Replayed on attach so the terminal shows the session's current screen
@@ -503,6 +535,10 @@ module Rune
       def handle_send(request, client, writer)
         return respond(client, error: 'a send is already in flight on this session') if @pending
         return respond(client, error: 'session child has exited') if @child_finished
+        # A --no-wait send sets no @pending, so a second send can arrive while
+        # the first is still draining into a backpressured pty. Accepting it
+        # would force the previous terminator out alongside undelivered text.
+        return respond(client, error: UNDELIVERED_INPUT_ERROR) if undelivered_input?
 
         begin
           echo = write_to_child(writer, request)
@@ -545,7 +581,11 @@ module Rune
       # submitted, as did writing the text in small pieces).
       def write_to_child(writer, request)
         # Ordering beats delay if two sends are in flight: an outstanding
-        # terminator goes out now rather than after this text.
+        # terminator goes out now rather than after this text. Only reachable
+        # once the previous text has drained — `handle_send` refuses otherwise,
+        # because appending the terminator to still-queued text puts both in one
+        # write and one read, which is the coalescing the delay exists to
+        # prevent, reintroduced by the guard meant to preserve ordering.
         flush_submit
         text = request[:text].to_s
         enqueue(writer, text)
@@ -574,6 +614,10 @@ module Rune
 
       def pending_text? = @outbox.key?(@writer) && !@outbox[@writer].empty?
 
+      # A previous send whose text has not finished going out, and whose
+      # terminator is therefore still owed.
+      def undelivered_input? = !@submit_at.nil? && pending_text?
+
       def flush_submit
         return if @submit_at.nil?
 
@@ -586,159 +630,22 @@ module Rune
       # trailing output would be misattributed to this request.
       def begin_pending(request, client, echo)
         settle_ms = positive_int(request[:settle_ms], DEFAULT_SETTLE_MS)
-        timeout_ms = positive_int(request[:timeout_ms], 120_000)
-        @pending = {
-          client: client,
-          cursor: @transcript.bytesize,
-          settle_ms: settle_ms,
-          regex: compile_regex(request[:wait_for_regex]),
-          deadline: monotonic + (timeout_ms / 1000.0),
-          echo: echo,
-          # The child was still talking when this send landed, so what follows
-          # may be the tail of the previous turn rather than a reply to this
-          # one. Measured against a real agent CLI, that is the characteristic
-          # failure: not a truncated answer but the previous answer, whole and
-          # well-formed, which a caller cannot tell from a correct one. It is
-          # reported rather than prevented — waiting for quiet before writing
-          # would need another deferred state in this loop.
-          busy_at_send: child_still_talking?(settle_ms),
-          sent_at: monotonic,
-          saw_output: false
-        }
+        @pending = PendingSend.new(
+          client: client, cursor: transcript_bytes, echo: echo, now: monotonic,
+          settle_ms: settle_ms, timeout_ms: positive_int(request[:timeout_ms], DEFAULT_TIMEOUT_MS),
+          regex: PendingSend.compile_regex(request[:wait_for_regex]),
+          busy_at_send: child_still_talking?(settle_ms)
+        )
       end
-
-      # Bounded, because the match runs on the only thread. A pattern that
-      # backtracks catastrophically blocks inside `match?`, which means the loop
-      # cannot pump the pty, cannot answer `stop`, and — the part that makes it
-      # worse than slow — cannot even check the send's own `--timeout-ms`.
-      # Reproduced with `--wait-for-regex='(a+)+\1$'` against 60 a's: the send
-      # was still blocked long after its 8s deadline. Ruby memoizes most
-      # textbook cases since 3.2, but that optimization is off for patterns
-      # using backreferences, which is exactly the shape that got through.
-      def compile_regex(source)
-        return nil if source.nil? || source.empty?
-        return Regexp.new(source) unless supports_regex_timeout?
-
-        Regexp.new(source, timeout: REGEX_MATCH_TIMEOUT)
-      rescue RegexpError
-        nil
-      end
-
-      # Ruby 3.2 added per-Regexp timeouts, and `Regexp#timeout` with them. rune
-      # still supports 3.0, where the only defence is the documented limitation
-      # — and where passing an unknown keyword would be silently taken as the
-      # options argument rather than rejected, so this is a capability check
-      # rather than a rescue.
-      def supports_regex_timeout? = Regexp.method_defined?(:timeout)
 
       def resolve_pending
         return unless @pending
 
-        slice = @transcript.byteslice(@pending[:cursor]..) || ''
-        @pending[:saw_output] = true unless beyond_echo(slice).strip.empty?
-        outcome = pending_outcome(slice)
+        slice = slice_from(@pending.cursor)
+        @pending.observe(slice)
+        outcome = @pending.outcome(slice, now: monotonic, child_finished: @child_finished,
+                                          submitted: @submit_at.nil?, last_output_at: @last_output_at)
         settle_pending(slice, **outcome) if outcome
-      end
-
-      # Ordered by precedence: an explicit regex match beats the clock, the
-      # hard cap beats a settle that has not happened yet, and a child that
-      # exited ends the wait whatever the settle window says.
-      def pending_outcome(slice)
-        # Against the post-echo text, not the raw slice. Matching the raw slice
-        # meant `--wait-for-regex MARKER` on `echo MARKER` returned the instant
-        # the pty echoed the command back — handing the caller its own words as
-        # the "answer" before the child had produced any. Waiting for a marker
-        # you just asked an agent to print is the normal case, so the documented
-        # deterministic escape hatch was the least reliable path in practice.
-        matched = regex_matched?(slice)
-        return { settled: false, regex_timed_out: true } if matched.nil?
-        return { settled: true, matched: true } if matched
-        return { settled: false, timed_out: true } if monotonic >= @pending[:deadline]
-        return { settled: true, child_exited: true } if @child_finished
-        return { settled: true } if quiet_enough?
-
-        nil
-      end
-
-      # True on a match, false on none, nil when the pattern exceeded its match
-      # budget. Giving up on the pattern is the only sane answer: retrying it
-      # next tick would spend the budget again on a slice that only grows, so
-      # the send would burn the loop until its deadline instead of answering.
-      def regex_matched?(slice)
-        regex = @pending[:regex]
-        return false unless regex
-
-        regex.match?(beyond_echo(slice))
-      rescue REGEX_TIMEOUT_ERROR
-        nil
-      end
-
-      # A pty in cooked mode echoes whatever we write straight back, so the
-      # first thing to arrive after a send is our own input, not a response.
-      # Counting that as "the child started answering" is the difference
-      # between working and subtly broken: an agent CLI that echoes the prompt
-      # and then thinks for several seconds would settle on the echo alone and
-      # return the caller its own words back. Only output beyond the echo
-      # starts the settle clock.
-      #
-      # Compared with \r removed because the terminal rewrites \n as \r\n. The
-      # echo is still included in the returned output — dropping data silently
-      # would be worse than a little noise the caller can see and slice off.
-      def beyond_echo(slice)
-        normalized = slice.delete("\r")
-        echo = @pending[:echo].to_s.delete("\r")
-        return normalized if echo.empty?
-
-        # Located, not prefix-matched. The cursor is taken the instant we write,
-        # so bytes the child was already emitting (the tail of its previous
-        # prompt, a redraw) can land *before* the echo — which made a prefix
-        # check fail and hand the whole slice back as if it were a reply. That
-        # showed up as --wait-for-regex matching its own echoed input roughly
-        # one run in three.
-        # Characters throughout. `index` and `[]` count characters, so advancing
-        # past the echo by its *byte* length overshot for any non-ASCII input —
-        # a prompt containing a curly quote or an emoji silently ate the first
-        # bytes of the reply.
-        index = normalized.index(echo)
-        return normalized[(index + echo.length)..].to_s if index
-        # Not all there yet: treat a trailing partial echo as "still arriving",
-        # but only inside the grace window, so a genuine reply that happens to
-        # be a prefix of the input cannot stall the send indefinitely.
-        return '' if within_echo_grace? && echo_still_arriving?(normalized, echo)
-
-        normalized
-      end
-
-      # True when the tail of what has arrived is the beginning of the echo,
-      # i.e. the echo is mid-flight. Comparing the *whole* slice was wrong: a
-      # child that was still printing something else (bash's startup banner)
-      # when the send landed pushes the partial echo off the front, so the
-      # prefix test failed and a half-arrived echo counted as a reply.
-      # Characters, not bytes. `normalized[-length, length]` counts characters
-      # while the bound was counted in bytes, so any multibyte output inside the
-      # echo grace window — a spinner glyph, a box-drawing rule, which is most
-      # of what an agent TUI paints — asked for more characters than existed and
-      # got nil, and `start_with?(nil)` raised. That killed the whole supervisor
-      # and took the agent CLI with it, reproducibly, within a handful of turns.
-      def echo_still_arriving?(normalized, echo)
-        return true if normalized.strip.empty?
-
-        limit = [normalized.length, echo.length].min
-        (1..limit).any? { |length| echo.start_with?(normalized[-length, length]) }
-      end
-
-      def within_echo_grace?
-        (monotonic - @pending[:sent_at]) < ECHO_GRACE_SECONDS
-      end
-
-      # Settling additionally requires at least one chunk of non-echo output.
-      # "Never started" is a timeout, not a settle; callers who genuinely
-      # expect no reply use --no-wait.
-      def quiet_enough?
-        return false unless @pending[:saw_output]
-        return false if @last_output_at.nil?
-
-        (monotonic - @last_output_at) >= (@pending[:settle_ms] / 1000.0)
       end
 
       # True when the child produced output within the settle window that is
@@ -753,11 +660,11 @@ module Rune
       def settle_pending(slice, **flags)
         pending = @pending
         @pending = nil
-        respond(pending[:client], {
+        respond(pending.client, {
           output: slice,
-          cursor: @transcript.bytesize,
+          cursor: transcript_bytes,
           prompt_detected: PromptScanner.prompt_at_end?(slice),
-          busy_at_send: pending[:busy_at_send] || false
+          busy_at_send: pending.busy_at_send
         }.merge(flags))
       end
 
@@ -772,7 +679,7 @@ module Rune
           state: @child_finished ? 'exited' : 'running',
           child_pid: @child_pid,
           supervisor_pid: Process.pid,
-          cursor: @transcript.bytesize
+          cursor: transcript_bytes
         }
       end
 
@@ -813,10 +720,12 @@ module Rune
         return nil unless @child_pid
 
         _, status = Process.wait2(@child_pid)
-        status.exitstatus || (status.signaled? ? 128 + status.termsig : 1)
+        exit_status(status)
       rescue Errno::ECHILD
         0
       end
+
+      def exit_status(status) = status.exitstatus || (status.signaled? ? 128 + status.termsig : 1)
 
       # Each step is isolated: teardown previously shared one rescue, so a child
       # that would not die took the socket removal and the file descriptors down
@@ -865,7 +774,7 @@ module Rune
       def resolve_orphaned_pending
         return unless @pending
 
-        settle_pending(@transcript.byteslice(@pending[:cursor]..) || '', settled: false, supervisor_exited: true)
+        settle_pending(slice_from(@pending.cursor), settled: false, supervisor_exited: true)
       end
 
       # The process *group*, not just the child. PTY.spawn puts the child in its
@@ -877,7 +786,13 @@ module Rune
         return unless @child_pid
 
         kill_group(@child_pid)
-        Process.wait(@child_pid)
+        # Keeps the status it waited for. Discarding it meant `conclude` then
+        # called `reap`, whose `Process.wait2` raised ECHILD on an already-reaped
+        # child and returned a hardcoded 0 — so a session killed on `stop`
+        # recorded `exit_code: 0`, telling `list` and any inspecting tool that
+        # the child had exited cleanly.
+        _, status = Process.wait2(@child_pid)
+        @exit_code = exit_status(status)
       rescue Errno::ESRCH, Errno::ECHILD
         nil
       end

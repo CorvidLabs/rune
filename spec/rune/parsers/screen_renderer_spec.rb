@@ -77,6 +77,86 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
     end
   end
 
+  # Found by having grok review this file through rune, checked against xterm
+  # and ECMA-48. Every expectation below is what a real terminal produces.
+  describe 'escapes that move the cursor' do
+    it 'treats ESC D as index rather than printing a D' do
+      expect(described_class.render("hello\eDworld", rows: 4, columns: 20)).to eq("hello\n     world")
+    end
+
+    it 'treats ESC E as next-line rather than printing an E' do
+      expect(described_class.render("hello\eEworld", rows: 4, columns: 20)).to eq("hello\nworld")
+    end
+
+    it 'treats ESC M as reverse index, scrolling down at the top row' do
+      expect(described_class.render("\eM*", rows: 4, columns: 20)).to eq('*')
+    end
+
+    it 'restores a saved cursor, for both DECSC/DECRC and CSI s/u' do
+      expect(described_class.render("ABC\e7\r\nXXX\e8Y", rows: 4, columns: 20)).to eq("ABCY\nXXX")
+      expect(described_class.render("ABC\e[s\r\nXXX\e[uY", rows: 4, columns: 20)).to eq("ABCY\nXXX")
+    end
+
+    it 'moves the row but not the column on VPA' do
+      expect(described_class.render("hello\r\nworld\e[1dX", rows: 4, columns: 20)).to eq("helloX\nworld")
+    end
+
+    it 'treats vertical tab and form feed as motion, not as text' do
+      expect(described_class.render("a\vb", rows: 4, columns: 20)).to eq("a\n b")
+    end
+  end
+
+  # xterm defers the wrap: after the last cell the cursor stays on it, and the
+  # wrap happens when the next graphic arrives. Leaving the column one past the
+  # end put it in a state no terminal uses, which every relative move read wrong.
+  describe 'the cursor on the last column' do
+    it 'backspaces onto the last cell rather than past it' do
+      expect(described_class.render("12345678\bX", rows: 4, columns: 8)).to eq('123456X8')
+    end
+
+    it 'moves left from the last cell, not from one beyond it' do
+      expect(described_class.render("12345678\e[2DX", rows: 4, columns: 8)).to eq('12345X78')
+    end
+
+    it 'keeps the column across a line feed' do
+      expect(described_class.render("12345678\nX", rows: 4, columns: 8)).to eq("12345678\n       X")
+    end
+
+    it 'erases to end of line from the last cell, not beyond it' do
+      expect(described_class.render("12345678\e[K", rows: 4, columns: 8)).to eq('1234567')
+    end
+
+    it 'still wraps the next graphic character' do
+      expect(described_class.render('abcdef', rows: 4, columns: 3)).to eq("abc\ndef")
+    end
+  end
+
+  describe 'insert, delete and scroll' do
+    it 'deletes characters and shifts the rest left' do
+      expect(described_class.render("ABCD\e[2G\e[P", rows: 4, columns: 20)).to eq('ACD')
+    end
+
+    it 'inserts blanks and shifts the rest right' do
+      expect(described_class.render("ABCD\e[2G\e[2@", rows: 4, columns: 20)).to eq('A  BCD')
+    end
+
+    it 'erases characters in place without shifting' do
+      expect(described_class.render("ABCD\e[2G\e[2X", rows: 4, columns: 20)).to eq('A  D')
+    end
+
+    it 'scrolls the screen up' do
+      raw = "line1\r\nline2\r\nline3\e[H\e[S"
+
+      expect(described_class.render(raw, rows: 4, columns: 20)).to eq("line2\nline3")
+    end
+
+    it 'deletes a line and pulls the rest up' do
+      raw = "line1\r\nline2\r\nline3\e[1;1H\e[M"
+
+      expect(described_class.render(raw, rows: 4, columns: 20)).to eq("line2\nline3")
+    end
+  end
+
   describe 'sequences that cannot move the cursor' do
     it 'consumes colour, title and mode sequences without emitting them' do
       raw = "\e[1;32mgreen\e[0m\e]0;a title\a\e[?25l\e[?1049h"

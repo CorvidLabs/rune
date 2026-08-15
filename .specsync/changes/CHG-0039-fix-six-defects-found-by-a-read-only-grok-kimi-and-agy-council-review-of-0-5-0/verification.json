@@ -1,0 +1,136 @@
+{
+  "timestamp": 1786813460,
+  "commit": "cbdbf4f94d6654ab4e8310bdc43bf298104ff641",
+  "contract_digest": "2bebe5c845d00ea9d42700bf617050fcee9a5bfe25963c24fa2b6ac5db6a6da9",
+  "workspace_digest": "b7a1f1fac98a17a76f67cec9ef58e3496f96a6d9b4b61f143d3f2ef30313dfcf",
+  "acceptance_input_digest": "d8f6d0bc92e99be1d400433676e4d400908465a95a11b44146c153d08e5a34b3",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3acc8593190dcda79358228fec2cfa9648beaf71327b20e5c23c50e35cfbaf7a",
+        "entry_digest": "3587a9f46feced65bfe60b0d01de00464ee3324038e3a8a8b259476ef20a170c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "lib/rune/commands/session_command.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3a1313a85c478d8bfee4df9cda5fc6132c45991cb6cbe7af6080b550e89a4ecd",
+        "entry_digest": "125be837db8e54de4dd15ce55a018388f86bd5564373db22652fd50ef6895fff",
+        "owners": [
+          "session"
+        ]
+      },
+      {
+        "path": "lib/rune/parsers/screen_renderer.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "10f2a47ea04d80b41c9ca2808a23381f7fce8a4573f2c011e0c648c2d54b585c",
+        "entry_digest": "4f4600aec161058dfe264315a5e2ffc54d2c1b0e975271ed6aa74d7ca8274083",
+        "owners": [
+          "parsers"
+        ]
+      },
+      {
+        "path": "lib/rune/session/supervisor.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "06bfd98a61381b9af4c75c47d09de7a9488644be9f20e966d42886c20c90e668",
+        "entry_digest": "12ec0f90005f07753c9f0f44b5b0a982b5dd23adb7f061cbbb75b83f7a06b3c0",
+        "owners": [
+          "session"
+        ]
+      },
+      {
+        "path": "spec/rune/parsers/screen_renderer_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4b82be8d20bd34bab6bb6abc22e20d514f04085de27353119b2a463e10426870",
+        "entry_digest": "99b45b621db8228a1bd33e4f1a11433b8f03254344bbae28892ffd70f6edc6fd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/rune/session_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1b0339b87a7bf5a6cc45c9316fbf1d6d4341921c90cb796d32dea1f247ba8c06",
+        "entry_digest": "812153aec92f8a955989e4b7ef9ce21534e79c4426819cd47d78e887d490da12",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/parsers/parsers.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "780a80054de0b3a6b94be1a495415bc8bf347bbe098c78069fab75ad7ddc5e99",
+        "entry_digest": "078482b7b269abf6c644948640a34adf2d80f4ceee408d2f28f8b3c4eb1cd407",
+        "owners": [
+          "parsers"
+        ]
+      },
+      {
+        "path": "specs/parsers/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d10eb208af6fa95b43af778fd5797b4e4586ffe9a58dc01f2ceaf31cf916fd5d",
+        "entry_digest": "8f365ed356648d581f18ff8f893fe741368eb763fa4556cec9243466b877810a",
+        "owners": [
+          "parsers"
+        ]
+      },
+      {
+        "path": "specs/session/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+        "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+        "owners": [
+          "session"
+        ]
+      },
+      {
+        "path": "specs/session/session.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fa289da3aa4446017a42e4b1c1a9176140033499fcb57576ad33283a169c3e93",
+        "entry_digest": "604e7b9adcbf27ce19e811cd4e65e3b8ef55bb66ce84ebfe2f4da00153ec1ac4",
+        "owners": [
+          "session"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}
