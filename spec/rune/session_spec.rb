@@ -807,6 +807,71 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'submitting a line to a raw-mode child' do
+    # Reports each read as its own chunk, so the test can see whether the
+    # terminator arrived in the same read as the text. Raw mode is the point: a
+    # cooked tty would not deliver anything until the line was complete, which
+    # is exactly why this bug only affected raw-mode agent TUIs.
+    # Reports the *shape* of each read rather than echoing its bytes: writing a
+    # carriage return back out would move the cursor and make the transcript
+    # unreadable, which is what the first version of this test did.
+    def chunk_reporting_child
+      script = <<~CHILD
+        require 'io/console'
+        STDOUT.sync = true
+        STDIN.raw!
+        print 'RAW-READY'
+        loop do
+          chunk = STDIN.readpartial(4096)
+          print "[len=" + chunk.bytesize.to_s + ",cr=" + chunk.count("\\r").to_s + "]"
+        end
+      CHILD
+      ['ruby', '-e', script]
+    end
+
+    # Sending before the child has switched its tty to raw mode measures the
+    # line discipline instead: cooked mode holds the text until a terminator
+    # arrives and then delivers both as one line, which looks exactly like the
+    # bug. Real callers have the same race, which is why the docs say to wait
+    # for the callee to be listening.
+    def start_raw_child(name)
+      start_session(name, chunk_reporting_child)
+      wait_until(reason: 'the child to enter raw mode') do
+        session('read', "--name=#{name}").data[:output].include?('RAW-READY')
+      end
+    end
+
+    # Agent TUIs treat a large chunk arriving in one read as a paste, and a
+    # carriage return inside a paste is a newline in the composer rather than
+    # Enter. Measured against Claude Code, every input of ~64 characters or more
+    # was typed and never sent while rune reported a clean settle — and an agent
+    # prompt is almost always longer than that. 61 chars submitted, 82 did not;
+    # after the fix all of 61..262 submit, on claude, grok and agy alike.
+    it 'writes the terminator as a read separate from the text' do
+      start_raw_child('sub1')
+
+      session('send', '--name=sub1', '--settle-ms=400', '--timeout-ms=15000',
+              '--', 'a prompt long enough that a TUI would call it a paste')
+      reported = session('read', '--name=sub1').data[:output].scan(/\[len=(\d+),cr=(\d+)\]/)
+      chunks = reported.map { |length, returns| { length: length.to_i, returns: returns.to_i } }
+
+      # The carriage return arrives as a read of its own...
+      expect(chunks).to include({ length: 1, returns: 1 })
+      # ...and never in the same read as the text, which is what a TUI mistakes
+      # for a pasted newline.
+      expect(chunks.select { |chunk| chunk[:returns].positive? }.map { |chunk| chunk[:length] }).to all(eq(1))
+    end
+
+    it 'still sends nothing extra with --no-newline' do
+      start_raw_child('sub2')
+
+      session('send', '--name=sub2', '--no-wait', '--no-newline', '--', 'bare')
+      wait_until(reason: 'the text to arrive') { session('read', '--name=sub2').data[:output].include?('[len=4') }
+
+      expect(session('read', '--name=sub2').data[:output]).not_to include('cr=1')
+    end
+  end
+
   describe 'a --wait-for-regex that backtracks catastrophically' do
     # Matching runs on the supervisor's only thread, so a pattern that
     # backtracks blocks the loop: it cannot pump the pty, cannot answer `stop`,

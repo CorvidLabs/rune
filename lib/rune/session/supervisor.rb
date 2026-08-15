@@ -81,6 +81,10 @@ module Rune
       # to the caller, which is worse than a timeout. 6000 ms bought nothing over
       # 3000 ms and cost 2.5s per call.
       DEFAULT_SETTLE_MS = 3000
+      # How long after writing a send's text the terminating carriage return
+      # is written, as its own write. Long enough that the child completes a read
+      # in between, short enough to be invisible next to a model round trip.
+      SUBMIT_DELAY = 0.05
       # How long one `--wait-for-regex` match may run. Generous for any sane
       # pattern against a screenful of output, and short enough that a
       # pathological one costs a fraction of a tick rather than the session.
@@ -114,6 +118,7 @@ module Rune
         @accepted_at = {}
         @close_after_drain = []
         @stopping = false
+        @submit_at = nil
         @exit_code = nil
         @finished = false
       end
@@ -201,6 +206,7 @@ module Rune
             dispatch_ready(ready, server, reader, writer)
             drain_outbox(ready[1])
           end
+          deliver_submit
           resolve_pending
           reap_idle_clients
           break if @child_finished && @pending.nil?
@@ -520,11 +526,43 @@ module Rune
       # discipline translates \r to \n on input (ICRNL), so \r is the terminator
       # that works for both. Found by driving a real agent, whose prompt sat
       # unsent in its composer while rune reported a clean settle.
+      # The terminator is a *separate* write, deliberately delayed.
+      #
+      # Agent TUIs treat a large chunk arriving in one read as a paste, and a
+      # carriage return inside a paste is a newline in the composer rather than
+      # Enter. Writing text and terminator together therefore typed the prompt
+      # and never sent it: measured against Claude Code, every input of about 64
+      # characters or more sat unsubmitted while rune reported a clean settle —
+      # and an agent prompt is almost always longer than that. Splitting the
+      # write fixes it (verified 61 chars submitted, 82 did not; separate write
+      # submitted, as did writing the text in small pieces).
       def write_to_child(writer, request)
+        # Ordering beats delay if two sends are in flight: an outstanding
+        # terminator goes out now rather than after this text.
+        flush_submit
         text = request[:text].to_s
-        text += "\r" unless request[:no_newline]
         enqueue(writer, text)
+        schedule_submit unless request[:no_newline]
         text
+      end
+
+      def schedule_submit = @submit_at = monotonic + SUBMIT_DELAY
+
+      # Once the delay has passed *and* the text has fully drained, so the child
+      # cannot receive both in a single read.
+      def deliver_submit
+        return if @submit_at.nil? || monotonic < @submit_at
+        return if @writer.nil? || @child_finished
+        return if @outbox.key?(@writer) && !@outbox[@writer].empty?
+
+        flush_submit
+      end
+
+      def flush_submit
+        return if @submit_at.nil?
+
+        @submit_at = nil
+        enqueue(@writer, "\r") if @writer && !@child_finished
       end
 
       # The cursor is taken here, before waiting, so the reply contains only

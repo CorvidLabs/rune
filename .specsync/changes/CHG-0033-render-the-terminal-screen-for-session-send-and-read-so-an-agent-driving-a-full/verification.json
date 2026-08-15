@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786770280,
-  "commit": "e73c3d5d3a69214c2e862dc97686e2a018a8df9e",
+  "timestamp": 1786775106,
+  "commit": "9fcf83cfeb4f28ace4dfeacbae29b4afc20e72b7",
   "contract_digest": "70625bde50c28b8b062b1ffe59b776b9bccd7cc9ce7984709c06b6667eaf464b",
-  "workspace_digest": "d0712992341cf8ec7aeb54326aced93fda77a08f51469bbd176e1112929d5d59",
-  "acceptance_input_digest": "ee1a1f774d83b1b277a6eb2083839314ca96db88a289b25e6905a95cf1abb66b",
+  "workspace_digest": "d9968924901ba89f2a561021a87b0e07d0a37bde8d7f712563c24ec4982f8c2a",
+  "acceptance_input_digest": "03eb938f7a198e311007047d763b2a8071e503789b966d85f4a78ff25a4ac4ad",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -61,8 +61,8 @@
         "path": "spec/rune/session_spec.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "3f977f619b198c0e3ed3d556374149bb5773d690de24a223a38082b157ec2205",
-        "entry_digest": "417d6ad9c99b07bf0d0ec6b54d778e2f40b53803e1de9e71ad7692d29e75f7f2",
+        "payload_digest": "703f5d00f8bcb900c4cc2c4459492fb6ebbdba0e917fafb36207c21b141e350a",
+        "entry_digest": "590d750e03ae8dc0f00306374e217496243aeba5fb4713e52fafc984b6c1d163",
         "owners": [
           "@exact:delivery"
         ]
@@ -121,8 +121,8 @@
         "path": "specs/session/session.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "139447a70370ec547be967f3444f1f0eb21e4b5a3c55a1322378937201e453f6",
-        "entry_digest": "2b0e7d97251336bda417965f06f018f299fb97dd91c57f9d820675191b450ab4",
+        "payload_digest": "2ff9608550ad830f4d4c15e60114387f3157c9e9e05bd09f560f1c5e7b54d0a7",
+        "entry_digest": "766e89657a61c80b1d26dca2d3b8316fbbcd44f4c67600a246c3f498e001ccb8",
         "owners": [
           "session"
         ]

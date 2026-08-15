@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 34,
-  "id": "CHG-0034-bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot",
+  "sequence": 35,
+  "id": "CHG-0035-write-a-send-s-terminating-carriage-return-as-a-separate-delayed-write-so-an-ag",
   "acknowledged_collisions": []
 }
