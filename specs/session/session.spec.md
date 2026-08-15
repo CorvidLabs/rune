@@ -217,14 +217,10 @@ deciding who talks to whom stays the calling agent's job.
 | `running_conflict` | internal method | Returns a failure when the name already has a live supervisor. |
 | `launch` | internal method | Creates session state, spawns the supervisor, and waits for readiness. |
 | `spawn_supervisor` | internal method | Re-invokes rune's executable as the detached supervisor for one session. |
-| `serialized_launch` | internal method | Runs the conflict check and launch together under the start lock. |
-| `terminal_size` | internal method | The local terminal's dimensions, when it has any. |
-| `forward_resize` | internal method | Sends the current terminal size to the session over a fresh connection. |
-| `forward_pending_resize` | internal method | Forwards a pending SIGWINCH from the poll loop rather than the trap. |
-| `with_resize_forwarding` | internal method | Installs and restores the SIGWINCH trap around an attachment. |
 
-> Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base` and
-> `socket_live?` are intentionally absent from the table above. They exist and are exercised by
+> Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base`, `socket_live?`,
+> `serialized_launch`, `terminal_size`, `forward_resize`, `forward_pending_resize` and
+> `with_resize_forwarding` are intentionally absent from the table above. They exist and are exercised by
 > the suite, but SpecSync's Ruby extractor does not surface them from their position in the class
 > body (rune#20 / spec-sync#479), and documenting an export it cannot see fails the contract check.
 > This matches the existing convention in `pty_runner`'s spec for the same upstream bug.
