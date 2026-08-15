@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786812291,
+  "timestamp": 1786811901,
   "commit": "932b3f628d81cffe48901eb619b0af33189f36e9",
-  "contract_digest": "018e82d75dca942218594243db8f4e3ed66873f194289a008c03a1243b184575",
-  "workspace_digest": "bbe6eeed4d87d67b049a75a635dae8c6870be4dadc1cd2d4bfbdab718eb3c41d",
-  "acceptance_input_digest": "64e03ddf18a42107a8da0acfd682c376c518993baac7c8887c7264e46d721131",
+  "contract_digest": "c88408b5cf176f86e902fb32ae1a8df113b517d850d7916b66497e3323f5aa84",
+  "workspace_digest": "da043450c5e65ebf368987a5bed243e3c68faab895506c39e84ea76901aeab4c",
+  "acceptance_input_digest": "16a46339c5e107398622c714a11de5c30a0fa6ee5a3112a1654453a256bb0a85",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,30 +11,10 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "6a24b12ce229901ac88bb2bbf2f6684441e5c8ba5a918e2fc58e7b0150d35dd7",
-        "entry_digest": "23f199e56e40c47b9a31f1cedf9ca988cefa6789f2a452272bed971d35d4a9f6",
+        "payload_digest": "f2239d63ea4ed504cfb6737287276df722ab82c5d33fa54d348545ce0d759788",
+        "entry_digest": "eed1bf14728b8f4818550ff96ba6720de82293d4c1786ae4f4de713efb450710",
         "owners": [
           "@exact:delivery"
-        ]
-      },
-      {
-        "path": "lib/rune.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "6d97b1e4caeb0c48a300cb80e30db1746619b5af0ad7e3ea4e3e8d0df372636c",
-        "entry_digest": "f94835fc432d15dd27ffb5fefcdb4af79dec9e0043d1387a77a83e562f3dbad6",
-        "owners": [
-          "cli"
-        ]
-      },
-      {
-        "path": "lib/rune/session/pending_send.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "9f64111b691e05df1dabd9235975e74a753bc3b363758e71b2636cd083f51e1f",
-        "entry_digest": "b438061d1ffd8a1aab77a1fae7dba0a59030ce83674ed796bc68d79130a5c1fe",
-        "owners": [
-          "session"
         ]
       },
       {
@@ -55,26 +35,6 @@
         "entry_digest": "d3c8257bc5f3bc6eddf31789cca3bfc92543635a65ce33bc75bd3c35246761a7",
         "owners": [
           "@exact:delivery"
-        ]
-      },
-      {
-        "path": "specs/cli/cli.spec.md",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "804be3db0112c28be26616a0c9ad59b9a2e3ec2a79f02d8ac50af9fd8cfb510f",
-        "entry_digest": "e0fb1f190a53a3475278d78c81c1f5c574b3e295ac4e630ce8c4c11a8f7b3523",
-        "owners": [
-          "cli"
-        ]
-      },
-      {
-        "path": "specs/cli/requirements.md",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
-        "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
-        "owners": [
-          "cli"
         ]
       },
       {

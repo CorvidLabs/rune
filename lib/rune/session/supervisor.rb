@@ -104,7 +104,16 @@ module Rune
         @name = name
         @command = Array(command).map(&:to_s)
         @store = store
+        # A *window* onto the output, not all of it. Cursors stay absolute byte
+        # offsets into the whole stream — `read` serves them client-side from
+        # output.ndjson — so the supervisor only has to hold what it still uses:
+        # the attach backlog and whatever the current send has produced.
+        # Measured before this bound existed: resident memory tracked output
+        # one-for-one, 27MB to 69MB in eighty seconds at 500KB/s, and never came
+        # down. A persistent session is the entire feature, so unbounded growth
+        # in the process that provides it is not a theoretical problem.
         @transcript = +''
+        @window_start = 0
         @decoder = UTF8StreamDecoder.new
         @pending = nil
         @clients = []
@@ -376,6 +385,7 @@ module Rune
         return if text.nil? || text.empty?
 
         @transcript << text
+        trim_transcript
         @last_output_at = monotonic
         log_event('output', bytes: text.bytesize, text: text)
         broadcast(text)
@@ -397,7 +407,7 @@ module Rune
         # Queued, not written: `puts`/`flush` here were the last blocking writes
         # left on the event-loop thread. The outbox is one ordered buffer per
         # peer, so the ack still precedes the backlog replay below.
-        enqueue(client, "#{JSON.generate(attached: true, cursor: @transcript.bytesize)}\n")
+        enqueue(client, "#{JSON.generate(attached: true, cursor: transcript_bytes)}\n")
         # The attaching terminal's real dimensions, so a full-screen agent
         # started headless at the default size reflows to the human's window
         # instead of rendering 40x120 inside it.
@@ -431,6 +441,31 @@ module Rune
         Process.kill('WINCH', @child_pid) if @child_pid && !@child_finished
       rescue TypeError, ArgumentError, IOError, SystemCallError, NoMethodError
         nil
+      end
+
+      # Total bytes the child has ever produced. Cursors are offsets into that,
+      # not into the window this process happens to still be holding.
+      def transcript_bytes = @window_start + @transcript.bytesize
+
+      # Everything from an absolute cursor onwards, as far as the window reaches.
+      def slice_from(cursor)
+        offset = cursor - @window_start
+        return @transcript.dup if offset.negative?
+
+        @transcript.byteslice(offset..).to_s
+      end
+
+      # Drops what nothing still needs: output older than the attach backlog and
+      # older than any in-flight send's cursor. Never trims past a live cursor,
+      # so a settle still returns everything that send produced however long the
+      # turn ran.
+      def trim_transcript
+        floor = transcript_bytes - ATTACH_BACKLOG_BYTES
+        floor = [floor, @pending.cursor].min if @pending
+        return if floor <= @window_start
+
+        @transcript = @transcript.byteslice((floor - @window_start)..).to_s
+        @window_start = floor
       end
 
       # Replayed on attach so the terminal shows the session's current screen
@@ -596,7 +631,7 @@ module Rune
       def begin_pending(request, client, echo)
         settle_ms = positive_int(request[:settle_ms], DEFAULT_SETTLE_MS)
         @pending = PendingSend.new(
-          client: client, cursor: @transcript.bytesize, echo: echo, now: monotonic,
+          client: client, cursor: transcript_bytes, echo: echo, now: monotonic,
           settle_ms: settle_ms, timeout_ms: positive_int(request[:timeout_ms], DEFAULT_TIMEOUT_MS),
           regex: PendingSend.compile_regex(request[:wait_for_regex]),
           busy_at_send: child_still_talking?(settle_ms)
@@ -606,7 +641,7 @@ module Rune
       def resolve_pending
         return unless @pending
 
-        slice = @transcript.byteslice(@pending.cursor..) || ''
+        slice = slice_from(@pending.cursor)
         @pending.observe(slice)
         outcome = @pending.outcome(slice, now: monotonic, child_finished: @child_finished,
                                           submitted: @submit_at.nil?, last_output_at: @last_output_at)
@@ -627,7 +662,7 @@ module Rune
         @pending = nil
         respond(pending.client, {
           output: slice,
-          cursor: @transcript.bytesize,
+          cursor: transcript_bytes,
           prompt_detected: PromptScanner.prompt_at_end?(slice),
           busy_at_send: pending.busy_at_send
         }.merge(flags))
@@ -644,7 +679,7 @@ module Rune
           state: @child_finished ? 'exited' : 'running',
           child_pid: @child_pid,
           supervisor_pid: Process.pid,
-          cursor: @transcript.bytesize
+          cursor: transcript_bytes
         }
       end
 
@@ -739,7 +774,7 @@ module Rune
       def resolve_orphaned_pending
         return unless @pending
 
-        settle_pending(@transcript.byteslice(@pending.cursor..) || '', settled: false, supervisor_exited: true)
+        settle_pending(slice_from(@pending.cursor), settled: false, supervisor_exited: true)
       end
 
       # The process *group*, not just the child. PTY.spawn puts the child in its

@@ -806,6 +806,49 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'what a long-running session costs' do
+    let(:supervisor) do
+      Rune::Session::Supervisor.new(name: 'unit', command: ['true'], store: store)
+    end
+
+    def backlog = Rune::Session::Supervisor::ATTACH_BACKLOG_BYTES
+
+    # A persistent session is the entire feature, so what the supervisor holds
+    # while one runs is not a detail. Measured before this bound existed:
+    # resident memory tracked output one-for-one — 27MB to 69MB in eighty
+    # seconds at 500KB/s — and never came down.
+    it 'holds a bounded window rather than every byte the child ever produced' do
+      12.times { supervisor.send(:append, 'x' * backlog) }
+
+      held = supervisor.instance_variable_get(:@transcript).bytesize
+      expect(held).to be <= (backlog * 2)
+      # ...while the cursor still counts everything, because clients read the
+      # full transcript from the log file, not from this process.
+      expect(supervisor.send(:transcript_bytes)).to eq(backlog * 12)
+    end
+
+    # Trimming must never outrun a send that is still waiting, however long its
+    # turn runs or however much the child prints during it.
+    it 'keeps everything an in-flight send has produced, past the backlog bound' do
+      supervisor.send(:append, 'earlier output')
+      cursor = supervisor.send(:transcript_bytes)
+      supervisor.instance_variable_set(
+        :@pending,
+        Rune::Session::PendingSend.new(client: nil, cursor: cursor, echo: '', now: 0,
+                                       settle_ms: 800, timeout_ms: 15_000)
+      )
+      6.times { supervisor.send(:append, 'y' * backlog) }
+
+      expect(supervisor.send(:slice_from, cursor).bytesize).to eq(backlog * 6)
+    end
+
+    it 'still replays only the backlog to an attaching terminal' do
+      4.times { supervisor.send(:append, 'z' * backlog) }
+
+      expect(supervisor.send(:recent_transcript).bytesize).to eq(backlog)
+    end
+  end
+
   describe 'submitting a line to a raw-mode child' do
     # Reports each read as its own chunk, so the test can see whether the
     # terminator arrived in the same read as the text. Raw mode is the point: a

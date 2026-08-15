@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 40,
-  "id": "CHG-0040-extract-the-pending-send-settle-machine-out-of-the-supervisor-into-its-own-class",
+  "sequence": 41,
+  "id": "CHG-0041-bound-the-supervisor-s-in-memory-transcript-to-a-window-so-a-persistent-session",
   "acknowledged_collisions": []
 }
