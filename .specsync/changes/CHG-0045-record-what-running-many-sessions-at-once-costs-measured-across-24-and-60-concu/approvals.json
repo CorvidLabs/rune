@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786819334,
+      "digest": "cf1ca8a276ab0828695f8b148d3d41d8767dde72b669273e38e87321553ca9cc",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786819431,
+      "digest": "0b6844e1a3bd6b63981da7a84c8d91fc04a37f95f524178c8895f89f6e6347b9",
+      "note": null
+    }
+  ],
+  "reopenings": []
+}

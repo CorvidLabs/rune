@@ -20,6 +20,13 @@
       "timestamp": 1786817211,
       "digest": "591e911e812206a5b91cc48da104efec23acde592b316a64ba1f84dcbef5b0d9",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786819649,
+      "digest": "67c44ab5bd39512adaf1049fc31120a8c87d7a5990179391f6d8793adf397a27",
+      "note": null
     }
   ],
   "reopenings": [
@@ -126,6 +133,110 @@
       },
       "stale_acceptance_input_digest": "850eb02eb7fff0f8ec5abcc7615a66232e2126dd479e1954f3ab165397ee14f7",
       "current_acceptance_input_digest": "48e4b5db1b6947400417e562c10091c41e0aab79af03244a90598080480a1e02"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0042-fix-an-attachment-reporting-both-that-the-session-is-still-running-and-that-it-e",
+      "actor": "agent:claude",
+      "reason": "CHG-0045 recorded the concurrency cost in specs/session/session.spec.md, a delivery input this change owns; re-verifying.",
+      "timestamp": 1786819553,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786817211,
+        "digest": "591e911e812206a5b91cc48da104efec23acde592b316a64ba1f84dcbef5b0d9",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786817205,
+        "commit": "20179ed9ab0f05489c58449a1881dc565cc01ad4",
+        "contract_digest": "89aeaba9e1eb037c8097d23d7f60407322a137c92b46415ed2dd977bcd82045d",
+        "workspace_digest": "2135c7e4a2f6f68b460da15764380c112fd471ba70cd07deb27e2c8cf704a1c3",
+        "acceptance_input_digest": "48e4b5db1b6947400417e562c10091c41e0aab79af03244a90598080480a1e02",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8ab93a501bcbbcd91f26cd654fa065644293ed5b219aee398f89406c77c8c784",
+              "entry_digest": "0c739354e3221ad7525cdf921bf73de9d60da7f99285838090f57f09c2ca3c26",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/session/attachment.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "e3e54a95c2e44b165f0eb80c9a8a2f312e72ec2802ac6e1b693ffe6ba8cdafff",
+              "entry_digest": "0900cda074a0cfe4c1447f0434a231c4165325beb33c610b36b7ddb8921ab853",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "92bc01a52b06648535d936af8b166be2fff978025d25ce5cdc9007144a0d03e5",
+              "entry_digest": "45f2319d276249a53d30c7214cc1a14489b2b22ee8f01d0cc13e348c8dd34c96",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8cc3a993b61b40bfa763911a2068b91645971b71bb5651d5520dca39bdbb97b2",
+              "entry_digest": "9b40e58b711eaec3fbf8018bc148f9dad7237cab8453f2e8bdf4ad77f055c2c1",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "48e4b5db1b6947400417e562c10091c41e0aab79af03244a90598080480a1e02",
+      "current_acceptance_input_digest": "f3119058133366ec44d1f76d27175b8a57abd2d67c9541b43c42d5b8f722092e"
     }
   ]
 }

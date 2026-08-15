@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 44,
-  "id": "CHG-0044-bound-a-session-transcript-on-disk-as-well-as-in-memory-rotating-it-while-keepi",
+  "sequence": 45,
+  "id": "CHG-0045-record-what-running-many-sessions-at-once-costs-measured-across-24-and-60-concu",
   "acknowledged_collisions": []
 }

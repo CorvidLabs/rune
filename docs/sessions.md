@@ -215,6 +215,28 @@ $RUNE_HOME/projects/<project>/
 
 Set `RUNE_HOME` to keep sessions isolated (tests, sandboxes, parallel work).
 
+## What running many at once costs
+
+One session is one supervisor process, and that isolation is deliberate: a wedged agent takes down
+its own session and nothing else. The price is a Ruby interpreter per session, and it is worth
+knowing before you fan out.
+
+Measured, with idle children:
+
+| sessions | resident memory | descriptors |
+|----------|-----------------|-------------|
+| 24 | 543 MB | 648 |
+| 60 | 1361 MB | 1620 |
+
+That is **~23 MB and 27 descriptors per session**, flat — the same at 60 as at 24, and unchanged
+across rounds of sends. So the cost is predictable and linear rather than surprising, but it is
+front-loaded: sixty agents cost well over a gigabyte before any of them has done anything.
+
+Concurrency itself held up under the same test: 60 simultaneous starts all succeeded, every send
+reached the session it was addressed to, `list` agreed with reality, and nothing was left running
+afterwards. Thirty simultaneous `start` calls *without* `--name` for the same tool produced thirty
+distinct codenames and no collisions.
+
 ## Scope
 
 rune is a session **broker**, not a message bus. It holds sessions and addresses them by name;
