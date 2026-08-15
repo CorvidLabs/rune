@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 47,
-  "id": "CHG-0047-prep-0-6-0-release-bump-version-roll-up-changelog",
+  "sequence": 48,
+  "id": "CHG-0048-add-read-grep-for-searching-a-long-transcript-and-correct-what-the-docs-claim",
   "acknowledged_collisions": []
 }

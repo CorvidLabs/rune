@@ -33,6 +33,10 @@ module Rune
            'send/read: also return the rendered terminal screen. A full-screen agent repaints, so ' \
            'the byte stream holds every frame while the screen holds only what is displayed.'
       flag '--tail=N', 'read: keep only the last N lines.'
+      flag '--grep=RE',
+           'read: keep only lines matching RE, from the rendered text rather than the repaint ' \
+           'stream. Use with --context=N for surrounding lines.'
+      flag '--context=N', 'read: lines of context to keep either side of a --grep match (default 0).'
       flag '--max-output=BYTES', 'read: bound the returned text to BYTES, keeping head and tail.'
       flag '--all-projects', 'list: include sessions from every project, not just this one.'
       flag '--archived', 'list: show archived sessions instead of live ones.'
@@ -65,6 +69,8 @@ module Rune
         timeout_ms: [/\A--timeout-ms=(.*)\z/, :positive_int],
         since: [/\A--since=(.*)\z/, :non_negative_int],
         tail_lines: [/\A--tail=(.*)\z/, :positive_int],
+        grep: [/\A--grep=(.*)\z/, :string],
+        context_lines: [/\A--context=(.*)\z/, :non_negative_int],
         max_output_bytes: [/\A--max-output=(.*)\z/, :positive_int]
       }.freeze
       BOOLEAN_FLAGS = {
@@ -477,6 +483,47 @@ module Rune
       end
 
       def bound_output(text, options)
+        text, grep_extra = grep_output(text, options)
+        bounded, extra = bound_size(text, options)
+        [bounded, grep_extra.merge(extra)]
+      end
+
+      # Finding one answer inside a long transcript otherwise means pulling most
+      # of it: a driven agent's transcript reached 379KB in a day's work, and
+      # `--since`/`--tail` do not help when what you want is in the middle.
+      #
+      # Matches against the *cleaned* text, not the raw stream, because a
+      # full-screen agent's repaint frames split words across escape sequences —
+      # a pattern that plainly appears on screen will not match the bytes.
+      def grep_output(text, options)
+        return [text, {}] unless options[:grep]
+
+        pattern = compile_grep(options[:grep])
+        return [text, { grep_error: "invalid --grep pattern: #{options[:grep]}" }] unless pattern
+
+        lines = Parsers::TextSanitizer.strip_ansi(text).lines
+        wanted = matching_lines(lines, pattern, options[:context_lines].to_i)
+        [wanted.map { |index| lines[index] }.join,
+         { grep: options[:grep], grep_matches: lines.count { |line| pattern.match?(line) } }]
+      end
+
+      # Line indexes to keep: every match plus its context, deduplicated and in
+      # order, so overlapping context windows do not repeat lines.
+      def matching_lines(lines, pattern, context)
+        matches = lines.each_index.select { |index| pattern.match?(lines[index]) }
+        windows = matches.flat_map do |index|
+          ([index - context, 0].max..[index + context, lines.size - 1].min).to_a
+        end
+        windows.uniq.sort
+      end
+
+      def compile_grep(source)
+        Regexp.new(source)
+      rescue RegexpError
+        nil
+      end
+
+      def bound_size(text, options)
         if options[:max_output_bytes]
           bounded, omitted = OutputLimiter.truncate_middle(text, options[:max_output_bytes])
           return [bounded, omitted.positive? ? { truncated: true, omitted_bytes: omitted } : {}]
