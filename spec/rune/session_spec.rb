@@ -807,6 +807,186 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'submitting a line to a raw-mode child' do
+    # Reports each read as its own chunk, so the test can see whether the
+    # terminator arrived in the same read as the text. Raw mode is the point: a
+    # cooked tty would not deliver anything until the line was complete, which
+    # is exactly why this bug only affected raw-mode agent TUIs.
+    # Reports the *shape* of each read rather than echoing its bytes: writing a
+    # carriage return back out would move the cursor and make the transcript
+    # unreadable, which is what the first version of this test did.
+    def chunk_reporting_child
+      script = <<~CHILD
+        require 'io/console'
+        STDOUT.sync = true
+        STDIN.raw!
+        print 'RAW-READY'
+        loop do
+          chunk = STDIN.readpartial(4096)
+          print "[len=" + chunk.bytesize.to_s + ",cr=" + chunk.count("\\r").to_s + "]"
+        end
+      CHILD
+      ['ruby', '-e', script]
+    end
+
+    # Sending before the child has switched its tty to raw mode measures the
+    # line discipline instead: cooked mode holds the text until a terminator
+    # arrives and then delivers both as one line, which looks exactly like the
+    # bug. Real callers have the same race, which is why the docs say to wait
+    # for the callee to be listening.
+    def start_raw_child(name)
+      start_session(name, chunk_reporting_child)
+      wait_until(reason: 'the child to enter raw mode') do
+        session('read', "--name=#{name}").data[:output].include?('RAW-READY')
+      end
+    end
+
+    # Agent TUIs treat a large chunk arriving in one read as a paste, and a
+    # carriage return inside a paste is a newline in the composer rather than
+    # Enter. Measured against Claude Code, every input of ~64 characters or more
+    # was typed and never sent while rune reported a clean settle — and an agent
+    # prompt is almost always longer than that. 61 chars submitted, 82 did not;
+    # after the fix all of 61..262 submit, on claude, grok and agy alike.
+    it 'writes the terminator as a read separate from the text' do
+      start_raw_child('sub1')
+
+      session('send', '--name=sub1', '--settle-ms=400', '--timeout-ms=15000',
+              '--', 'a prompt long enough that a TUI would call it a paste')
+      reported = session('read', '--name=sub1').data[:output].scan(/\[len=(\d+),cr=(\d+)\]/)
+      chunks = reported.map { |length, returns| { length: length.to_i, returns: returns.to_i } }
+
+      # The carriage return arrives as a read of its own...
+      expect(chunks).to include({ length: 1, returns: 1 })
+      # ...and never in the same read as the text, which is what a TUI mistakes
+      # for a pasted newline.
+      expect(chunks.select { |chunk| chunk[:returns].positive? }.map { |chunk| chunk[:length] }).to all(eq(1))
+    end
+
+    # Backpressure would otherwise defeat the delay entirely: `drain_outbox` and
+    # `deliver_submit` run in the same tick, so a deadline already in the past
+    # fires microseconds after the text tail drains and lands in the child's
+    # same read. The deadline has to be measured from the last text byte going
+    # out, not from when the send arrived. Found by having claude review this
+    # path through rune.
+    it 'restarts the terminator delay while the text is still queued' do
+      supervisor = Rune::Session::Supervisor.new(name: 'unit', command: ['true'], store: store)
+      reader, writer = IO.pipe
+      supervisor.instance_variable_set(:@writer, writer)
+      supervisor.instance_variable_get(:@outbox)[writer] << 'not yet drained'
+      # Already due, and would fire the instant the queue empties.
+      supervisor.instance_variable_set(:@submit_at, supervisor.send(:monotonic) - 1)
+
+      supervisor.send(:deliver_submit)
+
+      expect(supervisor.instance_variable_get(:@submit_at)).to be > supervisor.send(:monotonic)
+      expect(supervisor.instance_variable_get(:@outbox)[writer]).to eq('not yet drained')
+      [reader, writer].each { |io| io.close unless io.closed? }
+    end
+
+    it 'still sends nothing extra with --no-newline' do
+      start_raw_child('sub2')
+
+      session('send', '--name=sub2', '--no-wait', '--no-newline', '--', 'bare')
+      wait_until(reason: 'the text to arrive') { session('read', '--name=sub2').data[:output].include?('[len=4') }
+
+      expect(session('read', '--name=sub2').data[:output]).not_to include('cr=1')
+    end
+  end
+
+  describe 'a --wait-for-regex that backtracks catastrophically' do
+    # Matching runs on the supervisor's only thread, so a pattern that
+    # backtracks blocks the loop: it cannot pump the pty, cannot answer `stop`,
+    # and cannot even check the send's own --timeout-ms. Reproduced against a
+    # child emitting 60 a's, where the send was still blocked long after its 8s
+    # deadline. Ruby memoizes most textbook cases since 3.2, but not patterns
+    # using backreferences — which is the shape that got through.
+    let(:babbling_child) do
+      ['ruby', '-e', 'STDOUT.sync = true; while (line = STDIN.gets); puts("a" * 60 + "b"); end']
+    end
+
+    # Ruby 3.0 and 3.1 have no per-Regexp timeout, so there is nothing to assert
+    # there beyond the documented limitation.
+    before { skip 'Regexp timeouts need Ruby 3.2+' unless Regexp.method_defined?(:timeout) }
+
+    it 'abandons the pattern and answers, rather than wedging the loop past its own deadline' do
+      start_session('redos1', babbling_child)
+
+      started = monotonic
+      result = session('send', '--name=redos1', '--wait-for-regex=(a+)+\1$',
+                       '--settle-ms=500', '--timeout-ms=8000', '--', 'go')
+
+      expect(result.data[:regex_timed_out]).to be true
+      expect(monotonic - started).to be < 8
+    end
+
+    it 'leaves the session usable afterwards' do
+      start_session('redos2', babbling_child)
+      session('send', '--name=redos2', '--wait-for-regex=(a+)+\1$',
+              '--settle-ms=500', '--timeout-ms=8000', '--', 'go')
+
+      result = session('send', '--name=redos2', '--settle-ms=500', '--timeout-ms=15000', '--', 'again')
+
+      expect(result.data[:settled]).to be true
+    end
+  end
+
+  describe 'read --screen' do
+    # A child shaped like a full-screen agent: it repaints a status line many
+    # times, then leaves an answer. The byte stream holds every frame; the
+    # screen holds what the terminal is actually showing.
+    def repainting_child
+      script = <<~CHILD
+        STDOUT.sync = true
+        while (line = STDIN.gets)
+          10.times { |i| print "\\rthinking \#{i}s   " }
+          print "\\r\\e[KANSWER:" + line.strip + "\\r\\n"
+        end
+      CHILD
+      ['ruby', '-e', script]
+    end
+
+    it 'returns the rendered terminal alongside the byte stream' do
+      start_session('scr1', repainting_child)
+      session('send', '--name=scr1', '--settle-ms=400', '--timeout-ms=15000', '--', 'ping')
+
+      result = session('read', '--name=scr1', '--screen')
+
+      expect(result).to be_success
+      expect(result.data[:screen]).to include('ANSWER:ping')
+      # Every repaint frame survives in the stripped byte stream; only the last
+      # one is on screen. That difference is the entire reason this exists.
+      expect(result.data[:clean_output].scan('thinking').length).to be > 5
+      expect(result.data[:screen].scan('thinking').length).to eq(0)
+    end
+
+    it 'omits the screen unless asked, so the default result shape is unchanged' do
+      start_session('scr2', repainting_child)
+
+      expect(session('read', '--name=scr2').data).not_to have_key(:screen)
+    end
+
+    # The primary case: one agent driving another wants the answer, and asking
+    # for it in the same call is the difference between the fix being usable and
+    # being a footnote.
+    it 'returns the settled screen from send itself' do
+      start_session('scr3', repainting_child)
+
+      result = session('send', '--name=scr3', '--screen', '--settle-ms=400',
+                       '--timeout-ms=15000', '--', 'pong')
+
+      expect(result.data[:screen]).to include('ANSWER:pong')
+      expect(result.data[:screen].scan('thinking').length).to eq(0)
+    end
+
+    it 'omits the screen from send unless asked' do
+      start_session('scr4', repainting_child)
+
+      result = session('send', '--name=scr4', '--settle-ms=400', '--timeout-ms=15000', '--', 'quiet')
+
+      expect(result.data).not_to have_key(:screen)
+    end
+  end
+
   describe 'a send that lands while the child is still talking' do
     # The characteristic failure measured against a real agent CLI is not a
     # truncated answer: it is the *previous* turn's answer, whole and

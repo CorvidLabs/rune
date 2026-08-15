@@ -1,41 +1,6 @@
----
-module: session
-version: 10
-status: active
-files:
-  - lib/rune/session/store.rb
-  - lib/rune/session/supervisor.rb
-  - lib/rune/session/client.rb
-  - lib/rune/session/attachment.rb
-  - lib/rune/session/prompt_scanner.rb
-  - lib/rune/commands/session_command.rb
----
-# Sessions (`rune session`)
+## MODIFIED
 
-## Purpose
-
-Persistent, named PTY sessions that outlive a single `rune` invocation, so one agent CLI can drive
-another conversationally instead of one-shot.
-
-`PTYRunner` buffers a command's entire output and returns once; `PTYWatcher` streams live but
-hard-refuses to run without a real human TTY on stdin. Neither can hold a REPL-shaped child open
-across separate `rune` calls, so an agent had no way to "start `codex`, send a prompt, wait for the
-answer, send a follow-up." This module adds that as a third execution model alongside the two
-existing ones, rather than a mode bolted onto either.
-
-Two primitives: a **session broker** (the child outlives the invocation) and **send-and-settle**
-(send input, block until the child goes quiet, return exactly the output that send produced —
-turning an async TTY into a synchronous request/response call).
-
-`attach` is the human-facing half of the same idea: a named session is something you can come back
-to yourself, take the wheel of interactively, and then leave running exactly where it was. Unlike
-`rune watch`, which owns the child it spawns and ends when that child ends, detaching from a
-session changes nothing about the child.
-
-Deliberately a *broker*, not a message bus: rune holds sessions and addresses them by name, while
-deciding who talks to whom stays the calling agent's job.
-
-## Public API
+### SPEC SECTION Public API
 
 | Name | Type | Description |
 |------|------|-------------|
@@ -81,7 +46,6 @@ deciding who talks to whom stays the calling agent's job.
 | `schedule_submit` | internal method | Records when the terminating carriage return becomes due. |
 | `deliver_submit` | internal method | Writes the terminator once its delay has passed and the text has drained. |
 | `flush_submit` | internal method | Writes any outstanding terminator immediately, preserving order against a new send. |
-| `pending_text?` | internal predicate | True while a send's text is still queued for the pty master. |
 | `SUBMIT_DELAY` | constant | How long after a send's text the terminating carriage return is written. |
 | `begin_pending` | internal method | Records the send cursor, settle window, regex, deadline, and echo for an in-flight send. |
 | `resolve_pending` | internal method | Re-evaluates an in-flight send against new output once per loop tick. |
@@ -248,7 +212,8 @@ deciding who talks to whom stays the calling agent's job.
 > became visible purely because the method that followed it was deleted.
 > This matches the existing convention in `pty_runner`'s spec for the same upstream bug.
 
-## Invariants
+
+### SPEC SECTION Invariants
 
 1. A started session's child survives both the launching `rune` process exiting and the launching
    terminal closing. The supervisor calls `Process.setsid` (rescued where unsupported) and is
@@ -284,10 +249,7 @@ deciding who talks to whom stays the calling agent's job.
    a clean settle — with an agent prompt almost always longer than that. Splitting the write fixes it
    for every length tried up to 262 characters, on claude, grok and agy alike. An outstanding
    terminator is flushed immediately if another send arrives first, because ordering matters more
-   than the delay. The delay is measured from the last text byte actually going out, not from when
-   the send arrived: draining and delivery happen in the same tick, so a deadline already past would
-   fire microseconds after a backpressured write finished and land in the child's same read — the
-   exact coalescing the delay exists to prevent.
+   than the delay.
 9. `prompt_detected` is advisory metadata and **never** gates whether a call returns.
    `PromptDetector` matches shell-shaped prompts and is deliberately conservative, so it is usually
    `false` for exactly the agent REPLs this module exists to drive. Waiting for a prompt would hang
@@ -459,127 +421,3 @@ deciding who talks to whom stays the calling agent's job.
 45. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
     additive.
 
-## Behavioral Examples
-
-- `rune session start -- grok` returns immediately with a generated name such as `grok-amber`;
-  `--name reviewer` picks one explicitly.
-- `rune session list` shows only this project's sessions, each with idle time and the last line it
-  printed; `--all-projects` widens it and `--archived` shows history.
-- `rune session archive --name reviewer` files a stopped session away and frees the name.
-- `rune session start --name grok -- grok` returns immediately with the session name and pid; the
-  `rune` process exits while `grok` keeps running.
-- `rune session send --name grok --settle-ms 800 "refactor auth.rb"` writes the prompt, waits for
-  grok to stop producing output for 800ms, and returns just that reply.
-- `rune session send --name s --wait-for-regex '\$ $' "ls"` returns as soon as the shell prompt
-  reappears, without waiting out the settle window.
-- `rune session send --name s --no-wait "^C"` writes without waiting for any reply.
-- `rune session read --name grok --tail 50` returns the last 50 lines of transcript without
-  sending anything.
-- `rune session list` shows each session's state, distinguishing `running` from `dead`.
-- `rune session attach --name grok` drops your terminal into the running agent; Ctrl-] detaches and
-  leaves it running, so `rune session send --name grok ...` still works afterwards.
-- `rune session stop --name grok` kills and reaps the session; running it twice succeeds both times.
-- `tail -f "$RUNE_HOME/sessions/grok/output.ndjson"` follows a live session from another pane.
-
-## Error Cases
-
-| Condition | Behavior |
-|-----------|----------|
-| `--name` omitted, empty, or not matching the safe name pattern | `Result.failure` before spawning anything |
-| Duplicate `--name` for an already-running session | `Result.failure` naming the conflict; the existing session is left untouched |
-| Operating on an unknown session name | `Result.failure` suggesting `rune session list` |
-| `send` against a session whose supervisor is gone | `Result.failure` reporting it is not running, with the recorded state and exit code |
-| Control socket missing or unconnectable | `Result.failure` reporting the session is unreachable; `list` reports `dead`; `stop` still cleans up |
-| A second `send` while one is already in flight | `Result.failure`; the in-flight send is unaffected |
-| `pty` stdlib unavailable | `Result.failure`, same check and message class as `PTYRunner.pty_available?` |
-| `--settle-ms`/`--timeout-ms`/`--tail`/`--max-output` not a positive integer | `Result.failure` before spawning anything |
-| `--wait-for-regex` is not a valid regular expression | `Result.failure` before sending anything |
-| `--timeout-ms` elapses before settling | Succeeds with the captured output, `settled: false`, `timed_out: true` |
-| Wrapped command missing/non-executable | Session records exit code 127/126, same convention as `rune run` |
-| `attach` with a non-TTY stdin | `Result.failure` pointing at `send`/`read` for non-interactive access |
-| `attach` to a session that is not running | `Result.failure`, same check as `send` |
-
-## Known Limitations
-
-- **A single line of 1024 bytes or more is silently discarded by a cooked-mode child's terminal.**
-  This is `MAX_CANON`, a tty limit rather than a rune bound: the line discipline cannot assemble a
-  longer canonical line, so it drops it and the child never sees it. Measured exactly — 1023 bytes
-  arrive, 1024 do not, with no error anywhere. Raw-mode children (which is most full-screen agent
-  CLIs) are unaffected: 300KB arrives byte-perfect. This matters because an agent prompt easily
-  exceeds 1KB and nothing reports the loss. Send such input to a cooked-mode child in chunks, or
-  drive a raw-mode target.
-- **On Ruby 3.0 and 3.1 a `--wait-for-regex` pattern can still wedge a session.** Per-`Regexp`
-  timeouts arrived in 3.2; below that there is no way to bound a single match, so a catastrophically
-  backtracking pattern blocks the supervisor's only thread with no recovery but `stop`. Ruby 3.2 and
-  later also memoize most textbook cases, but that optimization is disabled for patterns using
-  backreferences, which is why the bound matters even there.
-- **`stop` signals the pids recorded in `meta.json`.** If a supervisor was SIGKILLed and the kernel
-  has since recycled its pid, `stop` could signal an unrelated process. Narrow, but real.
-- **Settle is a heuristic, but it is a better one than 0.4.0 claimed.** That release recorded the
-  reply being the answer to the question actually asked in only 5/9 turns at 800 ms, and raised the
-  default to 3000 on that basis. The measurement was wrong twice over, and both faults were in the
-  harness rather than in settle: prompts over ~64 characters were never submitted to Claude Code at
-  all, and grok's answers were scored missing because the probe searched the byte stream, where
-  repaints had split them. Re-measured with both fixed and detection moved to the rendered screen,
-  the reply was correct in **27/27 claude turns and 18/18 grok turns, at every window including
-  800 ms**. The longer window bought nothing and cost up to double the latency per call, so the
-  default is 800 again. A send issued while the child was still producing output is still reported
-  as `busy_at_send: true`, and `--wait-for-regex` on a *completion* marker remains the deterministic
-  answer — but the "previous turn's answer" failure that motivated both was an artifact, and has not
-  been observed since.
-  What the evidence does not cover: two agents and 45 turns, both driving TUIs whose spinner runs for
-  the whole turn, which is what makes byte silence mean "finished". A callee that goes quiet mid-turn
-  for longer than the window still truncates.
-- **A continuously animating child never settles.** Agents whose spinner runs for the whole turn
-  (grok) are the easy case — byte silence genuinely means the turn ended. A child that animates while
-  *idle*, or a long-running `top`-style command, never goes quiet and the send waits out
-  `--timeout-ms` instead.
-- **A settled reply is a byte stream, not a rendered screen — pass `--screen` when that matters.**
-  A full-screen agent's answer is interleaved with its own redraws, so a 13-character reply arrives
-  inside ~12 KB of repaints with the answer split across them; searching that reply for a string the
-  agent plainly displayed fails. Measured against grok over three turns, the answer was absent from
-  the byte stream 3/3 times and present in the rendered screen 3/3 times, which is why `--screen`
-  exists. It is opt-in rather than the default because rendering is only correct for a child that
-  actually paints a screen: for a cooked-mode shell the byte stream already is the answer, and the
-  transcript remains the record of what happened rather than what is displayed.
-- **`start` returns when the *supervisor* is ready, not when the child is.** An agent CLI takes
-  seconds to boot, and input sent before it is listening is simply lost (or echoed by the
-  still-cooked tty). Callers should wait for a readiness marker — via `read`, or a first `send`
-  with `--wait-for-regex` — before driving a freshly started session.
-- **Full-screen TUI agents produce redraw-heavy transcripts.** Driving one generates large volumes
-  of ANSI repaint output; bound reads rather than pulling a whole transcript.
-- **`read --tail` is close to useless against a TUI agent, and `--max-output` is the right tool
-  there.** `--tail` counts newlines, and a full-screen agent's repaint stream is mostly escape
-  sequences and carriage returns with very few newlines — `--tail 6` against a real agent returned
-  effectively the entire 338KB transcript. This is inherent to line-counting, not a bug in the
-  bound.
-- **`clean_output` strips terminal control sequences but not terminal *semantics*.** With
-  `TextSanitizer` widened (see the `parsers` change log) the escape codes are gone, but a
-  full-screen agent's output is still a stream of repaints: the same line reappears many times and
-  cursor-positioning is simply removed rather than replayed. It is readable, not a rendered screen.
-  Reconstructing an actual screen would need a terminal emulator, which is out of scope.
-- **`PromptScanner` duplicates the four-line last-line rule** that `PTYRunner#prompt_detected_in?`
-  also implements. The honest shared home is `Parsers::PromptDetector`; extraction is deferred
-  rather than done here so this change does not also rewrite the parsers contract.
-- The in-memory transcript a supervisor keeps for cursor framing grows with session length.
-
-## Dependencies
-
-- Ruby stdlib: `pty`, `socket` (Unix domain control channel — new to rune with this module),
-  `io/console` (required with a `LoadError` rescue, same as `pty_watcher.rb`, for `IO#winsize=`),
-  `io/wait`, `json`, `fileutils`, `shellwords`, `rbconfig`
-- Internal: `UTF8StreamDecoder`, `OutputLimiter`, `Parsers::PromptDetector`,
-  `Parsers::TextSanitizer`, `Result`, `Command`
-
-## Change Log
-
-- v1: Active spec — initial `rune session` broker and send-and-settle contract
-| 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously |
-| 2026-08-14 | CHG-0029-fix-seven-session-defects-found-by-an-independent-grok-kimi-agy-review-wait-for: Fix seven session defects found by an independent grok/kimi/agy review: wait-for-regex matching the pty echo, a cancelled send locking the session, an unbounded client wait, start reporting success for a dead supervisor, teardown leaving agent workers alive, world-readable parent directories, and assorted robustness gaps |
-| 2026-08-15 | CHG-0030-close-the-deferred-session-limitations-non-blocking-writes-so-a-stalled-child-o: Close the deferred session limitations: non-blocking writes so a stalled child or attached terminal cannot wedge the supervisor, terminal-size propagation on attach and SIGWINCH, idle control-connection reaping, and a lock file that makes concurrent start of one name safe |
-| 2026-08-15 | CHG-0031-fix-a-bytes-vs-characters-crash-in-session-echo-tracking-that-killed-real-agent: Fix a bytes-vs-characters crash in session echo tracking that killed real agent sessions, make a dying supervisor record why instead of leaving the session marked running, and raise the send settle default from 800ms to 3000ms on measurement |
-| 2026-08-15 | CHG-0033-render-the-terminal-screen-for-session-send-and-read-so-an-agent-driving-a-full: Render the terminal screen for session send and read, so an agent driving a full-screen agent can find the answer instead of searching every repaint frame |
-| 2026-08-15 | CHG-0034-bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot: Bound a --wait-for-regex match so a catastrophically backtracking pattern cannot wedge the supervisor past its own timeout |
-| 2026-08-15 | CHG-0035-write-a-send-s-terminating-carriage-return-as-a-separate-delayed-write-so-an-ag: Write a send's terminating carriage return as a separate delayed write, so an agent TUI submits the prompt instead of treating it as a pasted newline |
-| 2026-08-15 | CHG-0036-restore-the-send-settle-default-to-800ms-and-correct-the-0-4-0-measurement-whic: Restore the send settle default to 800ms and correct the 0.4.0 measurement, which was confounded by unsubmitted prompts and by searching a repaint-fragmented byte stream |
-| 2026-08-15 | CHG-0037-fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune: Fix two defects found by having grok and claude review this branch through rune itself: erase-line excluded the cursor cell, and backpressure defeated the terminator delay |

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0036-restore-the-send-settle-default-to-800ms-and-correct-the-0-4-0-measurement-whic",
+  "slug": "restore-the-send-settle-default-to-800ms-and-correct-the-0-4-0-measurement-whic",
+  "title": "Restore the send settle default to 800ms and correct the 0.4.0 measurement, which was confounded by unsubmitted prompts and by searching a repaint-fragmented byte stream",
+  "description": "Restore the send settle default to 800ms and correct the 0.4.0 measurement, which was confounded by unsubmitted prompts and by searching a repaint-fragmented byte stream",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "45e5df15e718203d4e986efd2687e3ca33eac263",
+  "created_at": 1786776575,
+  "updated_at": 1786779511,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/session/supervisor.rb",
+    "lib/rune/commands/session_command.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "DEFAULT_SETTLE_MS is 800 again and the --settle-ms help text says so. The session spec records the corrected measurement, that the 0.4.0 figures were confounded by two harness faults, and what the new evidence does not cover. Re-measured with both faults fixed and detection on the rendered screen: 27/27 correct claude turns and 18/18 correct grok turns, at every window including 800ms, with the longer window costing up to double the latency per call and buying nothing. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

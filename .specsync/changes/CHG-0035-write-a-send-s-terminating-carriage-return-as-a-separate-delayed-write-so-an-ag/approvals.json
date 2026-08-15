@@ -1,0 +1,242 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786774770,
+      "digest": "b94c310a834e6b5bfcd775ae74b5802e557a1240d0021441cd0b4b53b8d54b7d",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786774865,
+      "digest": "cd69cd1ccc5a98517c8f0ca50ec1639e5b85846cf75e3f33b459724e920cdc33",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786777169,
+      "digest": "75472e3e8d280b6280bb542bb304eb441388bc2f1414dec284b336d941d60cf2",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786779411,
+      "digest": "d9f5f05c501d530b870a520059cebcd80085afd38c178ef2d53857d57086c49d",
+      "note": null
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0035-write-a-send-s-terminating-carriage-return-as-a-separate-delayed-write-so-an-ag",
+      "actor": "agent:claude",
+      "reason": "CHG-0036 restored the settle default and corrected the recorded measurement, touching delivery inputs this change owns; re-verifying its accepted evidence.",
+      "timestamp": 1786777074,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786774865,
+        "digest": "cd69cd1ccc5a98517c8f0ca50ec1639e5b85846cf75e3f33b459724e920cdc33",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786774861,
+        "commit": "9fcf83cfeb4f28ace4dfeacbae29b4afc20e72b7",
+        "contract_digest": "b94c310a834e6b5bfcd775ae74b5802e557a1240d0021441cd0b4b53b8d54b7d",
+        "workspace_digest": "01fcb0de244e6fd5694341641f29e6f962f9391697900c1ab1322b649bd879ba",
+        "acceptance_input_digest": "904d0fc0eafbfbdc73f9979263dea2388db7a69710e650fab50a27d8d3d63ebb",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0e94bc10ce373022ef9c68cfbf00537e52a35a9feeee35f2e0ee2d7721a3bd26",
+              "entry_digest": "f15f15036acc4fa3151552b0bf3dbedf3191b211e1beaeee83c99bc7ac92c1a8",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/session/supervisor.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bb6526f6f17f88573e2440004825a7a4c911a5b3348aaed1c29d9d02de268d07",
+              "entry_digest": "cd11caaab2997ce981c127cf634556d0a5262cb821385fb9ae0566c1d82cf195",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "703f5d00f8bcb900c4cc2c4459492fb6ebbdba0e917fafb36207c21b141e350a",
+              "entry_digest": "590d750e03ae8dc0f00306374e217496243aeba5fb4713e52fafc984b6c1d163",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "2ff9608550ad830f4d4c15e60114387f3157c9e9e05bd09f560f1c5e7b54d0a7",
+              "entry_digest": "766e89657a61c80b1d26dca2d3b8316fbbcd44f4c67600a246c3f498e001ccb8",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "904d0fc0eafbfbdc73f9979263dea2388db7a69710e650fab50a27d8d3d63ebb",
+      "current_acceptance_input_digest": "a5a671f2ef1fbe6a8444f9b5eb6d1ae5aab96cb3a0279947733db2cbfb4baac9"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0035-write-a-send-s-terminating-carriage-return-as-a-separate-delayed-write-so-an-ag",
+      "actor": "agent:claude",
+      "reason": "CHG-0037 fixed two defects found by dogfooding, touching delivery inputs this change owns; re-verifying its accepted evidence.",
+      "timestamp": 1786779316,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786777169,
+        "digest": "75472e3e8d280b6280bb542bb304eb441388bc2f1414dec284b336d941d60cf2",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786777164,
+        "commit": "45e5df15e718203d4e986efd2687e3ca33eac263",
+        "contract_digest": "b94c310a834e6b5bfcd775ae74b5802e557a1240d0021441cd0b4b53b8d54b7d",
+        "workspace_digest": "23633c97822e56106b02185f3e9f432d7968b18358778746de9bacd9b14f073e",
+        "acceptance_input_digest": "a5a671f2ef1fbe6a8444f9b5eb6d1ae5aab96cb3a0279947733db2cbfb4baac9",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0e94bc10ce373022ef9c68cfbf00537e52a35a9feeee35f2e0ee2d7721a3bd26",
+              "entry_digest": "f15f15036acc4fa3151552b0bf3dbedf3191b211e1beaeee83c99bc7ac92c1a8",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/session/supervisor.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bd5f93ddcd10945274a0ca9f751b353cb2554f11b04e0a9f9ab95daeafae04d2",
+              "entry_digest": "2b26414176226ea5f5ed00e7b336eb06d5ed725420dd5c0b4716d95dc958ad81",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "703f5d00f8bcb900c4cc2c4459492fb6ebbdba0e917fafb36207c21b141e350a",
+              "entry_digest": "590d750e03ae8dc0f00306374e217496243aeba5fb4713e52fafc984b6c1d163",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5e8fa3a99e16f1b174067114074d48a5f71d41dcd849bab8b03e4d0ac7bc0d03",
+              "entry_digest": "6214d0f325ef3b6977a62b0f65b827d8df49d96d21fcc0545b37995325620c8c",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "a5a671f2ef1fbe6a8444f9b5eb6d1ae5aab96cb3a0279947733db2cbfb4baac9",
+      "current_acceptance_input_digest": "001409824cd9a88dfdb7d069d9a42a0e04f69435b136804db9700cfadad71550"
+    }
+  ]
+}

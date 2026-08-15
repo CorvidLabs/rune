@@ -21,7 +21,7 @@ module Rune
       flag '--name=NAME',
            'Session name. Optional for start (an unused <tool>-<word> codename is generated); ' \
            'required by send/read/attach/stop.'
-      flag '--settle-ms=N', 'send: return once the child has been quiet for N ms (default 3000).'
+      flag '--settle-ms=N', 'send: return once the child has been quiet for N ms (default 800).'
       flag '--timeout-ms=N', 'send: hard cap on the whole wait (default 120000).'
       flag '--wait-for-regex=RE', 'send: return as soon as output matches RE, without waiting out the settle window.'
       flag '--no-wait', 'send: write the input and return immediately, without waiting for a reply.'
@@ -29,6 +29,9 @@ module Rune
            'send: do not append the trailing carriage return that submits the line (Enter is CR, ' \
            'which is what raw-mode TUIs listen for).'
       flag '--since=CURSOR', 'read: return only transcript bytes at or after this cursor.'
+      flag '--screen',
+           'send/read: also return the rendered terminal screen. A full-screen agent repaints, so ' \
+           'the byte stream holds every frame while the screen holds only what is displayed.'
       flag '--tail=N', 'read: keep only the last N lines.'
       flag '--max-output=BYTES', 'read: bound the returned text to BYTES, keeping head and tail.'
       flag '--all-projects', 'list: include sessions from every project, not just this one.'
@@ -66,7 +69,8 @@ module Rune
       }.freeze
       BOOLEAN_FLAGS = {
         '--no-wait' => :no_wait, '--no-newline' => :no_newline,
-        '--all-projects' => :all_projects, '--archived' => :archived
+        '--all-projects' => :all_projects, '--archived' => :archived,
+        '--screen' => :screen
       }.freeze
 
       # `_supervise` is deliberately absent from SUBCOMMANDS: it is how `start`
@@ -302,7 +306,7 @@ module Rune
         regex_error = validate_regex(options[:wait_for_regex])
         return Result.failure(regex_error) if regex_error
 
-        exchange(options[:name], send_payload(options, text), action: 'send')
+        exchange(options[:name], send_payload(options, text), action: 'send', screen: options[:screen])
       end
 
       def send_payload(options, text)
@@ -323,7 +327,7 @@ module Rune
         "Invalid --wait-for-regex value: #{e.message}"
       end
 
-      def exchange(name, payload, action:)
+      def exchange(name, payload, action:, screen: false)
         alive = alive_session(name)
         return alive if alive.is_a?(Result)
 
@@ -332,7 +336,9 @@ module Rune
         end
         return Result.failure("Session #{name.inspect}: #{reply[:error]}") if reply[:error]
 
-        Result.success({ action: action, name: name }.merge(with_clean_output(reply)))
+        Result.success({ action: action, name: name }
+                         .merge(with_clean_output(reply))
+                         .merge(screen_after(name, screen)))
       rescue Session::Client::Unavailable => e
         Result.failure("Session #{name.inspect} is not reachable (#{e.message}). It may have exited; " \
                        "run 'rune session list'.")
@@ -386,10 +392,38 @@ module Rune
         sliced = slice_from(transcript, options[:since])
         bounded, extra = bound_output(sliced, options)
 
-        Result.success({ action: 'read', name: options[:name], output: bounded,
-                         clean_output: Parsers::TextSanitizer.strip_ansi(bounded),
-                         cursor: transcript.bytesize,
-                         prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }.merge(extra))
+        Result.success(read_payload(options, transcript, sliced, bounded).merge(extra))
+      end
+
+      def read_payload(options, transcript, sliced, bounded)
+        { action: 'read', name: options[:name], output: bounded,
+          clean_output: Parsers::TextSanitizer.strip_ansi(bounded),
+          cursor: transcript.bytesize,
+          prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }
+          .merge(screen_field(transcript, options))
+      end
+
+      # The screen as it stands once the send has settled. Read from the
+      # transcript file in this process rather than asked of the supervisor: a
+      # long session would otherwise pay to re-render on the one thread that has
+      # to keep pumping the pty.
+      def screen_after(name, screen)
+        return {} unless screen
+
+        { screen: Parsers::ScreenRenderer.render(transcript_for(name)) }
+      end
+
+      # `--screen` answers "what is on the callee's terminal right now", which
+      # for a full-screen agent is a different question from "what bytes have
+      # arrived". It renders the whole transcript rather than the `--since`
+      # slice: a screen is the product of every escape sequence that came
+      # before, so replaying from a mid-stream cursor would show a screen the
+      # child never displayed. Rendered client-side, so a long session costs the
+      # supervisor's single thread nothing.
+      def screen_field(transcript, options)
+        return {} unless options[:screen]
+
+        { screen: Parsers::ScreenRenderer.render(transcript) }
       end
 
       # Reconstructed from the durable NDJSON transcript rather than over the

@@ -1,0 +1,353 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786769716,
+      "digest": "e933b17caae5085bb73739fed40fdf3c4106a021bf5bf0cfa223f3456d45e5a7",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786769811,
+      "digest": "618aec56936880d29b8e1a788160194adcfa8dd006c714632af334c17abbcef4",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786775214,
+      "digest": "43af4974b71aa523dbbda3cfcc3c38b0acfa4cb52530e85189cde6f44b2c6b13",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786777069,
+      "digest": "dabf2ca95b300485a771e1bb83e39ed933ec54d9fc525b3a3384312f240c8691",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786779310,
+      "digest": "e73d110b476f8b5a2f90ca64ba407dadbe383de0f4918577cccf563f1120552e",
+      "note": null
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0034-bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot",
+      "actor": "agent:claude",
+      "reason": "CHG-0035 changed the send write path and added regression tests in files this change owns; re-verifying its accepted evidence against the current tree.",
+      "timestamp": 1786775118,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786769811,
+        "digest": "618aec56936880d29b8e1a788160194adcfa8dd006c714632af334c17abbcef4",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786769806,
+        "commit": "e73c3d5d3a69214c2e862dc97686e2a018a8df9e",
+        "contract_digest": "e933b17caae5085bb73739fed40fdf3c4106a021bf5bf0cfa223f3456d45e5a7",
+        "workspace_digest": "07de3c5fbe9db25583c6ac59e57623520120fc232ee0e00a9a01f34d5ed03d1f",
+        "acceptance_input_digest": "6d776b75e3a807f9a5d88264c7783f767976ede06f45d8a6b1cf34c8c3358a65",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "afde3f8aaa9c6ad33987b834f7d3aabec1559f60e15cb420bf0545f6ba2cb11a",
+              "entry_digest": "7715636d94bfa463f67bd579f6be0fc6ee79387a6582632712e4c4f793dc2a56",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/session/supervisor.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "038ca3682ec5840e37acbeb937824fd224f8a0760297034f13e9a9ced6406ca5",
+              "entry_digest": "6c5ed38ae4d6fc301ee420aa9686f338338731ff8284021b080895608d73e90d",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3f977f619b198c0e3ed3d556374149bb5773d690de24a223a38082b157ec2205",
+              "entry_digest": "417d6ad9c99b07bf0d0ec6b54d778e2f40b53803e1de9e71ad7692d29e75f7f2",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "139447a70370ec547be967f3444f1f0eb21e4b5a3c55a1322378937201e453f6",
+              "entry_digest": "2b0e7d97251336bda417965f06f018f299fb97dd91c57f9d820675191b450ab4",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "6d776b75e3a807f9a5d88264c7783f767976ede06f45d8a6b1cf34c8c3358a65",
+      "current_acceptance_input_digest": "2442a1315ffe46d55c22ba43aa9b2908a54f1cd6e663fd07f3da48bf469947c1"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0034-bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot",
+      "actor": "agent:claude",
+      "reason": "CHG-0036 restored the settle default and corrected the recorded measurement, touching delivery inputs this change owns; re-verifying its accepted evidence.",
+      "timestamp": 1786776974,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786775214,
+        "digest": "43af4974b71aa523dbbda3cfcc3c38b0acfa4cb52530e85189cde6f44b2c6b13",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786775208,
+        "commit": "9fcf83cfeb4f28ace4dfeacbae29b4afc20e72b7",
+        "contract_digest": "e933b17caae5085bb73739fed40fdf3c4106a021bf5bf0cfa223f3456d45e5a7",
+        "workspace_digest": "d9968924901ba89f2a561021a87b0e07d0a37bde8d7f712563c24ec4982f8c2a",
+        "acceptance_input_digest": "2442a1315ffe46d55c22ba43aa9b2908a54f1cd6e663fd07f3da48bf469947c1",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "afde3f8aaa9c6ad33987b834f7d3aabec1559f60e15cb420bf0545f6ba2cb11a",
+              "entry_digest": "7715636d94bfa463f67bd579f6be0fc6ee79387a6582632712e4c4f793dc2a56",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/session/supervisor.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bb6526f6f17f88573e2440004825a7a4c911a5b3348aaed1c29d9d02de268d07",
+              "entry_digest": "cd11caaab2997ce981c127cf634556d0a5262cb821385fb9ae0566c1d82cf195",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "703f5d00f8bcb900c4cc2c4459492fb6ebbdba0e917fafb36207c21b141e350a",
+              "entry_digest": "590d750e03ae8dc0f00306374e217496243aeba5fb4713e52fafc984b6c1d163",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "2ff9608550ad830f4d4c15e60114387f3157c9e9e05bd09f560f1c5e7b54d0a7",
+              "entry_digest": "766e89657a61c80b1d26dca2d3b8316fbbcd44f4c67600a246c3f498e001ccb8",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "2442a1315ffe46d55c22ba43aa9b2908a54f1cd6e663fd07f3da48bf469947c1",
+      "current_acceptance_input_digest": "d2a25ceee85494da149dd48b1fbe9cec9238a5d1d674c01cb063cc8cd375f543"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0034-bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot",
+      "actor": "agent:claude",
+      "reason": "CHG-0037 fixed two defects found by dogfooding, touching delivery inputs this change owns; re-verifying its accepted evidence.",
+      "timestamp": 1786779215,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786777069,
+        "digest": "dabf2ca95b300485a771e1bb83e39ed933ec54d9fc525b3a3384312f240c8691",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786777063,
+        "commit": "45e5df15e718203d4e986efd2687e3ca33eac263",
+        "contract_digest": "e933b17caae5085bb73739fed40fdf3c4106a021bf5bf0cfa223f3456d45e5a7",
+        "workspace_digest": "23633c97822e56106b02185f3e9f432d7968b18358778746de9bacd9b14f073e",
+        "acceptance_input_digest": "d2a25ceee85494da149dd48b1fbe9cec9238a5d1d674c01cb063cc8cd375f543",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "afde3f8aaa9c6ad33987b834f7d3aabec1559f60e15cb420bf0545f6ba2cb11a",
+              "entry_digest": "7715636d94bfa463f67bd579f6be0fc6ee79387a6582632712e4c4f793dc2a56",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/session/supervisor.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bd5f93ddcd10945274a0ca9f751b353cb2554f11b04e0a9f9ab95daeafae04d2",
+              "entry_digest": "2b26414176226ea5f5ed00e7b336eb06d5ed725420dd5c0b4716d95dc958ad81",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "703f5d00f8bcb900c4cc2c4459492fb6ebbdba0e917fafb36207c21b141e350a",
+              "entry_digest": "590d750e03ae8dc0f00306374e217496243aeba5fb4713e52fafc984b6c1d163",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5e8fa3a99e16f1b174067114074d48a5f71d41dcd849bab8b03e4d0ac7bc0d03",
+              "entry_digest": "6214d0f325ef3b6977a62b0f65b827d8df49d96d21fcc0545b37995325620c8c",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "d2a25ceee85494da149dd48b1fbe9cec9238a5d1d674c01cb063cc8cd375f543",
+      "current_acceptance_input_digest": "48dbefecd369856ccf378a49114f34e5073db083f680c1a6da0b14b42722ddf8"
+    }
+  ]
+}

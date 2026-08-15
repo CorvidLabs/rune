@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0035-write-a-send-s-terminating-carriage-return-as-a-separate-delayed-write-so-an-ag",
+  "slug": "write-a-send-s-terminating-carriage-return-as-a-separate-delayed-write-so-an-ag",
+  "title": "Write a send's terminating carriage return as a separate delayed write, so an agent TUI submits the prompt instead of treating it as a pasted newline",
+  "description": "Write a send's terminating carriage return as a separate delayed write, so an agent TUI submits the prompt instead of treating it as a pasted newline",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "9fcf83cfeb4f28ace4dfeacbae29b4afc20e72b7",
+  "created_at": 1786774712,
+  "updated_at": 1786779411,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/session/supervisor.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A send writes the text and its terminating carriage return as two separate writes, with the terminator delayed until the text has drained, so a raw-mode child receives them in two reads rather than one. Verified against Claude Code across seven input lengths from 61 to 262 characters: before the fix only 61 submitted, after it all seven do, with no regression on grok or agy which also pass 7/7. A regression test asserts the carriage return arrives as a read of its own and never in the same read as the text, and fails against the unfixed supervisor. An outstanding terminator is flushed immediately when another send arrives, preserving order. --no-newline still sends no terminator. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

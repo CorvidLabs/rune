@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 32,
-  "id": "CHG-0032-prep-0-4-0-release-bump-version-roll-up-changelog",
+  "sequence": 37,
+  "id": "CHG-0037-fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune",
   "acknowledged_collisions": []
 }

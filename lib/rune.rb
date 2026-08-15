@@ -10,6 +10,7 @@ require_relative 'rune/script'
 
 # PTY Runner & Parsers
 require_relative 'rune/parsers/text_sanitizer'
+require_relative 'rune/parsers/screen_renderer'
 require_relative 'rune/parsers/prompt_detector'
 require_relative 'rune/parsers/table_parser'
 require_relative 'rune/parsers/key_value_parser'
