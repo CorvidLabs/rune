@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 43,
-  "id": "CHG-0043-pin-fledge-in-ci-to-a-release-asset-instead-of-resolving-latest-on-every-job",
+  "sequence": 44,
+  "id": "CHG-0044-bound-a-session-transcript-on-disk-as-well-as-in-memory-rotating-it-while-keepi",
   "acknowledged_collisions": []
 }

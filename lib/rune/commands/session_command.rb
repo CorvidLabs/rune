@@ -388,18 +388,21 @@ module Rune
         return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
         return Result.failure(no_such_session(options[:name])) unless store.exist?(options[:name])
 
-        transcript = transcript_for(options[:name])
-        sliced = slice_from(transcript, options[:since])
+        transcript, dropped = read_transcript_file(options[:name])
+        sliced = slice_from(transcript, options[:since], dropped)
         bounded, extra = bound_output(sliced, options)
 
-        Result.success(read_payload(options, transcript, sliced, bounded).merge(extra))
+        Result.success(read_payload(options, transcript, sliced, bounded, dropped).merge(extra))
       end
 
-      def read_payload(options, transcript, sliced, bounded)
+      def read_payload(options, transcript, sliced, bounded, dropped)
         { action: 'read', name: options[:name], output: bounded,
           clean_output: Parsers::TextSanitizer.strip_ansi(bounded),
-          cursor: transcript.bytesize,
+          # Absolute, so a cursor keeps meaning the same position after the
+          # transcript has been rotated.
+          cursor: dropped + transcript.bytesize,
           prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }
+          .merge(dropped.positive? ? { dropped_bytes: dropped } : {})
           .merge(screen_field(transcript, options))
       end
 
@@ -430,16 +433,27 @@ module Rune
       # control socket, so `read` works identically for a live session and for
       # one whose supervisor has already exited. Cursor offsets agree with
       # `send`'s because both count the same concatenated decoded output.
-      def transcript_for(name)
-        path = store.output_path(name)
-        return +'' unless File.exist?(path)
+      def transcript_for(name) = read_transcript_file(name).first
 
-        File.foreach(path).with_object(+'') do |line, buffer|
+      # Returns the retained text and how many earlier bytes rotation dropped.
+      # A `truncated` event carries that count so cursors stay absolute: a
+      # cursor taken before a rotation still names the same position in the
+      # stream, it just points at output no longer held.
+      def read_transcript_file(name)
+        path = store.output_path(name)
+        return [+'', 0] unless File.exist?(path)
+
+        dropped = 0
+        text = File.foreach(path).with_object(+'') do |line, buffer|
           event = JSON.parse(line, symbolize_names: true)
-          buffer << event[:text].to_s if event[:event] == 'output'
+          case event[:event]
+          when 'output' then buffer << event[:text].to_s
+          when 'truncated' then dropped += event[:dropped_bytes].to_i
+          end
         rescue JSON::ParserError
           next
         end
+        [text, dropped]
       end
 
       # `--since` is a byte offset supplied by the caller, so unlike the
@@ -449,10 +463,17 @@ module Rune
       # bare "invalid byte sequence in UTF-8" on any transcript containing
       # non-ASCII, which for a TUI agent is every transcript. `OutputLimiter`
       # already scrubs its own cut points for exactly this reason.
-      def slice_from(transcript, since)
+      # `since` is an absolute cursor, so rotation shifts where it lands in what
+      # is still held. A cursor from before the rotation returns everything
+      # retained rather than nothing, and `dropped_bytes` in the reply says how
+      # much came earlier and is gone.
+      def slice_from(transcript, since, dropped = 0)
         return transcript if since.nil?
 
-        (transcript.byteslice(since..) || +'').scrub
+        offset = since - dropped
+        return transcript.dup if offset.negative?
+
+        (transcript.byteslice(offset..) || +'').scrub
       end
 
       def bound_output(text, options)

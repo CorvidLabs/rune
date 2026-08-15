@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786814814,
-  "commit": "7789240d5b70dec0b981dbaddfcb68ae85fa3401",
+  "timestamp": 1786816997,
+  "commit": "20179ed9ab0f05489c58449a1881dc565cc01ad4",
   "contract_digest": "018e82d75dca942218594243db8f4e3ed66873f194289a008c03a1243b184575",
-  "workspace_digest": "b8026804b34783266afa9f2fefed8a57aafa95d3e2987bea063900e56e4a5ef7",
-  "acceptance_input_digest": "f6dae22dacc55bb1a35f113198688a55f486c31836dadd87dda5bbb2308aa4a6",
+  "workspace_digest": "2135c7e4a2f6f68b460da15764380c112fd471ba70cd07deb27e2c8cf704a1c3",
+  "acceptance_input_digest": "21a7a86c83e3ab31994665516423695cc089534165b070b2a92bb4eca1140a3d",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -41,8 +41,8 @@
         "path": "lib/rune/session/supervisor.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "06bfd98a61381b9af4c75c47d09de7a9488644be9f20e966d42886c20c90e668",
-        "entry_digest": "12ec0f90005f07753c9f0f44b5b0a982b5dd23adb7f061cbbb75b83f7a06b3c0",
+        "payload_digest": "a4df1294557ccc5c8503646358a77c9ae917f67b5ff78ea0d94fdee80dcc9e7c",
+        "entry_digest": "31a4fc92128fe276422fa023483d44547381c867a68a0a564599aaf830a21c14",
         "owners": [
           "session"
         ]
@@ -51,8 +51,8 @@
         "path": "spec/rune/session_spec.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "1b0339b87a7bf5a6cc45c9316fbf1d6d4341921c90cb796d32dea1f247ba8c06",
-        "entry_digest": "812153aec92f8a955989e4b7ef9ce21534e79c4426819cd47d78e887d490da12",
+        "payload_digest": "92bc01a52b06648535d936af8b166be2fff978025d25ce5cdc9007144a0d03e5",
+        "entry_digest": "45f2319d276249a53d30c7214cc1a14489b2b22ee8f01d0cc13e348c8dd34c96",
         "owners": [
           "@exact:delivery"
         ]
@@ -91,8 +91,8 @@
         "path": "specs/session/session.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "fa289da3aa4446017a42e4b1c1a9176140033499fcb57576ad33283a169c3e93",
-        "entry_digest": "604e7b9adcbf27ce19e811cd4e65e3b8ef55bb66ce84ebfe2f4da00153ec1ac4",
+        "payload_digest": "8cc3a993b61b40bfa763911a2068b91645971b71bb5651d5520dca39bdbb97b2",
+        "entry_digest": "9b40e58b711eaec3fbf8018bc148f9dad7237cab8453f2e8bdf4ad77f055c2c1",
         "owners": [
           "session"
         ]
