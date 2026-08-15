@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 46,
-  "id": "CHG-0046-rotate-a-session-transcript-without-reading-it-seek-to-the-cut-and-copy-the-tai",
+  "sequence": 47,
+  "id": "CHG-0047-prep-0-6-0-release-bump-version-roll-up-changelog",
   "acknowledged_collisions": []
 }

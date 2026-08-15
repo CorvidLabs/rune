@@ -1,0 +1,106 @@
+{
+  "timestamp": 1786828029,
+  "commit": "928c6c31aabc4f5992fe7175daefecaf92e9ec94",
+  "contract_digest": "a0b69cb6e354ea8babc5281758b96e1dca53379795079b7178cd63e085594ca3",
+  "workspace_digest": "8e4d9861c1819e6ce3206f6bdc69b8be874bfba69f49bb8f2fd1f35d941869c1",
+  "acceptance_input_digest": "88b25299e63c0c8a2d8e39709cd535988fc0e82dd519b85d4dc42dfc8cf25c92",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "22db64a684604c947e7d02a3b53f61a0f202e82a7c3df299d6c63b15754f8188",
+        "entry_digest": "1274a1f9836adc1862e58ac31bb51f54148035fafbb2c1d6038cd408292a7adc",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "CHANGELOG.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9e306e63e5376ea345433dac3c6c593d9d3f962f9b0397145c1b2513a2a1aa7f",
+        "entry_digest": "83440878eca30ec237caef086f10d85b7de9839d15bc262fee30a1b23a064f92",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Gemfile.lock",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c549874c3ab41e10415a9a3fa7aefc121ca14ebb4b28c3a253eec449f7a57785",
+        "entry_digest": "b971cd3c13abb76c92fd3ffe20ec3a7845b0e612183c4ebc3d731074d63f503c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "lib/rune/version.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "22d685143ce7f6a2899ab0700c77d972a743cbf2e009e8d543823ab93c30dd36",
+        "entry_digest": "57537dad77b210f10f58c2b079ac4edbe3f30c16267171a9e6e6113965699d0d",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "plugin.toml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d3fd0968985c6a9f325fa3fd50f31c74d9c6a2af8d19a2dd49c83ab234eb3241",
+        "entry_digest": "f95e8bf6b003e42724e4846561e4d2ad13ee1d9218f23c1e56817a341ab0fc11",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/cli/cli.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "730be49a692228cc6c356e60cd15b9ef2eb5725439498b8513f2ee827c7a9ac1",
+        "entry_digest": "b439c95401e2bde5dbd06c4c219c9981f77c6f741f36fb487a9d073c2b805a8c",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "specs/cli/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+        "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+        "owners": [
+          "cli"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

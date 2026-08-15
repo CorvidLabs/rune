@@ -13,7 +13,109 @@
       "timestamp": 1786814536,
       "digest": "cd93fb19c6a79e4d326d7dc4a712912ba12d410813b247ec51fdaf2cac15433e",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786828438,
+      "digest": "1eeca1fe7fa56f09f23a0c632155bcd7058942c138c250702d6e95a1c20ed20b",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0043-pin-fledge-in-ci-to-a-release-asset-instead-of-resolving-latest-on-every-job",
+      "actor": "agent:claude",
+      "reason": "CHG-0047 appended a release-prep row to specs/cli/cli.spec.md, a delivery input this change owns; re-verifying.",
+      "timestamp": 1786828341,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786814536,
+        "digest": "cd93fb19c6a79e4d326d7dc4a712912ba12d410813b247ec51fdaf2cac15433e",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786814531,
+        "commit": "7789240d5b70dec0b981dbaddfcb68ae85fa3401",
+        "contract_digest": "99a6898b645fde851b2f72c7a2310d15abd833c89afbe685849044bd31ecf548",
+        "workspace_digest": "9a52a5c607e82334c190441f305c0156b933d9489815c5bddc169ffab9adfc4f",
+        "acceptance_input_digest": "13178c15a8857ad805aa79714aee96a664cbccfa4733813e2f9be1a006796f01",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bb954893e06929eb2cf28d9ce5a62ea950dd7e136e0dbb6ef6c116ae810d7af9",
+              "entry_digest": "bbd0193ab679f9bbc51b6109504763d952228db157db31f24c2a74f4341b907d",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "aea9141e438e99dbaeb1eee46ff9ceb334ba16e8cc3474061c7fea51916fd3a3",
+              "entry_digest": "68b42443e09dca7ed676c13d9f9313f00ca77c7c84179ad05a627f34252950da",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/cli/cli.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3b30ffbd87b1c4961923efc42294524a65073d7fac825b3f797d2e9a34ae17db",
+              "entry_digest": "93938bd14ff87979cb9805be2fe7f0b140294ccd4ff6ac0748c09dcc8a294fdd",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/cli/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+              "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+              "owners": [
+                "cli"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "13178c15a8857ad805aa79714aee96a664cbccfa4733813e2f9be1a006796f01",
+      "current_acceptance_input_digest": "d03e46db203358f210b3c0b01825e59d5ab57827a6fe6e4718ba6c03301c2bff"
+    }
+  ]
 }
