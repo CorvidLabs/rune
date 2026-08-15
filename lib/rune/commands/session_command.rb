@@ -21,7 +21,7 @@ module Rune
       flag '--name=NAME',
            'Session name. Optional for start (an unused <tool>-<word> codename is generated); ' \
            'required by send/read/attach/stop.'
-      flag '--settle-ms=N', 'send: return once the child has been quiet for N ms (default 3000).'
+      flag '--settle-ms=N', 'send: return once the child has been quiet for N ms (default 800).'
       flag '--timeout-ms=N', 'send: hard cap on the whole wait (default 120000).'
       flag '--wait-for-regex=RE', 'send: return as soon as output matches RE, without waiting out the settle window.'
       flag '--no-wait', 'send: write the input and return immediately, without waiting for a reply.'

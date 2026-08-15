@@ -73,14 +73,21 @@ module Rune
       REPLY_DRAIN_TIMEOUT = 2.0
       # How long the child must be quiet before a send is considered answered.
       #
-      # Measured, not guessed. Driving Claude Code through 27 turns (three shapes
-      # of task, three trials each, at 800/3000/6000 ms) the reply was the answer
-      # to the question actually asked in 5/9, 8/9 and 8/9 cases. At 800 ms the
-      # failure was not a truncated answer but the *previous* turn's answer,
-      # returned whole and well-formed — indistinguishable from a correct reply
-      # to the caller, which is worse than a timeout. 6000 ms bought nothing over
-      # 3000 ms and cost 2.5s per call.
-      DEFAULT_SETTLE_MS = 3000
+      # 0.4.0 raised this to 3000 on a measurement that was wrong twice over. Both
+      # harnesses reproduced bugs they were meant to be independent of: prompts
+      # over ~64 characters were never submitted to Claude Code at all, and grok's
+      # answers were scored missing because the probe searched the byte stream
+      # where repaints had split them. Re-measured with both fixed, on the
+      # rendered screen, the reply was the answer to the question actually asked
+      # in 27/27 claude turns and 18/18 grok turns — at every window including
+      # 800 ms. The larger window bought nothing and cost up to double the
+      # latency per call (grok 8.7s to 16.8s), so this returns to 800.
+      #
+      # What the evidence does not cover: two agents and 45 turns, both driving
+      # TUIs whose spinner runs for the whole turn, which is what makes byte
+      # silence mean "finished". A callee that goes quiet mid-turn for longer
+      # than this still truncates, and `--settle-ms` is the knob for it.
+      DEFAULT_SETTLE_MS = 800
       # How long after writing a send's text the terminating carriage return
       # is written, as its own write. Long enough that the child completes a read
       # in between, short enough to be invisible next to a model round trip.

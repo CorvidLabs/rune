@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786777164,
+  "timestamp": 1786776726,
   "commit": "45e5df15e718203d4e986efd2687e3ca33eac263",
-  "contract_digest": "b94c310a834e6b5bfcd775ae74b5802e557a1240d0021441cd0b4b53b8d54b7d",
-  "workspace_digest": "23633c97822e56106b02185f3e9f432d7968b18358778746de9bacd9b14f073e",
-  "acceptance_input_digest": "a5a671f2ef1fbe6a8444f9b5eb6d1ae5aab96cb3a0279947733db2cbfb4baac9",
+  "contract_digest": "2c1ab13c66b57100d4bb6839f199b4710df78d4208e22f7615cc05878957a6d3",
+  "workspace_digest": "81137c29eb8fb973e27bfea62137152e9e3d54329354fe4eaf87e041e2006cdb",
+  "acceptance_input_digest": "4c97b9034d4b4196f675ac7d1e3ac184a98a4ecbdfd523647b8110cca1cba6c9",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,10 +11,20 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "0e94bc10ce373022ef9c68cfbf00537e52a35a9feeee35f2e0ee2d7721a3bd26",
-        "entry_digest": "f15f15036acc4fa3151552b0bf3dbedf3191b211e1beaeee83c99bc7ac92c1a8",
+        "payload_digest": "5081a7fc04f4c8017908e30545c3ceb35f6cd5c41fd2676ea97a92f248afdbfa",
+        "entry_digest": "bc7e992a919a42fbacc13d9e34ecf974b8140d9b8d9a909590700c3049eb802a",
         "owners": [
           "@exact:delivery"
+        ]
+      },
+      {
+        "path": "lib/rune/commands/session_command.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c3d48135b0fe197465ac60529085971973e25e777a05bf7e3bc41c8b00832638",
+        "entry_digest": "11202aa1df7a6b4336956e233d0fd3c8829730f9092a38363d34957edc31a8ee",
+        "owners": [
+          "session"
         ]
       },
       {
@@ -25,16 +35,6 @@
         "entry_digest": "2b26414176226ea5f5ed00e7b336eb06d5ed725420dd5c0b4716d95dc958ad81",
         "owners": [
           "session"
-        ]
-      },
-      {
-        "path": "spec/rune/session_spec.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "703f5d00f8bcb900c4cc2c4459492fb6ebbdba0e917fafb36207c21b141e350a",
-        "entry_digest": "590d750e03ae8dc0f00306374e217496243aeba5fb4713e52fafc984b6c1d163",
-        "owners": [
-          "@exact:delivery"
         ]
       },
       {

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 35,
-  "id": "CHG-0035-write-a-send-s-terminating-carriage-return-as-a-separate-delayed-write-so-an-ag",
+  "sequence": 36,
+  "id": "CHG-0036-restore-the-send-settle-default-to-800ms-and-correct-the-0-4-0-measurement-whic",
   "acknowledged_collisions": []
 }

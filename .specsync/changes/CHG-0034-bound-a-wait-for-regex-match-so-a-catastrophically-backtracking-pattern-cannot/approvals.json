@@ -20,6 +20,13 @@
       "timestamp": 1786775214,
       "digest": "43af4974b71aa523dbbda3cfcc3c38b0acfa4cb52530e85189cde6f44b2c6b13",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786777069,
+      "digest": "dabf2ca95b300485a771e1bb83e39ed933ec54d9fc525b3a3384312f240c8691",
+      "note": null
     }
   ],
   "reopenings": [
@@ -126,6 +133,110 @@
       },
       "stale_acceptance_input_digest": "6d776b75e3a807f9a5d88264c7783f767976ede06f45d8a6b1cf34c8c3358a65",
       "current_acceptance_input_digest": "2442a1315ffe46d55c22ba43aa9b2908a54f1cd6e663fd07f3da48bf469947c1"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0034-bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot",
+      "actor": "agent:claude",
+      "reason": "CHG-0036 restored the settle default and corrected the recorded measurement, touching delivery inputs this change owns; re-verifying its accepted evidence.",
+      "timestamp": 1786776974,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786775214,
+        "digest": "43af4974b71aa523dbbda3cfcc3c38b0acfa4cb52530e85189cde6f44b2c6b13",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786775208,
+        "commit": "9fcf83cfeb4f28ace4dfeacbae29b4afc20e72b7",
+        "contract_digest": "e933b17caae5085bb73739fed40fdf3c4106a021bf5bf0cfa223f3456d45e5a7",
+        "workspace_digest": "d9968924901ba89f2a561021a87b0e07d0a37bde8d7f712563c24ec4982f8c2a",
+        "acceptance_input_digest": "2442a1315ffe46d55c22ba43aa9b2908a54f1cd6e663fd07f3da48bf469947c1",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "afde3f8aaa9c6ad33987b834f7d3aabec1559f60e15cb420bf0545f6ba2cb11a",
+              "entry_digest": "7715636d94bfa463f67bd579f6be0fc6ee79387a6582632712e4c4f793dc2a56",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/session/supervisor.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bb6526f6f17f88573e2440004825a7a4c911a5b3348aaed1c29d9d02de268d07",
+              "entry_digest": "cd11caaab2997ce981c127cf634556d0a5262cb821385fb9ae0566c1d82cf195",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "703f5d00f8bcb900c4cc2c4459492fb6ebbdba0e917fafb36207c21b141e350a",
+              "entry_digest": "590d750e03ae8dc0f00306374e217496243aeba5fb4713e52fafc984b6c1d163",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "2ff9608550ad830f4d4c15e60114387f3157c9e9e05bd09f560f1c5e7b54d0a7",
+              "entry_digest": "766e89657a61c80b1d26dca2d3b8316fbbcd44f4c67600a246c3f498e001ccb8",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "2442a1315ffe46d55c22ba43aa9b2908a54f1cd6e663fd07f3da48bf469947c1",
+      "current_acceptance_input_digest": "d2a25ceee85494da149dd48b1fbe9cec9238a5d1d674c01cb063cc8cd375f543"
     }
   ]
 }
