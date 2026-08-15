@@ -822,7 +822,10 @@ RSpec.describe Rune::Commands::SessionCommand do
       written = 0
       chunks.times do
         text = 'z' * size
-        supervisor.send(:log_event, 'output', bytes: text.bytesize, text: text)
+        # `append` is the real path: it advances the transcript window that
+        # rotation's accounting reads from, then logs. Driving `log_event`
+        # directly skipped that and made the arithmetic look wrong.
+        supervisor.send(:append, text)
         written += text.bytesize
       end
       written

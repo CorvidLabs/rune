@@ -715,7 +715,7 @@ module Rune
       # for the life of the session and `archive` preserved it, so the cost
       # outlived the session that paid it.
       def rotate_log
-        @output_log = @store.rotate_output(@name, @output_log)
+        @output_log = @store.rotate_output(@name, @output_log, transcript_bytes)
         @log_bytes = @store.output_size(@name)
       rescue IOError, SystemCallError
         nil

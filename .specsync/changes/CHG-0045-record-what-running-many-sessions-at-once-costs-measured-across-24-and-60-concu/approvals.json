@@ -13,7 +13,109 @@
       "timestamp": 1786819431,
       "digest": "0b6844e1a3bd6b63981da7a84c8d91fc04a37f95f524178c8895f89f6e6347b9",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786826289,
+      "digest": "b2dc530b4afc4a2969c53faa1d15cff5bf17c25a0fb8b0cec0d85313f3391178",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0045-record-what-running-many-sessions-at-once-costs-measured-across-24-and-60-concu",
+      "actor": "agent:claude",
+      "reason": "CHG-0046 rewrote rotation to seek and copy rather than parse, changing delivery inputs this change owns; re-verifying.",
+      "timestamp": 1786826193,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786819431,
+        "digest": "0b6844e1a3bd6b63981da7a84c8d91fc04a37f95f524178c8895f89f6e6347b9",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786819426,
+        "commit": "67222d94b486f2318658402340da04c598ea1199",
+        "contract_digest": "cf1ca8a276ab0828695f8b148d3d41d8767dde72b669273e38e87321553ca9cc",
+        "workspace_digest": "26f1b7f997acda8875c6ccf0b02b37c79f0e77c3e6f7568e9dd5f6a528ac75bf",
+        "acceptance_input_digest": "a47e4782d60f12964068595dcbfb9bfe44673ffa11e56f22dcd11434494559ed",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "57b4cb3c5f61d6daece8e8b59dccc90fc373a718c26781b785f0ffb832c22a18",
+              "entry_digest": "14903443a0907059dc90680f927d0d8490ea46618c031d2f7e36c89006eea9a0",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/sessions.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "a6345979fb8c3c2043d12941fcce4aa4c331034ec0734e778f4ede9ae19c9cc3",
+              "entry_digest": "65ee276f29bdca0f565070c50c619356ea14bd34a2bbf02c9ed6f13ea865bdea",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b1488a46585e7d542d36b6ee0ff4a4d017b1076473313ed6c9cde0d88a62ff14",
+              "entry_digest": "4e916f987a0f988dd6969e2ce572eae2de9fefb22cdeb20fe13c147041bcc9bb",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "a47e4782d60f12964068595dcbfb9bfe44673ffa11e56f22dcd11434494559ed",
+      "current_acceptance_input_digest": "c61458499c88f7a6a0d287fdbe5bbef7c243c1504e213a45440f634294d5adb2"
+    }
+  ]
 }
