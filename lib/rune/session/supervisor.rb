@@ -560,10 +560,19 @@ module Rune
       def deliver_submit
         return if @submit_at.nil? || monotonic < @submit_at
         return if @writer.nil? || @child_finished
-        return if @outbox.key?(@writer) && !@outbox[@writer].empty?
+        # Text still queued: restart the clock rather than merely waiting. The
+        # deadline is measured from the last text byte actually going out, not
+        # from when the send arrived — `drain_outbox` and this run in the same
+        # tick, so a deadline already in the past would fire microseconds after
+        # the tail drained and land in the child's same read. That is precisely
+        # the coalescing the delay exists to prevent, and backpressure on the
+        # pty is when it would have been reintroduced.
+        return @submit_at = monotonic + SUBMIT_DELAY if pending_text?
 
         flush_submit
       end
+
+      def pending_text? = @outbox.key?(@writer) && !@outbox[@writer].empty?
 
       def flush_submit
         return if @submit_at.nil?

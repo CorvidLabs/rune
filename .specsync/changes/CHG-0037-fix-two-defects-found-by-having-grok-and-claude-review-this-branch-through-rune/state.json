@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0037-fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune",
+  "slug": "fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune",
+  "title": "Fix two defects found by having grok and claude review this branch through rune itself: erase-line excluded the cursor cell, and backpressure defeated the terminator delay",
+  "description": "Fix two defects found by having grok and claude review this branch through rune itself: erase-line excluded the cursor cell, and backpressure defeated the terminator delay",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "ec7cb59c877ecc4bb64d5dbb8b2c95ea015becd5",
+  "created_at": 1786778783,
+  "updated_at": 1786778956,
+  "affected_specs": [
+    "parsers",
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/parsers/screen_renderer.rb",
+    "lib/rune/session/supervisor.rb",
+    "spec/rune/parsers/screen_renderer_spec.rb",
+    "spec/rune/session_spec.rb",
+    "specs/parsers/parsers.spec.md",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "ScreenRenderer erases inclusive of the cell under the cursor in both directions per ECMA-48: ABCD with the cursor on column 3 and EL 1 renders as three spaces then D, and erasing with the cursor on the last column clears the line. deliver_submit restarts the terminator delay while text is still queued, so the delay is measured from the last text byte going out rather than from when the send arrived. Three regression tests, all verified failing against the unfixed code and passing against the fix. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

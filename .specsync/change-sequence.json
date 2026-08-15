@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 36,
-  "id": "CHG-0036-restore-the-send-settle-default-to-800ms-and-correct-the-0-4-0-measurement-whic",
+  "sequence": 37,
+  "id": "CHG-0037-fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune",
   "acknowledged_collisions": []
 }

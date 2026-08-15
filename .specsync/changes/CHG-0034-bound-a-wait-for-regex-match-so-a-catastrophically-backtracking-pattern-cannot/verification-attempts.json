@@ -90,6 +90,36 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1786779305,
+      "commit": "ec7cb59c877ecc4bb64d5dbb8b2c95ea015becd5",
+      "contract_digest": "e933b17caae5085bb73739fed40fdf3c4106a021bf5bf0cfa223f3456d45e5a7",
+      "workspace_digest": "f6d3c387fe09328f7303d423fc1390f0fa2053cabb1b116799d79a8e813e2ac7",
+      "passed": true,
+      "commands": [
+        {
+          "command": "fledge run version-check",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run lint",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run smoke-test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

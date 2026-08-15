@@ -35,6 +35,21 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
       expect(described_class.render(raw, rows: 6, columns: 40)).to eq('clean slate')
     end
 
+    # ECMA-48 erases *inclusive of the cursor cell* in both directions. Mode 1
+    # excluded it, so a repainted line kept one character it should have lost.
+    # Found by having grok review this file through rune.
+    it 'includes the cell under the cursor when erasing back to the start of the line' do
+      expect(described_class.render("ABCD\e[3G\e[1K", rows: 3, columns: 10)).to eq('   D')
+    end
+
+    it 'erases the whole line when the cursor sits on its last column' do
+      expect(described_class.render("ABCD\e[4G\e[1K", rows: 3, columns: 10)).to eq('')
+    end
+
+    it 'still erases forward from the cursor inclusive on EL 0' do
+      expect(described_class.render("ABCD\e[3G\e[0K", rows: 3, columns: 10)).to eq('AB')
+    end
+
     it 'clears from the cursor to the end of the screen on ED 0' do
       raw = "first\r\nsecond\r\nthird\e[2;3H\e[0J"
 

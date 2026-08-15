@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786779201,
+  "timestamp": 1786778952,
   "commit": "ec7cb59c877ecc4bb64d5dbb8b2c95ea015becd5",
-  "contract_digest": "70625bde50c28b8b062b1ffe59b776b9bccd7cc9ce7984709c06b6667eaf464b",
-  "workspace_digest": "f6d3c387fe09328f7303d423fc1390f0fa2053cabb1b116799d79a8e813e2ac7",
-  "acceptance_input_digest": "71b31b14909d7a59649fae87d385b4b2d15a4596aadbab0081901ea69821dc13",
+  "contract_digest": "c03036cc3073d396c674596a4c20ddb69b9d8ca72e35960e86a1abc59887b4ee",
+  "workspace_digest": "38cb378f378725f34472a562194e3cb1979170003066ecb0b0a508c2cf03b3e8",
+  "acceptance_input_digest": "f1f5d55cfe26c3b0a01607062f637a6d29cbb469c75f7ab7d2feefd50d03bb80",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,30 +11,10 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "1e1ecd9ac94203a835fb93d78da32c9c01ad0c48075a33475e297db035c6be32",
-        "entry_digest": "5463c801c1b4ff8a3b14c93ac229fba23bab6f37f239b82f7bdc1a843d0fe8f2",
+        "payload_digest": "7f454bd26b746ceb4cf62226ba1e10aecdcd430cfe2076d58e7f3f2881f0a963",
+        "entry_digest": "a296962cfa1e70910b53e4d8a52a8494651c85200fc5ad80802317bc611d1733",
         "owners": [
           "@exact:delivery"
-        ]
-      },
-      {
-        "path": "lib/rune.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "86f40ee233ab66777fd6636c9f3f1c47b5a43f8148ae7c08804423aaa16cc42f",
-        "entry_digest": "3628bf5bbb29e25a4120dbc1328deb7193f0beeda4219adc27b7ffe99aa7c2f2",
-        "owners": [
-          "cli"
-        ]
-      },
-      {
-        "path": "lib/rune/commands/session_command.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "c3d48135b0fe197465ac60529085971973e25e777a05bf7e3bc41c8b00832638",
-        "entry_digest": "11202aa1df7a6b4336956e233d0fd3c8829730f9092a38363d34957edc31a8ee",
-        "owners": [
-          "session"
         ]
       },
       {
@@ -45,6 +25,16 @@
         "entry_digest": "714f947c0871b7031aa8f003d7cee67a69fe294ac3d454563a1e5adab2bd68cf",
         "owners": [
           "parsers"
+        ]
+      },
+      {
+        "path": "lib/rune/session/supervisor.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "85300047829e502cc0e78d9a8d5a9d4c172fcfb4718f78621dca09dbfa81fafe",
+        "entry_digest": "ba6dc933b3a96de308d3870a4ae50703e0d0e38294f668fd4555e6d9ec71a02e",
+        "owners": [
+          "session"
         ]
       },
       {
@@ -65,26 +55,6 @@
         "entry_digest": "647521ce507a4a6d6daa932c20f0231d8fdf1536a4f2563b18041647a7460dc3",
         "owners": [
           "@exact:delivery"
-        ]
-      },
-      {
-        "path": "specs/cli/cli.spec.md",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "fd8dd2bdcd83d2a20b5092fce8b92d1fb5d576103c628d53daeb2719fb262626",
-        "entry_digest": "3615c5b0aad79071f494461bb764144cf92361e9db71df88b5175b9c2d15404b",
-        "owners": [
-          "cli"
-        ]
-      },
-      {
-        "path": "specs/cli/requirements.md",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
-        "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
-        "owners": [
-          "cli"
         ]
       },
       {

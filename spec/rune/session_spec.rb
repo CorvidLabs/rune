@@ -862,6 +862,27 @@ RSpec.describe Rune::Commands::SessionCommand do
       expect(chunks.select { |chunk| chunk[:returns].positive? }.map { |chunk| chunk[:length] }).to all(eq(1))
     end
 
+    # Backpressure would otherwise defeat the delay entirely: `drain_outbox` and
+    # `deliver_submit` run in the same tick, so a deadline already in the past
+    # fires microseconds after the text tail drains and lands in the child's
+    # same read. The deadline has to be measured from the last text byte going
+    # out, not from when the send arrived. Found by having claude review this
+    # path through rune.
+    it 'restarts the terminator delay while the text is still queued' do
+      supervisor = Rune::Session::Supervisor.new(name: 'unit', command: ['true'], store: store)
+      reader, writer = IO.pipe
+      supervisor.instance_variable_set(:@writer, writer)
+      supervisor.instance_variable_get(:@outbox)[writer] << 'not yet drained'
+      # Already due, and would fire the instant the queue empties.
+      supervisor.instance_variable_set(:@submit_at, supervisor.send(:monotonic) - 1)
+
+      supervisor.send(:deliver_submit)
+
+      expect(supervisor.instance_variable_get(:@submit_at)).to be > supervisor.send(:monotonic)
+      expect(supervisor.instance_variable_get(:@outbox)[writer]).to eq('not yet drained')
+      [reader, writer].each { |io| io.close unless io.closed? }
+    end
+
     it 'still sends nothing extra with --no-newline' do
       start_raw_child('sub2')
 

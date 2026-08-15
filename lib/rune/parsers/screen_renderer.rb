@@ -188,11 +188,16 @@ module Rune
           end
         end
 
+        # Both directions include the cell under the cursor, per ECMA-48. Mode 1
+        # excluded it, so `ABCD` with the cursor on column 3 erased back to
+        # `  CD` where a real terminal leaves `   D` — one character of a
+        # repainted line surviving that should not have. Found by having grok
+        # review this file through rune.
         def erase_line(numbers)
           line = @grid[@row]
           @grid[@row] = case numbers.first.to_i
                         when 0 then line[0, @column].to_s
-                        when 1 then (' ' * @column) + line[@column..].to_s
+                        when 1 then (' ' * (@column + 1)) + line[(@column + 1)..].to_s
                         else +''
                         end
         end

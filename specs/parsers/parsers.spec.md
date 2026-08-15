@@ -1,6 +1,6 @@
 ---
 module: parsers
-version: 4
+version: 5
 status: active
 files:
   - lib/rune/parsers/table_parser.rb
@@ -82,10 +82,13 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
    is the difference between every frame of a repaint and only the frame on screen: measured
    against grok, a 361KB transcript stripped to 36.9KB of escape-free text but rendered to 1.1KB,
    and an answer absent from the stripped text was present in the rendered screen.
-9. `ScreenRenderer.render` never fails to consume input. Its scanner advances on every iteration,
+9. `ScreenRenderer` erases inclusive of the cell under the cursor, in both directions, per ECMA-48.
+   Excluding it left one character of a repainted line surviving that a real terminal would have
+   cleared.
+10. `ScreenRenderer.render` never fails to consume input. Its scanner advances on every iteration,
    including for bytes it does not act on, because a scan loop that can match without consuming is
    a hang rather than a wrong answer.
-10. `ScreenRenderer.render` returns an empty string for nil or empty input, tolerates invalid
+11. `ScreenRenderer.render` returns an empty string for nil or empty input, tolerates invalid
     UTF-8, and bounds work by rendering only the tail of a long transcript.
 
 ## Behavioral Examples
@@ -137,3 +140,4 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Broaden `TextSanitizer::ANSI_REGEX` beyond SGR-shaped CSI to also strip private-parameter CSI (`[?1049h`, `[?2026h`), OSC strings (`]0;title`), DCS/SOS/PM/APC strings, and keypad/cursor-key modes. The old pattern left a full-screen TUI's escape traffic almost entirely intact, so `clean_output` was unreadable for exactly the agent CLIs `rune session` drives. No public API change. |
 | 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously |
 | 2026-08-15 | CHG-0033-render-the-terminal-screen-for-session-send-and-read-so-an-agent-driving-a-full: Render the terminal screen for session send and read, so an agent driving a full-screen agent can find the answer instead of searching every repaint frame |
+| 2026-08-15 | CHG-0037-fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune: Fix two defects found by having grok and claude review this branch through rune itself: erase-line excluded the cursor cell, and backpressure defeated the terminator delay |
