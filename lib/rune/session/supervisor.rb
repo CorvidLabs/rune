@@ -78,6 +78,12 @@ module Rune
         @pending = nil
         @clients = []
         @attached = []
+        # Anything we could not hand off immediately, keyed by the IO it is
+        # destined for. The event loop drains these when the IO reports
+        # writable, so a child or terminal that stops reading costs memory and
+        # eventually its own connection — never the whole session.
+        @outbox = Hash.new { |queue, io| queue[io] = +'' }
+        @accepted_at = {}
         @stopping = false
         @exit_code = nil
       end
@@ -156,9 +162,14 @@ module Rune
 
       def event_loop(server, reader, writer)
         until @stopping
-          ready = IO.select([server, reader, *@clients, *@attached, *pending_client], nil, nil, POLL_INTERVAL)
-          dispatch_ready(ready, server, reader, writer) if ready
+          ready = IO.select([server, reader, *@clients, *@attached, *pending_client],
+                            @outbox.keys, nil, POLL_INTERVAL)
+          if ready
+            dispatch_ready(ready, server, reader, writer)
+            drain_outbox(ready[1], writer)
+          end
           resolve_pending
+          reap_idle_clients
           break if @child_finished && @pending.nil?
         end
         conclude
@@ -186,6 +197,7 @@ module Rune
             forward_from_attached(io, writer)
           else
             @clients.delete(io)
+            @accepted_at.delete(io)
             handle_request(io, writer)
           end
         end
@@ -214,10 +226,79 @@ module Rune
         true
       end
 
+      # Queue rather than write. `write` on a pty master or a socket blocks once
+      # the peer stops draining it, and this is the only thread — blocking here
+      # stops pty pumping, settle evaluation, and stop handling all at once,
+      # which is how a large prompt to a child that was not reading stdin could
+      # wedge an entire session with no recovery but killing it.
+      def enqueue(io, bytes)
+        return if bytes.nil? || bytes.empty?
+
+        @outbox[io] << bytes
+        flush_outbox(io)
+      end
+
+      def drain_outbox(writable, writer)
+        Array(writable).each { |io| flush_outbox(io, writer) }
+      end
+
+      def flush_outbox(io, writer = nil)
+        pending = @outbox[io]
+        return @outbox.delete(io) if pending.empty?
+
+        written = io.write_nonblock(pending, exception: false)
+        if written == :wait_writable
+          nil
+        elsif written >= pending.bytesize
+          @outbox.delete(io)
+        else
+          @outbox[io] = pending.byteslice(written..).to_s
+        end
+      rescue IOError, SystemCallError
+        @outbox.delete(io)
+        drop_writer(io, writer)
+      end
+
+      # A terminal that has gone away (or stopped reading for good) loses its
+      # attachment; the pty master failing means the child is gone.
+      def drop_writer(io, writer)
+        return @child_finished = true if writer && io.equal?(writer)
+
+        detach(io, writer)
+      end
+
+      # Back to the headless default when the last terminal goes, so a session's
+      # geometry does not depend on whether a human happened to attach earlier —
+      # programmatic sends should render the same either way.
+      def detach(client, writer)
+        @attached.delete(client)
+        safe_close(client)
+        resize_child(writer, DEFAULT_ROWS, DEFAULT_COLUMNS) if @attached.empty? && writer
+      end
+
       def accept_client(server)
-        @clients << server.accept_nonblock
+        client = server.accept_nonblock
+        @clients << client
+        @accepted_at[client] = monotonic
       rescue IO::WaitReadable, Errno::ECONNABORTED
         nil
+      end
+
+      # A peer that connects and then says nothing is never readable, so it was
+      # never examined and stayed in the client set for the life of the session.
+      # Enough of those exhaust the supervisor's file descriptors, after which
+      # it can neither accept nor pump and the session is stuck. A client that
+      # has sent something is already out of this set by the time it is handled,
+      # so only genuinely silent connections are reaped.
+      def reap_idle_clients
+        cutoff = monotonic - REQUEST_READ_TIMEOUT
+        @clients.dup.each do |client|
+          next if (@accepted_at[client] || cutoff) > cutoff
+
+          @clients.delete(client)
+          @accepted_at.delete(client)
+          safe_close(client)
+        end
       end
 
       def pump(reader)
@@ -242,28 +323,44 @@ module Rune
       # attached human sees the session live. A terminal that has gone away is
       # dropped rather than allowed to break the loop.
       def broadcast(text)
-        return if @attached.empty?
-
-        @attached.dup.each do |client|
-          client.write(text)
-          client.flush
-        rescue IOError, SystemCallError
-          @attached.delete(client)
-          safe_close(client)
-        end
+        @attached.dup.each { |client| enqueue(client, text) }
       end
 
       # After the ack line the socket stops being a request/reply channel and
       # becomes a raw duplex pipe to the pty, which is what lets a human type
       # into a session an agent started.
-      def handle_attach(client)
+      def handle_attach(client, request, writer)
         client.puts(JSON.generate(attached: true, cursor: @transcript.bytesize))
         client.flush
-        client.write(recent_transcript)
-        client.flush
         @attached << client
+        # The attaching terminal's real dimensions, so a full-screen agent
+        # started headless at the default size reflows to the human's window
+        # instead of rendering 40x120 inside it.
+        resize_child(writer, request[:rows], request[:cols])
+        enqueue(client, recent_transcript)
       rescue IOError, SystemCallError
         safe_close(client)
+      end
+
+      # Sent over its own short-lived control connection rather than inline,
+      # because after the attach ack the attachment socket is a raw byte pipe
+      # to the pty — a control frame in that stream would be typed at the child.
+      def handle_resize(request, client, writer)
+        resize_child(writer, request[:rows], request[:cols])
+        respond(client, resized: true)
+      end
+
+      def resize_child(writer, rows, cols)
+        rows = Integer(rows)
+        cols = Integer(cols)
+        return unless rows.positive? && cols.positive?
+
+        writer.winsize = [rows, cols]
+        # SIGWINCH is what tells a TUI to re-lay-out; setting the size alone
+        # leaves it drawing at the old geometry until something else repaints.
+        Process.kill('WINCH', @child_pid) if @child_pid
+      rescue TypeError, ArgumentError, IOError, SystemCallError, NoMethodError
+        nil
       end
 
       # Replayed on attach so the terminal shows the session's current screen
@@ -273,14 +370,11 @@ module Rune
       end
 
       def forward_from_attached(client, writer)
-        chunk = client.read_nonblock(READ_CHUNK)
-        writer.write(chunk)
-        writer.flush
+        enqueue(writer, client.read_nonblock(READ_CHUNK))
       rescue IO::WaitReadable
         nil
       rescue IOError, SystemCallError
-        @attached.delete(client)
-        safe_close(client)
+        detach(client, writer)
       end
 
       # ---- control protocol: one JSON request line in, one JSON reply line out
@@ -326,7 +420,8 @@ module Rune
         case request[:op]
         when 'send' then handle_send(request, client, writer)
         when 'status' then respond(client, status_payload)
-        when 'attach' then handle_attach(client)
+        when 'attach' then handle_attach(client, request, writer)
+        when 'resize' then handle_resize(request, client, writer)
         when 'stop' then handle_stop(client)
         else respond(client, error: "unknown op: #{request[:op]}")
         end
@@ -362,8 +457,7 @@ module Rune
       def write_to_child(writer, request)
         text = request[:text].to_s
         text += "\r" unless request[:no_newline]
-        writer.write(text)
-        writer.flush
+        enqueue(writer, text)
         text
       end
 

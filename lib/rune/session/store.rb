@@ -140,6 +140,25 @@ module Rune
       def meta_path(name) = File.join(session_dir(name), 'meta.json')
       def output_path(name) = File.join(session_dir(name), 'output.ndjson')
       def socket_path(name) = File.join(session_dir(name), 'control.sock')
+      def lock_path(name) = File.join(session_dir(name), 'start.lock')
+
+      # Serialises `start` for one session name. The conflict check and the
+      # recording of a supervisor pid are otherwise a check-then-act pair: two
+      # concurrent starts could both see the name as free, and the loser would
+      # unlink the winner's socket and orphan a live child. The lock file is
+      # never deleted — removing it is what reintroduces the race.
+      def with_start_lock(name)
+        FileUtils.mkdir_p(session_dir(name))
+        File.open(lock_path(name), File::RDWR | File::CREAT, FILE_MODE) do |lock|
+          return :busy unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+
+          begin
+            yield
+          ensure
+            lock.flock(File::LOCK_UN)
+          end
+        end
+      end
 
       def exist?(name) = File.directory?(session_dir(name))
 

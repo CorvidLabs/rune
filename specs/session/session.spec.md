@@ -339,7 +339,23 @@ deciding who talks to whom stays the calling agent's job.
     and a full disk while logging does not end the session.
 40. Every directory rune creates under `RUNE_HOME` is owner-only, not just the leaf session
     directory, so the set of tools being driven and their session names is not world-readable.
-41. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
+41. Nothing on the event-loop thread blocks on a write. Output to the child and to attached
+    terminals is queued and drained when the destination reports writable, so a child that stops
+    reading stdin, or a terminal that stops reading, costs memory and eventually its own connection
+    — never the session's ability to pump the pty, evaluate a settle, or handle `stop`.
+42. Attaching propagates the terminal's real dimensions to the child and forwards SIGWINCH for the
+    duration, over separate short-lived control connections — the attachment socket itself is a raw
+    byte pipe after the ack, so a control frame written there would be typed at the child instead.
+    When the last terminal detaches the child returns to the headless default, so a programmatic
+    `send` renders the same whether or not a human attached in between.
+43. Control connections that connect and never send are reaped. A silent peer is never readable, so
+    it would otherwise sit in the client set for the life of the session, and enough of them would
+    exhaust the supervisor's file descriptors.
+44. `start` is serialised per session name by an exclusive lock held across the conflict check and
+    the recording of a supervisor pid. Those are otherwise a check-then-act pair: two concurrent
+    starts could both see the name as free, and the loser would unlink the winner's socket and
+    orphan its child.
+45. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
     additive.
 
 ## Behavioral Examples
@@ -384,10 +400,13 @@ deciding who talks to whom stays the calling agent's job.
 
 ## Known Limitations
 
-- **A blocking write to the pty can still stall the event loop.** `send` writes to the pty master
-  from the same thread that pumps it, so a payload larger than the pty's input buffer sent to a
-  child that has stopped reading stdin can wedge the supervisor. `stop`'s bounded shutdown and
-  force-kill is the recovery path; a non-blocking write queue would be the real fix.
+- **A single line of 1024 bytes or more is silently discarded by a cooked-mode child's terminal.**
+  This is `MAX_CANON`, a tty limit rather than a rune bound: the line discipline cannot assemble a
+  longer canonical line, so it drops it and the child never sees it. Measured exactly — 1023 bytes
+  arrive, 1024 do not, with no error anywhere. Raw-mode children (which is most full-screen agent
+  CLIs) are unaffected: 300KB arrives byte-perfect. This matters because an agent prompt easily
+  exceeds 1KB and nothing reports the loss. Send such input to a cooked-mode child in chunks, or
+  drive a raw-mode target.
 - **`stop` signals the pids recorded in `meta.json`.** If a supervisor was SIGKILLed and the kernel
   has since recycled its pid, `stop` could signal an unrelated process. Narrow, but real.
 - **Settle is a heuristic.** A child that pauses mid-answer for longer than `--settle-ms` returns a

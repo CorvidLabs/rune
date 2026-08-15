@@ -73,8 +73,10 @@ $ rune session attach --name grok-amber
 ```
 
 `attach` connects your real terminal to a running session: output streams to your screen, your
-keystrokes go to the agent, and the current screen is replayed on connect so you don't stare at a
-blank one. **Ctrl-]** detaches and leaves everything running — that is the whole difference from
+keystrokes go to the agent, the current screen is replayed on connect so you don't stare at a blank
+one, and **the child is resized to your terminal** (and follows it as you resize) so a full-screen
+agent lays out for your window rather than the headless default. When you detach, the child returns
+to that default, so programmatic `send`s render the same whether or not you attached. **Ctrl-]** detaches and leaves everything running — that is the whole difference from
 `rune watch`, which owns the child it spawned. Ctrl-C is deliberately *not* the detach key: it has
 to keep reaching the child so you can interrupt a runaway agent.
 
@@ -149,6 +151,11 @@ over reading a whole transcript.
   `read`, or make the first `send` a `--wait-for-regex` — before driving a freshly started session.
 - **Settle is a heuristic.** A child that pauses mid-answer for longer than `--settle-ms` returns a
   truncated response. Raise it, or use `--wait-for-regex`.
+- **A single line of 1024+ bytes vanishes into a cooked-mode child.** That is `MAX_CANON`, a
+  terminal limit, not rune's: the line discipline cannot assemble a longer canonical line and drops
+  it silently — 1023 bytes arrive, 1024 do not. Most agent CLIs run their terminal in raw mode and
+  are unaffected (300KB arrives byte-perfect), but a shell-like child will simply never see a long
+  prompt. Chunk it, or drive a raw-mode target.
 - Enter is sent as a carriage return, which is what a real terminal sends, so raw-mode TUIs receive
   it. Cooked-mode shells are unaffected.
 - The child's pty gets an explicit window size, because a detached session has no terminal to copy

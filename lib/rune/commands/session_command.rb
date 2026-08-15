@@ -113,7 +113,20 @@ module Rune
         rejection = start_rejection(options, command)
         return rejection if rejection
 
-        launch(start_name(options, command), command)
+        serialized_launch(start_name(options, command), command)
+      end
+
+      # The conflict check has to happen inside the lock, not before it: two
+      # starts racing each other both passed a check made outside it, and the
+      # second then unlinked the first's socket and left its child orphaned.
+      def serialized_launch(name, command)
+        outcome = store.with_start_lock(name) do
+          conflict = running_conflict(name)
+          conflict || launch(name, command)
+        end
+        return outcome unless outcome == :busy
+
+        Result.failure("Session #{name.inspect} is being started by another process.")
       end
 
       # `--name` is optional for start and required by every other subcommand:
@@ -131,6 +144,8 @@ module Rune
         end
         return Result.failure('PTY unavailable: pty stdlib failed to load.') unless PTYRunner.pty_available?
 
+        # Cheap early rejection; the authoritative check runs inside the start
+        # lock, where it cannot be raced.
         running_conflict(start_name(options, command))
       end
 
@@ -140,7 +155,11 @@ module Rune
         meta = store.read_meta(name)
         return nil unless meta && Session::Store.alive?(meta[:supervisor_pid])
 
-        Result.failure("Session #{name.inspect} is already running (pid #{meta[:child_pid]}). " \
+        # The pid is shown only once one exists: during a start race the winner
+        # records its state before either pid is known, and "(pid )" reads like
+        # a bug rather than the timing detail it is.
+        pid = meta[:child_pid] || meta[:supervisor_pid]
+        Result.failure("Session #{name.inspect} is already running#{" (pid #{pid})" if pid}. " \
                        'Stop it first or choose another name.')
       end
 

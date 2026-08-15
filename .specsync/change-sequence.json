@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 29,
-  "id": "CHG-0029-fix-seven-session-defects-found-by-an-independent-grok-kimi-agy-review-wait-for",
+  "sequence": 30,
+  "id": "CHG-0030-close-the-deferred-session-limitations-non-blocking-writes-so-a-stalled-child-o",
   "acknowledged_collisions": []
 }

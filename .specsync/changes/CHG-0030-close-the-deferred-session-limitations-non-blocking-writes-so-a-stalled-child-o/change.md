@@ -1,0 +1,24 @@
+---
+id: CHG-0030-close-the-deferred-session-limitations-non-blocking-writes-so-a-stalled-child-o
+state: draft
+type: feature
+base_commit: d0a067ae361b2fce5e20d8b8fce6ea91f0de3520
+---
+
+# Close the deferred session limitations: non-blocking writes so a stalled child or attached terminal cannot wedge the supervisor, terminal-size propagation on attach and SIGWINCH, idle control-connection reaping, and a lock file that makes concurrent start of one name safe
+
+## Intent
+
+Close the deferred session limitations: non-blocking writes so a stalled child or attached terminal cannot wedge the supervisor, terminal-size propagation on attach and SIGWINCH, idle control-connection reaping, and a lock file that makes concurrent start of one name safe
+
+## Affected Canonical Specs
+
+- `session`
+
+## Acceptance Criteria
+
+- A child that stops reading stdin no longer wedges the supervisor: a send larger than the pty buffer is queued and drained by the event loop, so pty pumping, settle evaluation and stop all keep working. An attached terminal that stops reading is dropped rather than stalling the loop. Attaching propagates the human's terminal size to the child and forwards SIGWINCH, so a full-screen agent renders at the attached terminal's real dimensions; the session returns to its default size when the last terminal detaches, so programmatic sends stay deterministic. A control client that connects and never sends is reaped, so connections cannot accumulate to exhaustion. Two concurrent starts of the same name cannot both win: one succeeds and the other reports the conflict, with no orphaned supervisor and no socket hijack. Each is pinned by a regression test, and the corresponding entries are removed from the spec's Known Limitations.
+
+## No-spec Rationale
+
+Not applicable

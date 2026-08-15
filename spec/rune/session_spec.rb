@@ -617,6 +617,127 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # The limitations CHG-0030 closes. Each was documented as a known gap before
+  # being fixed, so these pin the new behaviour rather than the old caveat.
+  describe 'no single peer can wedge the supervisor' do
+    it 'stays responsive while a child that never reads stdin is written to' do
+      deaf = ['ruby', '-e', "STDOUT.sync = true; puts 'READY'; sleep 300"]
+      start_session('s33', deaf)
+      wait_until(reason: 'child ready') { session('read', '--name=s33').data[:output].include?('READY') }
+
+      # Large enough to exceed any pty input buffer. A blocking write here used
+      # to be able to stop the only thread, taking pty pumping and settle
+      # evaluation down with it.
+      session('send', '--name=s33', '--no-wait', '--', 'x' * 200_000)
+
+      expect(session('list').data[:sessions].first[:state]).to eq('running')
+      expect(session('stop', '--name=s33')).to be_success
+    end
+
+    it 'reaps control connections that connect and never send' do
+      start_session('s34', ['bash', '--norc', '-i'])
+      path = store.socket_path('s34')
+      idle = 30.times.filter_map do
+        Rune::Session::Store.with_bindable_path(path) { |p| UNIXSocket.new(p) }
+      rescue SystemCallError
+        nil
+      end
+      expect(idle).not_to be_empty
+
+      # Silent peers are never readable, so they were never examined and stayed
+      # in the client set for the life of the session.
+      wait_until(timeout: 20, reason: 'idle connections to be dropped') do
+        idle.all? do |socket|
+          socket.wait_readable(0) && socket.eof?
+        rescue StandardError
+          true
+        end
+      end
+      expect(session('send', '--name=s34', '--settle-ms=300', '--timeout-ms=15000', '--', 'echo ok')
+               .data[:output]).to include('ok')
+    ensure
+      idle&.each do |socket|
+        socket.close
+      rescue StandardError
+        nil
+      end
+    end
+  end
+
+  describe 'concurrent start of one name' do
+    it 'lets exactly one win and leaves no orphaned supervisor' do
+      results = 4.times.map { Thread.new { session('start', '--name=dup', '--', 'bash', '--norc', '-i') } }
+                       .map(&:value)
+
+      expect(results.count(&:success?)).to eq(1)
+      expect(store.names).to eq(['dup'])
+      # The losers must not have unlinked the winner's socket or left a child.
+      expect(session('send', '--name=dup', '--settle-ms=300', '--timeout-ms=15000', '--', 'echo winner')
+               .data[:output]).to include('winner')
+    end
+  end
+
+  describe 'terminal size' do
+    def size_reporter
+      script = <<~'CHILD'
+        require 'io/console'
+        STDOUT.sync = true
+        puts "SIZE:#{STDIN.winsize.inspect}"
+        Signal.trap('WINCH') { puts "RESIZED:#{STDIN.winsize.inspect}" }
+        sleep 300
+      CHILD
+      ['ruby', '-e', script]
+    end
+
+    it 'starts headless at the documented default' do
+      start_session('s35', size_reporter)
+
+      wait_until(reason: 'the child to report its size') do
+        session('read', '--name=s35').data[:output].include?('SIZE:')
+      end
+      expect(session('read', '--name=s35').data[:output])
+        .to include("SIZE:[#{Rune::Session::Supervisor::DEFAULT_ROWS}, #{Rune::Session::Supervisor::DEFAULT_COLUMNS}]")
+    end
+
+    it 'adopts an attaching terminal\'s size and restores the default on detach' do
+      start_session('s36', size_reporter)
+      wait_until(reason: 'the child to report its size') do
+        session('read', '--name=s36').data[:output].include?('SIZE:')
+      end
+
+      in_reader, in_writer = IO.pipe
+      out_reader, out_writer = IO.pipe
+      # A pipe has no winsize, so stand in for a terminal that reports one.
+      def in_reader.winsize = [50, 200]
+      attachment = Rune::Session::Attachment.new(
+        store.socket_path('s36'), input: in_reader, output: out_writer, announce: nil
+      )
+      worker = Thread.new { attachment.run }
+      begin
+        wait_until(reason: 'the child to see the attached size') do
+          session('read', '--name=s36').data[:output].include?('RESIZED:[50, 200]')
+        end
+        in_writer.write("\x1d")
+        worker.value
+      ensure
+        worker.kill if worker.alive?
+        [in_reader, in_writer, out_reader, out_writer].each do |io|
+          io.close
+        rescue StandardError
+          nil
+        end
+      end
+
+      # Back to the headless default, so a later programmatic send renders the
+      # same whether or not a human attached in between.
+      wait_until(reason: 'the default size to be restored') do
+        session('read', '--name=s36').data[:output]
+                                     .include?("RESIZED:[#{Rune::Session::Supervisor::DEFAULT_ROWS}, " \
+                                               "#{Rune::Session::Supervisor::DEFAULT_COLUMNS}]")
+      end
+    end
+  end
+
   describe 'state on disk' do
     it 'creates owner-only directories and files' do
       start_session('s15', ['bash', '--norc', '-i'])
