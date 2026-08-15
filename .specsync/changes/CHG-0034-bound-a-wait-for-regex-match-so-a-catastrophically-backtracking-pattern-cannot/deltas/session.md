@@ -1,41 +1,6 @@
----
-module: session
-version: 7
-status: active
-files:
-  - lib/rune/session/store.rb
-  - lib/rune/session/supervisor.rb
-  - lib/rune/session/client.rb
-  - lib/rune/session/attachment.rb
-  - lib/rune/session/prompt_scanner.rb
-  - lib/rune/commands/session_command.rb
----
-# Sessions (`rune session`)
+## MODIFIED
 
-## Purpose
-
-Persistent, named PTY sessions that outlive a single `rune` invocation, so one agent CLI can drive
-another conversationally instead of one-shot.
-
-`PTYRunner` buffers a command's entire output and returns once; `PTYWatcher` streams live but
-hard-refuses to run without a real human TTY on stdin. Neither can hold a REPL-shaped child open
-across separate `rune` calls, so an agent had no way to "start `codex`, send a prompt, wait for the
-answer, send a follow-up." This module adds that as a third execution model alongside the two
-existing ones, rather than a mode bolted onto either.
-
-Two primitives: a **session broker** (the child outlives the invocation) and **send-and-settle**
-(send input, block until the child goes quiet, return exactly the output that send produced —
-turning an async TTY into a synchronous request/response call).
-
-`attach` is the human-facing half of the same idea: a named session is something you can come back
-to yourself, take the wheel of interactively, and then leave running exactly where it was. Unlike
-`rune watch`, which owns the child it spawns and ends when that child ends, detaching from a
-session changes nothing about the child.
-
-Deliberately a *broker*, not a message bus: rune holds sessions and addresses them by name, while
-deciding who talks to whom stays the calling agent's job.
-
-## Public API
+### SPEC SECTION Public API
 
 | Name | Type | Description |
 |------|------|-------------|
@@ -243,7 +208,8 @@ deciding who talks to whom stays the calling agent's job.
 > became visible purely because the method that followed it was deleted.
 > This matches the existing convention in `pty_runner`'s spec for the same upstream bug.
 
-## Invariants
+
+### SPEC SECTION Invariants
 
 1. A started session's child survives both the launching `rune` process exiting and the launching
    terminal closing. The supervisor calls `Process.setsid` (rescued where unsupported) and is
@@ -442,47 +408,8 @@ deciding who talks to whom stays the calling agent's job.
 45. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
     additive.
 
-## Behavioral Examples
 
-- `rune session start -- grok` returns immediately with a generated name such as `grok-amber`;
-  `--name reviewer` picks one explicitly.
-- `rune session list` shows only this project's sessions, each with idle time and the last line it
-  printed; `--all-projects` widens it and `--archived` shows history.
-- `rune session archive --name reviewer` files a stopped session away and frees the name.
-- `rune session start --name grok -- grok` returns immediately with the session name and pid; the
-  `rune` process exits while `grok` keeps running.
-- `rune session send --name grok --settle-ms 800 "refactor auth.rb"` writes the prompt, waits for
-  grok to stop producing output for 800ms, and returns just that reply.
-- `rune session send --name s --wait-for-regex '\$ $' "ls"` returns as soon as the shell prompt
-  reappears, without waiting out the settle window.
-- `rune session send --name s --no-wait "^C"` writes without waiting for any reply.
-- `rune session read --name grok --tail 50` returns the last 50 lines of transcript without
-  sending anything.
-- `rune session list` shows each session's state, distinguishing `running` from `dead`.
-- `rune session attach --name grok` drops your terminal into the running agent; Ctrl-] detaches and
-  leaves it running, so `rune session send --name grok ...` still works afterwards.
-- `rune session stop --name grok` kills and reaps the session; running it twice succeeds both times.
-- `tail -f "$RUNE_HOME/sessions/grok/output.ndjson"` follows a live session from another pane.
-
-## Error Cases
-
-| Condition | Behavior |
-|-----------|----------|
-| `--name` omitted, empty, or not matching the safe name pattern | `Result.failure` before spawning anything |
-| Duplicate `--name` for an already-running session | `Result.failure` naming the conflict; the existing session is left untouched |
-| Operating on an unknown session name | `Result.failure` suggesting `rune session list` |
-| `send` against a session whose supervisor is gone | `Result.failure` reporting it is not running, with the recorded state and exit code |
-| Control socket missing or unconnectable | `Result.failure` reporting the session is unreachable; `list` reports `dead`; `stop` still cleans up |
-| A second `send` while one is already in flight | `Result.failure`; the in-flight send is unaffected |
-| `pty` stdlib unavailable | `Result.failure`, same check and message class as `PTYRunner.pty_available?` |
-| `--settle-ms`/`--timeout-ms`/`--tail`/`--max-output` not a positive integer | `Result.failure` before spawning anything |
-| `--wait-for-regex` is not a valid regular expression | `Result.failure` before sending anything |
-| `--timeout-ms` elapses before settling | Succeeds with the captured output, `settled: false`, `timed_out: true` |
-| Wrapped command missing/non-executable | Session records exit code 127/126, same convention as `rune run` |
-| `attach` with a non-TTY stdin | `Result.failure` pointing at `send`/`read` for non-interactive access |
-| `attach` to a session that is not running | `Result.failure`, same check as `send` |
-
-## Known Limitations
+### SPEC SECTION Known Limitations
 
 - **A single line of 1024 bytes or more is silently discarded by a cooked-mode child's terminal.**
   This is `MAX_CANON`, a tty limit rather than a rune bound: the line discipline cannot assemble a
@@ -541,20 +468,3 @@ deciding who talks to whom stays the calling agent's job.
   rather than done here so this change does not also rewrite the parsers contract.
 - The in-memory transcript a supervisor keeps for cursor framing grows with session length.
 
-## Dependencies
-
-- Ruby stdlib: `pty`, `socket` (Unix domain control channel — new to rune with this module),
-  `io/console` (required with a `LoadError` rescue, same as `pty_watcher.rb`, for `IO#winsize=`),
-  `io/wait`, `json`, `fileutils`, `shellwords`, `rbconfig`
-- Internal: `UTF8StreamDecoder`, `OutputLimiter`, `Parsers::PromptDetector`,
-  `Parsers::TextSanitizer`, `Result`, `Command`
-
-## Change Log
-
-- v1: Active spec — initial `rune session` broker and send-and-settle contract
-| 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously |
-| 2026-08-14 | CHG-0029-fix-seven-session-defects-found-by-an-independent-grok-kimi-agy-review-wait-for: Fix seven session defects found by an independent grok/kimi/agy review: wait-for-regex matching the pty echo, a cancelled send locking the session, an unbounded client wait, start reporting success for a dead supervisor, teardown leaving agent workers alive, world-readable parent directories, and assorted robustness gaps |
-| 2026-08-15 | CHG-0030-close-the-deferred-session-limitations-non-blocking-writes-so-a-stalled-child-o: Close the deferred session limitations: non-blocking writes so a stalled child or attached terminal cannot wedge the supervisor, terminal-size propagation on attach and SIGWINCH, idle control-connection reaping, and a lock file that makes concurrent start of one name safe |
-| 2026-08-15 | CHG-0031-fix-a-bytes-vs-characters-crash-in-session-echo-tracking-that-killed-real-agent: Fix a bytes-vs-characters crash in session echo tracking that killed real agent sessions, make a dying supervisor record why instead of leaving the session marked running, and raise the send settle default from 800ms to 3000ms on measurement |
-| 2026-08-15 | CHG-0033-render-the-terminal-screen-for-session-send-and-read-so-an-agent-driving-a-full: Render the terminal screen for session send and read, so an agent driving a full-screen agent can find the answer instead of searching every repaint frame |
-| 2026-08-15 | CHG-0034-bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot: Bound a --wait-for-regex match so a catastrophically backtracking pattern cannot wedge the supervisor past its own timeout |

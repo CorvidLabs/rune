@@ -1,0 +1,86 @@
+{
+  "timestamp": 1786769806,
+  "commit": "e73c3d5d3a69214c2e862dc97686e2a018a8df9e",
+  "contract_digest": "e933b17caae5085bb73739fed40fdf3c4106a021bf5bf0cfa223f3456d45e5a7",
+  "workspace_digest": "07de3c5fbe9db25583c6ac59e57623520120fc232ee0e00a9a01f34d5ed03d1f",
+  "acceptance_input_digest": "6d776b75e3a807f9a5d88264c7783f767976ede06f45d8a6b1cf34c8c3358a65",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "afde3f8aaa9c6ad33987b834f7d3aabec1559f60e15cb420bf0545f6ba2cb11a",
+        "entry_digest": "7715636d94bfa463f67bd579f6be0fc6ee79387a6582632712e4c4f793dc2a56",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "lib/rune/session/supervisor.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "038ca3682ec5840e37acbeb937824fd224f8a0760297034f13e9a9ced6406ca5",
+        "entry_digest": "6c5ed38ae4d6fc301ee420aa9686f338338731ff8284021b080895608d73e90d",
+        "owners": [
+          "session"
+        ]
+      },
+      {
+        "path": "spec/rune/session_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3f977f619b198c0e3ed3d556374149bb5773d690de24a223a38082b157ec2205",
+        "entry_digest": "417d6ad9c99b07bf0d0ec6b54d778e2f40b53803e1de9e71ad7692d29e75f7f2",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/session/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+        "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+        "owners": [
+          "session"
+        ]
+      },
+      {
+        "path": "specs/session/session.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "139447a70370ec547be967f3444f1f0eb21e4b5a3c55a1322378937201e453f6",
+        "entry_digest": "2b0e7d97251336bda417965f06f018f299fb97dd91c57f9d820675191b450ab4",
+        "owners": [
+          "session"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

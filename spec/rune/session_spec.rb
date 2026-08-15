@@ -807,6 +807,43 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'a --wait-for-regex that backtracks catastrophically' do
+    # Matching runs on the supervisor's only thread, so a pattern that
+    # backtracks blocks the loop: it cannot pump the pty, cannot answer `stop`,
+    # and cannot even check the send's own --timeout-ms. Reproduced against a
+    # child emitting 60 a's, where the send was still blocked long after its 8s
+    # deadline. Ruby memoizes most textbook cases since 3.2, but not patterns
+    # using backreferences — which is the shape that got through.
+    let(:babbling_child) do
+      ['ruby', '-e', 'STDOUT.sync = true; while (line = STDIN.gets); puts("a" * 60 + "b"); end']
+    end
+
+    # Ruby 3.0 and 3.1 have no per-Regexp timeout, so there is nothing to assert
+    # there beyond the documented limitation.
+    before { skip 'Regexp timeouts need Ruby 3.2+' unless Regexp.method_defined?(:timeout) }
+
+    it 'abandons the pattern and answers, rather than wedging the loop past its own deadline' do
+      start_session('redos1', babbling_child)
+
+      started = monotonic
+      result = session('send', '--name=redos1', '--wait-for-regex=(a+)+\1$',
+                       '--settle-ms=500', '--timeout-ms=8000', '--', 'go')
+
+      expect(result.data[:regex_timed_out]).to be true
+      expect(monotonic - started).to be < 8
+    end
+
+    it 'leaves the session usable afterwards' do
+      start_session('redos2', babbling_child)
+      session('send', '--name=redos2', '--wait-for-regex=(a+)+\1$',
+              '--settle-ms=500', '--timeout-ms=8000', '--', 'go')
+
+      result = session('send', '--name=redos2', '--settle-ms=500', '--timeout-ms=15000', '--', 'again')
+
+      expect(result.data[:settled]).to be true
+    end
+  end
+
   describe 'read --screen' do
     # A child shaped like a full-screen agent: it repaints a status line many
     # times, then leaves an answer. The byte stream holds every frame; the

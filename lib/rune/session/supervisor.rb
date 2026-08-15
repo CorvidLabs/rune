@@ -81,6 +81,13 @@ module Rune
       # to the caller, which is worse than a timeout. 6000 ms bought nothing over
       # 3000 ms and cost 2.5s per call.
       DEFAULT_SETTLE_MS = 3000
+      # How long one `--wait-for-regex` match may run. Generous for any sane
+      # pattern against a screenful of output, and short enough that a
+      # pathological one costs a fraction of a tick rather than the session.
+      REGEX_MATCH_TIMEOUT = 0.25
+      # Ruby 3.0 and 3.1 have no Regexp::TimeoutError; a class that is never
+      # raised keeps the rescue clause valid there without widening it.
+      REGEX_TIMEOUT_ERROR = defined?(Regexp::TimeoutError) ? Regexp::TimeoutError : Class.new(StandardError)
       # Recorded as the session's exit code when the supervisor itself died
       # rather than the child. 70 is sysexits' EX_SOFTWARE: an internal fault,
       # distinct from any status the child could have returned.
@@ -546,11 +553,29 @@ module Rune
         }
       end
 
+      # Bounded, because the match runs on the only thread. A pattern that
+      # backtracks catastrophically blocks inside `match?`, which means the loop
+      # cannot pump the pty, cannot answer `stop`, and — the part that makes it
+      # worse than slow — cannot even check the send's own `--timeout-ms`.
+      # Reproduced with `--wait-for-regex='(a+)+\1$'` against 60 a's: the send
+      # was still blocked long after its 8s deadline. Ruby memoizes most
+      # textbook cases since 3.2, but that optimization is off for patterns
+      # using backreferences, which is exactly the shape that got through.
       def compile_regex(source)
-        source.nil? || source.empty? ? nil : Regexp.new(source)
+        return nil if source.nil? || source.empty?
+        return Regexp.new(source) unless supports_regex_timeout?
+
+        Regexp.new(source, timeout: REGEX_MATCH_TIMEOUT)
       rescue RegexpError
         nil
       end
+
+      # Ruby 3.2 added per-Regexp timeouts, and `Regexp#timeout` with them. rune
+      # still supports 3.0, where the only defence is the documented limitation
+      # — and where passing an unknown keyword would be silently taken as the
+      # options argument rather than rejected, so this is a capability check
+      # rather than a rescue.
+      def supports_regex_timeout? = Regexp.method_defined?(:timeout)
 
       def resolve_pending
         return unless @pending
@@ -571,11 +596,26 @@ module Rune
         # the "answer" before the child had produced any. Waiting for a marker
         # you just asked an agent to print is the normal case, so the documented
         # deterministic escape hatch was the least reliable path in practice.
-        return { settled: true, matched: true } if @pending[:regex]&.match?(beyond_echo(slice))
+        matched = regex_matched?(slice)
+        return { settled: false, regex_timed_out: true } if matched.nil?
+        return { settled: true, matched: true } if matched
         return { settled: false, timed_out: true } if monotonic >= @pending[:deadline]
         return { settled: true, child_exited: true } if @child_finished
         return { settled: true } if quiet_enough?
 
+        nil
+      end
+
+      # True on a match, false on none, nil when the pattern exceeded its match
+      # budget. Giving up on the pattern is the only sane answer: retrying it
+      # next tick would spend the budget again on a slice that only grows, so
+      # the send would burn the loop until its deadline instead of answering.
+      def regex_matched?(slice)
+        regex = @pending[:regex]
+        return false unless regex
+
+        regex.match?(beyond_echo(slice))
+      rescue REGEX_TIMEOUT_ERROR
         nil
       end
 
