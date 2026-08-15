@@ -34,6 +34,13 @@
       "timestamp": 1786812297,
       "digest": "302358303c0baa53392d12501cd177d577086b852194491911f516ec06ac2b34",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786813567,
+      "digest": "1bcb4fbe09d3be6b6b0a0afccf57c3a467fd3971ec9c20b1afa3f7177e317360",
+      "note": null
     }
   ],
   "reopenings": [
@@ -180,6 +187,150 @@
       },
       "stale_acceptance_input_digest": "b93f3a2cf28900fdbc296b62e737d01a952a9a3f376895c085cb256fa838ce7c",
       "current_acceptance_input_digest": "64e03ddf18a42107a8da0acfd682c376c518993baac7c8887c7264e46d721131"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0040-extract-the-pending-send-settle-machine-out-of-the-supervisor-into-its-own-class",
+      "actor": "agent:claude",
+      "reason": "CHG-0042 added attachment regression tests to spec/rune/session_spec.rb, an exact-only delivery input this change owns; re-verifying.",
+      "timestamp": 1786813471,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "agent:claude",
+        "timestamp": 1786812297,
+        "digest": "302358303c0baa53392d12501cd177d577086b852194491911f516ec06ac2b34",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786812291,
+        "commit": "932b3f628d81cffe48901eb619b0af33189f36e9",
+        "contract_digest": "018e82d75dca942218594243db8f4e3ed66873f194289a008c03a1243b184575",
+        "workspace_digest": "bbe6eeed4d87d67b049a75a635dae8c6870be4dadc1cd2d4bfbdab718eb3c41d",
+        "acceptance_input_digest": "64e03ddf18a42107a8da0acfd682c376c518993baac7c8887c7264e46d721131",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6a24b12ce229901ac88bb2bbf2f6684441e5c8ba5a918e2fc58e7b0150d35dd7",
+              "entry_digest": "23f199e56e40c47b9a31f1cedf9ca988cefa6789f2a452272bed971d35d4a9f6",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6d97b1e4caeb0c48a300cb80e30db1746619b5af0ad7e3ea4e3e8d0df372636c",
+              "entry_digest": "f94835fc432d15dd27ffb5fefcdb4af79dec9e0043d1387a77a83e562f3dbad6",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "lib/rune/session/pending_send.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "9f64111b691e05df1dabd9235975e74a753bc3b363758e71b2636cd083f51e1f",
+              "entry_digest": "b438061d1ffd8a1aab77a1fae7dba0a59030ce83674ed796bc68d79130a5c1fe",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "lib/rune/session/supervisor.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "06bfd98a61381b9af4c75c47d09de7a9488644be9f20e966d42886c20c90e668",
+              "entry_digest": "12ec0f90005f07753c9f0f44b5b0a982b5dd23adb7f061cbbb75b83f7a06b3c0",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "04efb52cb10af83255197a92df448f51ea1821ecf9e92642f8ed7b0452a3efc0",
+              "entry_digest": "d3c8257bc5f3bc6eddf31789cca3bfc92543635a65ce33bc75bd3c35246761a7",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/cli/cli.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "804be3db0112c28be26616a0c9ad59b9a2e3ec2a79f02d8ac50af9fd8cfb510f",
+              "entry_digest": "e0fb1f190a53a3475278d78c81c1f5c574b3e295ac4e630ce8c4c11a8f7b3523",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/cli/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+              "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bbbf65f38f7b49525ddae0ce03eda987f8cba6101d4ae58db0c0b921526acc86",
+              "entry_digest": "a0aab1469e4567bb29c2ced95abe7c0b04e37270b5d87db5caf341d88f2d75a5",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "64e03ddf18a42107a8da0acfd682c376c518993baac7c8887c7264e46d721131",
+      "current_acceptance_input_digest": "6f7a3d76ce07def07a717efbe06e965ae419699aad1177f38ab9d7abdcbdc9a7"
     }
   ]
 }
