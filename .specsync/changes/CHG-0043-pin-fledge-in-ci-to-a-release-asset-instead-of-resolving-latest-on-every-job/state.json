@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0043-pin-fledge-in-ci-to-a-release-asset-instead-of-resolving-latest-on-every-job",
+  "slug": "pin-fledge-in-ci-to-a-release-asset-instead-of-resolving-latest-on-every-job",
+  "title": "Pin fledge in CI to a release asset instead of resolving latest on every job",
+  "description": "Pin fledge in CI to a release asset instead of resolving latest on every job",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "7789240d5b70dec0b981dbaddfcb68ae85fa3401",
+  "created_at": 1786814418,
+  "updated_at": 1786814536,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Both CI jobs install fledge by downloading a pinned release asset directly, making no GitHub API call, with retries for ordinary network flake. The six Ruby jobs and Spec Sync stop failing intermittently with 'could not determine latest version'. No library, spec, or contract content changes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

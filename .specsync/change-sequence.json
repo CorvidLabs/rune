@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 42,
-  "id": "CHG-0042-fix-an-attachment-reporting-both-that-the-session-is-still-running-and-that-it-e",
+  "sequence": 43,
+  "id": "CHG-0043-pin-fledge-in-ci-to-a-release-asset-instead-of-resolving-latest-on-every-job",
   "acknowledged_collisions": []
 }
