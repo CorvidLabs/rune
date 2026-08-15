@@ -212,6 +212,8 @@ deciding who talks to whom stays the calling agent's job.
 | `reap_idle_clients` | internal method | Closes control connections that connected and never sent a request. |
 | `handle_resize` | internal method | Applies a resize request sent over its own control connection. |
 | `resize_child` | internal method | Sets the child's pty dimensions and signals SIGWINCH so it re-lays-out. |
+| `MAX_OUTBOX_BYTES` | constant | Ceiling on undrained output for one attached terminal before it is dropped. |
+| `serialized_launch` | internal method | Runs the conflict check and launch for one name under the start lock. |
 | `GENERATED_NAME_ATTEMPTS` | constant | How many codenames a start without `--name` tries before giving up. |
 | `REPLY_DRAIN_TIMEOUT` | constant | How long teardown keeps pushing out replies that are already queued. |
 | `drain_replies` | internal method | Delivers queued replies before teardown closes their sockets. |
@@ -221,10 +223,13 @@ deciding who talks to whom stays the calling agent's job.
 | `spawn_supervisor` | internal method | Re-invokes rune's executable as the detached supervisor for one session. |
 
 > Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base`, `socket_live?`,
-> `serialized_launch`, `terminal_size`, `forward_resize`, `forward_pending_resize` and
-> `with_resize_forwarding` are intentionally absent from the table above. They exist and are exercised by
-> the suite, but SpecSync's Ruby extractor does not surface them from their position in the class
-> body (rune#20 / spec-sync#479), and documenting an export it cannot see fails the contract check.
+> `terminal_size`, `forward_resize`, `forward_pending_resize` and `with_resize_forwarding` are
+> intentionally absent from the table above. They exist and are exercised by the suite, but
+> SpecSync's Ruby extractor does not surface them from their position in the class body
+> (rune#20 / spec-sync#479), and documenting an export it cannot see fails the contract check.
+> The membership of this list is not stable: it moves whenever a neighbouring declaration is added
+> or removed, which is the position-dependency the upstream issue describes — `serialized_launch`
+> became visible purely because the method that followed it was deleted.
 > This matches the existing convention in `pty_runner`'s spec for the same upstream bug.
 
 ## Invariants
