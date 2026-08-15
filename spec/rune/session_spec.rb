@@ -782,8 +782,9 @@ RSpec.describe Rune::Commands::SessionCommand do
   end
 
   describe 'echo tracking with multibyte output' do
-    let(:supervisor) do
-      Rune::Session::Supervisor.new(name: 'unit', command: ['true'], store: store)
+    def pending(echo:, now: 0)
+      Rune::Session::PendingSend.new(client: nil, cursor: 0, echo: echo, now: now,
+                                     settle_ms: 800, timeout_ms: 15_000)
     end
 
     # Found by driving agy: the supervisor died reproducibly within a few turns,
@@ -791,19 +792,17 @@ RSpec.describe Rune::Commands::SessionCommand do
     # rules, so multibyte output inside the echo grace window is the norm, not
     # an edge case.
     it 'does not raise when the arriving slice is multibyte' do
-      expect { supervisor.send(:echo_still_arriving?, '⣟', 'run the command') }.not_to raise_error
+      expect { pending(echo: 'run the command').beyond_echo('⣟', now: 0) }.not_to raise_error
     end
 
-    it 'reports a multibyte slice that is not the echo as not-the-echo' do
-      expect(supervisor.send(:echo_still_arriving?, '⣟⣯⣷', 'hello')).to be false
+    it 'does not mistake a multibyte slice for a partly-arrived echo' do
+      expect(pending(echo: 'hello').beyond_echo('⣟⣯⣷', now: 0)).to eq('⣟⣯⣷')
     end
 
     # Advancing past the echo by its byte length overshoots for non-ASCII, which
     # silently ate the first characters of the reply.
     it 'strips exactly the echo when the sent text was not ASCII' do
-      supervisor.instance_variable_set(:@pending, { echo: 'héllo', sent_at: 0 })
-
-      expect(supervisor.send(:beyond_echo, 'hélloANSWER')).to eq('ANSWER')
+      expect(pending(echo: 'héllo').beyond_echo('hélloANSWER', now: 0)).to eq('ANSWER')
     end
   end
 

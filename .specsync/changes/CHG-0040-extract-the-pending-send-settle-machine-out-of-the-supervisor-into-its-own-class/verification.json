@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786810604,
+  "timestamp": 1786810496,
   "commit": "839d392bb81565dc9cc8fa0e50bafbda9974b7ab",
-  "contract_digest": "2bebe5c845d00ea9d42700bf617050fcee9a5bfe25963c24fa2b6ac5db6a6da9",
-  "workspace_digest": "17a6f1732feee8e57618730dbb9c1c32003517a7d79f0c46c68f23d638123624",
-  "acceptance_input_digest": "6fefa5f87a8d9d1db26169363fe68a858c02725e013963fece90aa554469bfff",
+  "contract_digest": "018e82d75dca942218594243db8f4e3ed66873f194289a008c03a1243b184575",
+  "workspace_digest": "e1951a74902ed917ae8430991003ac43f965dedb1d1be3745aebce9ceb5a47e5",
+  "acceptance_input_digest": "b93f3a2cf28900fdbc296b62e737d01a952a9a3f376895c085cb256fa838ce7c",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,30 +11,30 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "3acc8593190dcda79358228fec2cfa9648beaf71327b20e5c23c50e35cfbaf7a",
-        "entry_digest": "3587a9f46feced65bfe60b0d01de00464ee3324038e3a8a8b259476ef20a170c",
+        "payload_digest": "6a24b12ce229901ac88bb2bbf2f6684441e5c8ba5a918e2fc58e7b0150d35dd7",
+        "entry_digest": "23f199e56e40c47b9a31f1cedf9ca988cefa6789f2a452272bed971d35d4a9f6",
         "owners": [
           "@exact:delivery"
         ]
       },
       {
-        "path": "lib/rune/commands/session_command.rb",
+        "path": "lib/rune.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "3a1313a85c478d8bfee4df9cda5fc6132c45991cb6cbe7af6080b550e89a4ecd",
-        "entry_digest": "125be837db8e54de4dd15ce55a018388f86bd5564373db22652fd50ef6895fff",
+        "payload_digest": "6d97b1e4caeb0c48a300cb80e30db1746619b5af0ad7e3ea4e3e8d0df372636c",
+        "entry_digest": "f94835fc432d15dd27ffb5fefcdb4af79dec9e0043d1387a77a83e562f3dbad6",
         "owners": [
-          "session"
+          "cli"
         ]
       },
       {
-        "path": "lib/rune/parsers/screen_renderer.rb",
+        "path": "lib/rune/session/pending_send.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "10f2a47ea04d80b41c9ca2808a23381f7fce8a4573f2c011e0c648c2d54b585c",
-        "entry_digest": "4f4600aec161058dfe264315a5e2ffc54d2c1b0e975271ed6aa74d7ca8274083",
+        "payload_digest": "9f64111b691e05df1dabd9235975e74a753bc3b363758e71b2636cd083f51e1f",
+        "entry_digest": "b438061d1ffd8a1aab77a1fae7dba0a59030ce83674ed796bc68d79130a5c1fe",
         "owners": [
-          "parsers"
+          "session"
         ]
       },
       {
@@ -48,16 +48,6 @@
         ]
       },
       {
-        "path": "spec/rune/parsers/screen_renderer_spec.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "4b82be8d20bd34bab6bb6abc22e20d514f04085de27353119b2a463e10426870",
-        "entry_digest": "99b45b621db8228a1bd33e4f1a11433b8f03254344bbae28892ffd70f6edc6fd",
-        "owners": [
-          "@exact:delivery"
-        ]
-      },
-      {
         "path": "spec/rune/session_spec.rb",
         "kind": "file",
         "mode": 33188,
@@ -68,23 +58,23 @@
         ]
       },
       {
-        "path": "specs/parsers/parsers.spec.md",
+        "path": "specs/cli/cli.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "780a80054de0b3a6b94be1a495415bc8bf347bbe098c78069fab75ad7ddc5e99",
-        "entry_digest": "078482b7b269abf6c644948640a34adf2d80f4ceee408d2f28f8b3c4eb1cd407",
+        "payload_digest": "804be3db0112c28be26616a0c9ad59b9a2e3ec2a79f02d8ac50af9fd8cfb510f",
+        "entry_digest": "e0fb1f190a53a3475278d78c81c1f5c574b3e295ac4e630ce8c4c11a8f7b3523",
         "owners": [
-          "parsers"
+          "cli"
         ]
       },
       {
-        "path": "specs/parsers/requirements.md",
+        "path": "specs/cli/requirements.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "d10eb208af6fa95b43af778fd5797b4e4586ffe9a58dc01f2ceaf31cf916fd5d",
-        "entry_digest": "8f365ed356648d581f18ff8f893fe741368eb763fa4556cec9243466b877810a",
+        "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+        "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
         "owners": [
-          "parsers"
+          "cli"
         ]
       },
       {

@@ -1,6 +1,6 @@
 ---
 module: session
-version: 11
+version: 12
 status: active
 files:
   - lib/rune/session/store.rb
@@ -8,6 +8,7 @@ files:
   - lib/rune/session/client.rb
   - lib/rune/session/attachment.rb
   - lib/rune/session/prompt_scanner.rb
+  - lib/rune/session/pending_send.rb
   - lib/rune/commands/session_command.rb
 ---
 # Sessions (`rune session`)
@@ -47,6 +48,19 @@ deciding who talks to whom stays the calling agent's job.
 | `Client` | class | One request/reply exchange against a session's control socket. |
 | `Unavailable` | class | Raised when a control socket is missing or refuses a connection — how a dead supervisor presents. |
 | `PromptScanner` | module | Reports whether the last non-blank line of text looks like an interactive prompt. |
+| `PendingSend` | class | One in-flight `send` and the decision of when it has been answered. |
+| `observe` | instance method | Records that something other than the pty's echo has arrived. |
+| `outcome` | instance method | The outcome for this tick, or nil to keep waiting. |
+| `beyond_echo` | instance method | Returns the portion of a response past the pty's echo of the input. |
+| `busy_at_send` | reader | Whether the child was still producing output when this send landed. |
+| `client` | reader | The control connection waiting on this send. |
+| `cursor` | reader | Transcript offset taken when the send was written, so the reply holds only its own output. |
+| `compile_regex` | class method | Compiles `--wait-for-regex` with a bounded match budget, returning nil when absent or invalid. |
+| `supports_regex_timeout?` | class predicate | Whether this Ruby can bound a single regex match. |
+| `ECHO_GRACE_SECONDS` | constant | How long a prefix of the input may still be assumed to be the pty's echo. |
+| `REGEX_MATCH_TIMEOUT` | constant | How long one `--wait-for-regex` match may run before the pattern is abandoned. |
+| `REGEX_TIMEOUT_ERROR` | constant | The regex-timeout error class, or an unraised stand-in on Ruby without one. |
+| `DEFAULT_TIMEOUT_MS` | constant | Hard cap on a whole send when the caller does not set one. |
 | `SessionCommand` | class | Subcommand `rune session <start\|send\|read\|attach\|list\|stop\|archive>`. |
 | `home` | reader | Returns the resolved session-state root for this store. |
 | `default_home` | class method | Resolves `RUNE_HOME`, treating an empty value as unset, else `~/.rune`. |
@@ -83,17 +97,13 @@ deciding who talks to whom stays the calling agent's job.
 | `flush_submit` | internal method | Writes any outstanding terminator immediately, preserving order against a new send. |
 | `pending_text?` | internal predicate | True while a send's text is still queued for the pty master. |
 | `undelivered_input?` | internal predicate | True while a previous send's text is queued and its terminator still owed. |
-| `unsubmitted_outcome` | internal method | Outcome for a send whose terminator has not gone out: hard limits only. |
-| `submitted_outcome` | internal method | Outcome for a send whose input the child has actually received. |
 | `exit_status` | internal method | Normalizes a Process::Status into an exit code, mapping a signal to 128+n. |
 | `UNDELIVERED_INPUT_ERROR` | constant | Error returned when a send arrives while previous input is still going out. |
 | `await_exit` | internal method | Waits, bounded, for a cooperative shutdown to finish before force-killing. |
 | `SUBMIT_DELAY` | constant | How long after a send's text the terminating carriage return is written. |
 | `begin_pending` | internal method | Records the send cursor, settle window, regex, deadline, and echo for an in-flight send. |
 | `resolve_pending` | internal method | Re-evaluates an in-flight send against new output once per loop tick. |
-| `pending_outcome` | internal method | Selects the outcome for an in-flight send, or nil to keep waiting. |
 | `beyond_echo` | internal method | Returns the portion of a response past the pty's echo of the input, handling a partially-arrived echo. |
-| `quiet_enough?` | internal predicate | True once non-echo output has arrived and the child has been quiet for the settle window. |
 | `settle_pending` | internal method | Replies to an in-flight send and clears the pending state. |
 | `handle_stop` | internal method | Acknowledges a stop request and ends the event loop. |
 | `status_payload` | internal method | Builds the reply for a `status` request. |
@@ -106,9 +116,6 @@ deciding who talks to whom stays the calling agent's job.
 | `terminate_child` | internal method | Kills and reaps a still-running child. |
 | `safe_close` | internal method | Closes an IO, tolerating one already closed. |
 | `log_event` | internal method | Appends one timestamped NDJSON event to the transcript. |
-| `compile_regex` | internal method | Compiles `--wait-for-regex` with a bounded match budget, returning nil when absent or invalid. |
-| `regex_matched?` | internal predicate | True on a match, false on none, nil when the pattern exceeded its match budget. |
-| `supports_regex_timeout?` | internal predicate | Whether this Ruby can bound a single regex match. |
 | `REGEX_MATCH_TIMEOUT` | constant | How long one `--wait-for-regex` match may run before the pattern is abandoned. |
 | `REGEX_TIMEOUT_ERROR` | constant | The regex-timeout error class, or an unraised stand-in on Ruby without one. |
 | `positive_int` | internal method | Coerces a request value to a positive integer, falling back to a default. |
@@ -163,7 +170,6 @@ deciding who talks to whom stays the calling agent's job.
 | `handle_attach` | internal method | Acknowledges an attach, replays the current screen, and promotes the client to a raw duplex pipe. |
 | `recent_transcript` | internal method | The trailing slice of transcript replayed to an attaching terminal. |
 | `forward_from_attached` | internal method | Forwards bytes typed on an attached terminal into the child's pty. |
-| `within_echo_grace?` | internal predicate | True while a prefix of the input may still be the pty's own echo rather than a reply. |
 | `ECHO_GRACE_SECONDS` | constant | How long after a send a prefix-of-input is still assumed to be the pty echo. |
 | `ATTACH_BACKLOG_BYTES` | constant | How much existing transcript an attaching terminal is replayed. |
 | `Attachment` | class | Connects a human terminal to a live session until the detach key is pressed. |
@@ -205,7 +211,6 @@ deciding who talks to whom stays the calling agent's job.
 | `discard_disconnected_pending` | internal method | Releases an in-flight send whose caller has closed its socket. |
 | `client_gone?` | internal predicate | True when a readable client socket is at EOF rather than carrying data. |
 | `read_request_line` | internal method | Reads one control request within a bound, so a partial line cannot freeze the loop. |
-| `echo_still_arriving?` | internal predicate | True when the trailing bytes received are the start of the echo still in flight. |
 | `kill_group` | internal method | Signals the child's process group, falling back to the single pid. |
 | `REQUEST_READ_TIMEOUT` | constant | How long one control request may take to deliver a complete line. |
 | `MAX_REQUEST_BYTES` | constant | Largest control request accepted before the client is dropped. |
@@ -618,3 +623,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-15 | CHG-0036-restore-the-send-settle-default-to-800ms-and-correct-the-0-4-0-measurement-whic: Restore the send settle default to 800ms and correct the 0.4.0 measurement, which was confounded by unsubmitted prompts and by searching a repaint-fragmented byte stream |
 | 2026-08-15 | CHG-0037-fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune: Fix two defects found by having grok and claude review this branch through rune itself: erase-line excluded the cursor cell, and backpressure defeated the terminator delay |
 | 2026-08-15 | CHG-0039-fix-six-defects-found-by-a-read-only-grok-kimi-and-agy-council-review-of-0-5-0: Fix six defects found by a read-only grok, kimi and agy council review of 0.5.0: renderer escapes and last-column cursor, a send accepted mid-delivery, a send settled before submission, stop killing before teardown, a false exit code, and a skipped process-group kill |
+| 2026-08-15 | CHG-0040-extract-the-pending-send-settle-machine-out-of-the-supervisor-into-its-own-class: Extract the pending-send settle machine out of the supervisor into its own class, so the logic four review rounds kept finding bugs in is testable without an event loop |
