@@ -18,10 +18,19 @@ require_relative 'rune/utf8_stream_decoder'
 require_relative 'rune/pty_runner'
 require_relative 'rune/pty_watcher'
 
+# Persistent named sessions
+require_relative 'rune/output_limiter'
+require_relative 'rune/session/prompt_scanner'
+require_relative 'rune/session/store'
+require_relative 'rune/session/client'
+require_relative 'rune/session/supervisor'
+require_relative 'rune/session/attachment'
+
 # Command implementations
 require_relative 'rune/commands/version_command'
 require_relative 'rune/commands/run_command'
 require_relative 'rune/commands/watch_command'
+require_relative 'rune/commands/session_command'
 
 module Rune
   class Error < StandardError; end

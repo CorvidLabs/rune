@@ -3,16 +3,16 @@
 
 # A small interactive demo program to actually play with rune against.
 # Run it directly to see the raw TUI:
-#   ruby examples/demo_tui.rb
+#   ruby examples/humans/demo_tui.rb
 #
 # Or watch it live through rune, with a real terminal (a human types, rune
 # forwards keystrokes and streams the output live, and logs every chunk as
 # an NDJSON event you can tail from another terminal):
-#   ruby bin/rune watch -- ruby examples/demo_tui.rb
-#   ruby bin/rune watch --log=/tmp/demo-session.ndjson -- ruby examples/demo_tui.rb
+#   ruby bin/rune watch -- ruby examples/humans/demo_tui.rb
+#   ruby bin/rune watch --log=/tmp/demo-session.ndjson -- ruby examples/humans/demo_tui.rb
 #
 # Or capture a single scripted run end-to-end instead of watching it live:
-#   ruby bin/rune run --json -- ruby examples/demo_tui.rb
+#   ruby bin/rune run --json -- ruby examples/humans/demo_tui.rb
 #
 # The top-level menu is a real arrow-key selector (Up/Down + Enter, or q to
 # quit) rather than type-a-number-and-press-Enter, specifically to exercise
@@ -26,7 +26,7 @@
 # space-delimited table.
 
 require 'io/console'
-require_relative '../lib/rune/version'
+require_relative '../../lib/rune/version'
 
 $stdout.sync = true
 

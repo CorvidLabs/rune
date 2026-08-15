@@ -156,10 +156,10 @@ result = runner.run
 # temp file (announced once, up front) so an agent can `tail -f` it live
 # without any JSON noise landing in your own terminal. The demo's top-level
 # menu is a real arrow-key selector (↑/↓ + Enter, or q to quit).
-rune watch -- ruby examples/demo_tui.rb
+rune watch -- ruby examples/humans/demo_tui.rb
 
 # Or point the log somewhere specific:
-rune watch --log=/tmp/session.ndjson -- ruby examples/demo_tui.rb
+rune watch --log=/tmp/session.ndjson -- ruby examples/humans/demo_tui.rb
 ```
 
 In agent mode — `--json`, `--ndjson`, or any time stdout isn't a terminal — the live passthrough
@@ -167,7 +167,7 @@ moves to **stderr** so stdout carries nothing but the result envelope. The human
 view; the calling program gets clean JSON:
 
 ```sh
-rune watch --json -- ruby examples/demo_tui.rb 2>/dev/null | jq .data.log_path
+rune watch --json -- ruby examples/humans/demo_tui.rb 2>/dev/null | jq .data.log_path
 ```
 
 ---
@@ -190,6 +190,7 @@ rune watch --json -- ruby examples/demo_tui.rb 2>/dev/null | jq .data.log_path
 ## Architecture & Internals
 
 - 📖 **[Getting Started guide](docs/getting_started.md)** — Output modes, `rune run` usage, timeouts, and parsers with real command output.
+- 📖 **[Persistent sessions guide](docs/sessions.md)** — `rune session`: named PTY sessions that outlive a single invocation, and send-and-settle for driving one agent CLI from another.
 - 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — How pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, script execution, and `rune watch`'s live bidirectional passthrough work under the hood in Ruby.
 - 📖 **[Release guide](docs/releasing.md)** — Version synchronization, verification, provenance, tagging, and package publication.
 

@@ -252,7 +252,7 @@ RSpec.describe Rune::PTYWatcher do
     end
 
     def drive_demo_menu_to_confirm_and_quit(down_sequence)
-      demo_path = File.expand_path('../../examples/demo_tui.rb', __dir__)
+      demo_path = File.expand_path('../../examples/humans/demo_tui.rb', __dir__)
       human_in_r, human_in_w = IO.pipe
       log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
       output = +''
@@ -274,7 +274,7 @@ RSpec.describe Rune::PTYWatcher do
     end
 
     it 'forwards raw CSI arrow-key escape sequences (ESC [ B) and Enter, driving ' \
-       "examples/demo_tui.rb's real arrow-key selector end-to-end" do
+       "examples/humans/demo_tui.rb's real arrow-key selector end-to-end" do
       result, output = drive_demo_menu_to_confirm_and_quit("\e[B")
 
       expect(result).to be_success
@@ -295,7 +295,7 @@ RSpec.describe Rune::PTYWatcher do
 
     it "does not hang on a lone Escape key (not followed by a bracket sequence) in demo_tui.rb's " \
        'selector' do
-      demo_path = File.expand_path('../../examples/demo_tui.rb', __dir__)
+      demo_path = File.expand_path('../../examples/humans/demo_tui.rb', __dir__)
       human_in_r, human_in_w = IO.pipe
       log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
       output = +''
@@ -324,7 +324,7 @@ RSpec.describe Rune::PTYWatcher do
 
     it 'forwards SIGINT to the child while it is blocked in the raw-mode selector itself, not ' \
        'just in a line-buffered gets prompt' do
-      demo_path = File.expand_path('../../examples/demo_tui.rb', __dir__)
+      demo_path = File.expand_path('../../examples/humans/demo_tui.rb', __dir__)
       log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
       output = +''
 

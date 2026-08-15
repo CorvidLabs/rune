@@ -18,7 +18,6 @@ commit since the previous tag lacks a passing Attest record.
 
    ```sh
    fledge lanes run release
-   fledge trust verify
    ```
 
 5. Commit, attest, push, and open a pull request. Do not create the release tag from the prep
@@ -45,11 +44,9 @@ Once the release-prep pull request is merged:
      --note "Release commit verified on main"
    git push origin refs/notes/attest
    fledge attest verify --range PREVIOUS_TAG..HEAD --policy .attest.json
-   fledge trust verify
    ```
 
-3. Wait for the `main` CI run to pass. If its trust job ran before the Attest note was available,
-   rerun that job after pushing the note.
+3. Wait for the `main` CI run to pass.
 
 4. Create and push the tag without changing the already-reviewed version or changelog:
 

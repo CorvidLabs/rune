@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0030-close-the-deferred-session-limitations-non-blocking-writes-so-a-stalled-child-o",
+  "slug": "close-the-deferred-session-limitations-non-blocking-writes-so-a-stalled-child-o",
+  "title": "Close the deferred session limitations: non-blocking writes so a stalled child or attached terminal cannot wedge the supervisor, terminal-size propagation on attach and SIGWINCH, idle control-connection reaping, and a lock file that makes concurrent start of one name safe",
+  "description": "Close the deferred session limitations: non-blocking writes so a stalled child or attached terminal cannot wedge the supervisor, terminal-size propagation on attach and SIGWINCH, idle control-connection reaping, and a lock file that makes concurrent start of one name safe",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "d0a067ae361b2fce5e20d8b8fce6ea91f0de3520",
+  "created_at": 1786753314,
+  "updated_at": 1786760038,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/session",
+    "lib/rune/commands/session_command.rb",
+    "specs/session/session.spec.md",
+    "spec/rune/session_spec.rb",
+    "docs/sessions.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A child that stops reading stdin no longer wedges the supervisor: a send larger than the pty buffer is queued and drained by the event loop, so pty pumping, settle evaluation and stop all keep working. An attached terminal that stops reading is dropped rather than stalling the loop. Attaching propagates the human's terminal size to the child and forwards SIGWINCH, so a full-screen agent renders at the attached terminal's real dimensions; the session returns to its default size when the last terminal detaches, so programmatic sends stay deterministic. A control client that connects and never sends is reaped, so connections cannot accumulate to exhaustion. Two concurrent starts of the same name cannot both win: one succeeds and the other reports the conflict, with no orphaned supervisor and no socket hijack. Each is pinned by a regression test, and the corresponding entries are removed from the spec's Known Limitations."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}
