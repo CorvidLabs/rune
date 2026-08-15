@@ -1,6 +1,6 @@
 ---
 id: CHG-0034-bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot
-state: accepted
+state: archived
 type: feature
 base_commit: e73c3d5d3a69214c2e862dc97686e2a018a8df9e
 ---

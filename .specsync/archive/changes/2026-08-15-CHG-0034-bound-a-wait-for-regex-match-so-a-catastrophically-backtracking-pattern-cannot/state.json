@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0034-bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot",
+  "slug": "bound-a-wait-for-regex-match-so-a-catastrophically-backtracking-pattern-cannot",
+  "title": "Bound a --wait-for-regex match so a catastrophically backtracking pattern cannot wedge the supervisor past its own timeout",
+  "description": "Bound a --wait-for-regex match so a catastrophically backtracking pattern cannot wedge the supervisor past its own timeout",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "e73c3d5d3a69214c2e862dc97686e2a018a8df9e",
+  "created_at": 1786769636,
+  "updated_at": 1786803488,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/session/supervisor.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A --wait-for-regex pattern that backtracks catastrophically is abandoned with regex_timed_out: true rather than blocking the event loop, the send returns well inside its --timeout-ms, and the session remains usable afterwards. Verified end to end with a backreference pattern against a child emitting 60 a characters: the send previously blocked long past its 8s deadline and now returns in under a second. Regression tests fail against the unfixed code and pass against the fix, and skip on Ruby below 3.2 where no per-Regexp timeout exists. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}
