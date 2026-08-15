@@ -3,6 +3,7 @@
 require 'rbconfig'
 require 'timeout'
 require_relative '../session/store'
+require_relative '../session/transcript'
 require_relative '../session/client'
 require_relative '../session/supervisor'
 require_relative '../session/attachment'
@@ -394,11 +395,11 @@ module Rune
         return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
         return Result.failure(no_such_session(options[:name])) unless store.exist?(options[:name])
 
-        transcript, dropped = read_transcript_file(options[:name])
-        sliced = slice_from(transcript, options[:since], dropped)
-        bounded, extra = bound_output(sliced, options)
+        transcript = Session::Transcript.load(store.output_path(options[:name]))
+        sliced = transcript.from(options[:since])
+        bounded, extra = bound_output(sliced, options, transcript)
 
-        Result.success(read_payload(options, transcript, sliced, bounded, dropped).merge(extra))
+        Result.success(read_payload(options, transcript, sliced, bounded).merge(extra))
       end
 
       # Whether the child has produced output recently enough to call it busy,
@@ -416,16 +417,14 @@ module Rune
         { idle_ms: idle, child_busy: idle < Session::Supervisor::DEFAULT_SETTLE_MS }
       end
 
-      def read_payload(options, transcript, sliced, bounded, dropped)
+      def read_payload(options, transcript, sliced, bounded)
         { action: 'read', name: options[:name], output: bounded,
           clean_output: Parsers::TextSanitizer.strip_ansi(bounded),
-          # Absolute, so a cursor keeps meaning the same position after the
-          # transcript has been rotated.
-          cursor: dropped + transcript.bytesize,
+          cursor: transcript.cursor,
           prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }
-          .merge(dropped.positive? ? { dropped_bytes: dropped } : {})
+          .merge(transcript.dropped.positive? ? { dropped_bytes: transcript.dropped } : {})
           .merge(busy_fields(options))
-          .merge(screen_field(transcript, options))
+          .merge(options[:screen] ? { screen: transcript.screen } : {})
       end
 
       # The screen as it stands once the send has settled. Read from the
@@ -435,102 +434,26 @@ module Rune
       def screen_after(name, screen)
         return {} unless screen
 
-        { screen: Parsers::ScreenRenderer.render(transcript_for(name)) }
+        { screen: Session::Transcript.load(store.output_path(name)).screen }
       end
 
-      # `--screen` answers "what is on the callee's terminal right now", which
-      # for a full-screen agent is a different question from "what bytes have
-      # arrived". It renders the whole transcript rather than the `--since`
-      # slice: a screen is the product of every escape sequence that came
-      # before, so replaying from a mid-stream cursor would show a screen the
-      # child never displayed. Rendered client-side, so a long session costs the
-      # supervisor's single thread nothing.
-      def screen_field(transcript, options)
-        return {} unless options[:screen]
-
-        { screen: Parsers::ScreenRenderer.render(transcript) }
-      end
-
-      # Reconstructed from the durable NDJSON transcript rather than over the
-      # control socket, so `read` works identically for a live session and for
-      # one whose supervisor has already exited. Cursor offsets agree with
-      # `send`'s because both count the same concatenated decoded output.
-      def transcript_for(name) = read_transcript_file(name).first
-
-      # Returns the retained text and how many earlier bytes rotation dropped.
-      # A `truncated` event carries that count so cursors stay absolute: a
-      # cursor taken before a rotation still names the same position in the
-      # stream, it just points at output no longer held.
-      def read_transcript_file(name)
-        path = store.output_path(name)
-        return [+'', 0] unless File.exist?(path)
-
-        dropped = 0
-        text = File.foreach(path).with_object(+'') do |line, buffer|
-          event = JSON.parse(line, symbolize_names: true)
-          case event[:event]
-          when 'output' then buffer << event[:text].to_s
-          when 'truncated' then dropped += event[:dropped_bytes].to_i
-          end
-        rescue JSON::ParserError
-          next
-        end
-        [text, dropped]
-      end
-
-      # `--since` is a byte offset supplied by the caller, so unlike the
-      # supervisor's own cursor — which is only ever taken at a decoded-chunk
-      # boundary — it can land in the middle of a multi-byte character. Without
-      # scrubbing, the resulting invalid string blew up JSON rendering with a
-      # bare "invalid byte sequence in UTF-8" on any transcript containing
-      # non-ASCII, which for a TUI agent is every transcript. `OutputLimiter`
-      # already scrubs its own cut points for exactly this reason.
-      # `since` is an absolute cursor, so rotation shifts where it lands in what
-      # is still held. A cursor from before the rotation returns everything
-      # retained rather than nothing, and `dropped_bytes` in the reply says how
-      # much came earlier and is gone.
-      def slice_from(transcript, since, dropped = 0)
-        return transcript if since.nil?
-
-        offset = since - dropped
-        return transcript.dup if offset.negative?
-
-        (transcript.byteslice(offset..) || +'').scrub
-      end
-
-      def bound_output(text, options)
-        text, grep_extra = grep_output(text, options)
+      def bound_output(text, options, transcript = nil)
+        text, grep_extra = filter(text, options, transcript)
         bounded, extra = bound_size(text, options)
         [bounded, grep_extra.merge(extra)]
       end
 
       # Finding one answer inside a long transcript otherwise means pulling most
       # of it: a driven agent's transcript reached 379KB in a day's work, and
-      # `--since`/`--tail` do not help when what you want is in the middle.
-      #
-      # Matches against the *cleaned* text, not the raw stream, because a
-      # full-screen agent's repaint frames split words across escape sequences —
-      # a pattern that plainly appears on screen will not match the bytes.
-      def grep_output(text, options)
-        return [text, {}] unless options[:grep]
+      # neither `--since` nor `--tail` helps when what you want is in the middle.
+      def filter(text, options, transcript)
+        return [text, {}] unless options[:grep] && transcript
 
         pattern = compile_grep(options[:grep])
         return [text, { grep_error: "invalid --grep pattern: #{options[:grep]}" }] unless pattern
 
-        lines = Parsers::TextSanitizer.strip_ansi(text).lines
-        wanted = matching_lines(lines, pattern, options[:context_lines].to_i)
-        [wanted.map { |index| lines[index] }.join,
-         { grep: options[:grep], grep_matches: lines.count { |line| pattern.match?(line) } }]
-      end
-
-      # Line indexes to keep: every match plus its context, deduplicated and in
-      # order, so overlapping context windows do not repeat lines.
-      def matching_lines(lines, pattern, context)
-        matches = lines.each_index.select { |index| pattern.match?(lines[index]) }
-        windows = matches.flat_map do |index|
-          ([index - context, 0].max..[index + context, lines.size - 1].min).to_a
-        end
-        windows.uniq.sort
+        filtered, matches = transcript.grep(pattern, context: options[:context_lines].to_i)
+        [filtered, { grep: options[:grep], grep_matches: matches }]
       end
 
       def compile_grep(source)
