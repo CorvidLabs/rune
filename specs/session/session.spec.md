@@ -212,7 +212,9 @@ deciding who talks to whom stays the calling agent's job.
 | `reap_idle_clients` | internal method | Closes control connections that connected and never sent a request. |
 | `handle_resize` | internal method | Applies a resize request sent over its own control connection. |
 | `resize_child` | internal method | Sets the child's pty dimensions and signals SIGWINCH so it re-lays-out. |
-| `start_name` | internal method | The explicit `--name` or a generated codename for a new session. |
+| `GENERATED_NAME_ATTEMPTS` | constant | How many codenames a start without `--name` tries before giving up. |
+| `REPLY_DRAIN_TIMEOUT` | constant | How long teardown keeps pushing out replies that are already queued. |
+| `drain_replies` | internal method | Delivers queued replies before teardown closes their sockets. |
 | `start_rejection` | internal method | Returns the failure that blocks a start, or nil to proceed. |
 | `running_conflict` | internal method | Returns a failure when the name already has a live supervisor. |
 | `launch` | internal method | Creates session state, spawns the supervisor, and waits for readiness. |
@@ -361,13 +363,24 @@ deciding who talks to whom stays the calling agent's job.
     when the destination reports writable, so a child that stops reading stdin, or a peer that stops
     reading, never costs the session its ability to pump the pty, evaluate a settle, or handle
     `stop`.
-41a. Queued output for a peer is bounded. A peer whose queue exceeds the ceiling is dropped and its
-    queue discarded, so a terminal that accepts an attachment and then never reads cannot grow the
-    supervisor's memory without limit. The ceiling deliberately does not apply to the pty master: a
-    child that is slow to read is the session, not a peer to be disconnected.
+41a. Queued output for an *attached terminal* is bounded. A terminal whose queue exceeds the ceiling
+    is dropped and its queue discarded, so one that accepts an attachment and then never reads
+    cannot grow the supervisor's memory without limit. The ceiling applies to nothing else: not to
+    the pty master, because a child that is slow to read is the session rather than a peer to be
+    disconnected, and not to control replies, because a reply is an answer the caller is blocked on
+    — discarding one reports a send as unreachable that in fact completed, and an agent then repeats
+    a turn the child already did.
 41b. Closing an IO unregisters it from every structure the event loop selects on. A closed
     descriptor reaching `IO.select` raises, which would unwind the loop and let teardown kill a
     healthy child, so the bookkeeping lives in one place rather than at each call site.
+41c. A reply that has been queued is delivered before teardown, within a short bound. One
+    `write_nonblock` takes at most a socket buffer's worth, so any reply larger than that is still
+    partly queued when the loop exits — and the loop exits as soon as the child is gone and nothing
+    is pending. Draining at teardown is what makes an answer survive the child that produced it; the
+    bound is what stops a caller that has stopped reading from holding the supervisor open.
+41d. A send whose write to the pty failed is reported as an error, never as sent. A queued write
+    reports a dead master by marking the child finished rather than by raising, so a `--no-wait`
+    send — which has no later settle to catch it — must check for that before answering.
 42. Attaching propagates the terminal's real dimensions to the child and forwards SIGWINCH for the
     duration, over separate short-lived control connections — the attachment socket itself is a raw
     byte pipe after the ack, so a control frame written there would be typed at the child instead.
@@ -380,6 +393,11 @@ deciding who talks to whom stays the calling agent's job.
     the recording of a supervisor pid. Those are otherwise a check-then-act pair: two concurrent
     starts could both see the name as free, and the loser would unlink the winner's socket and
     orphan its child.
+44a. A generated codename is chosen inside that lock, and contention retries another codename rather
+    than failing. Choosing it outside meant two concurrent `start -- <tool>` calls could pick the
+    same codename and the loser would fail on a name it never asked for, with many others free —
+    which is precisely the parallel-agent case an optional `--name` exists to serve. An explicit
+    `--name` still fails on contention: that name was the request.
 45. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
     additive.
 

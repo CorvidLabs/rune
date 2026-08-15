@@ -718,6 +718,88 @@ RSpec.describe Rune::Commands::SessionCommand do
       # used to leave a closed socket in @attached.
       expect(body.index('resize_child')).to be < body.index('@attached << client')
     end
+
+    # The ceiling exists for a terminal that attaches and stops reading. Applied
+    # to every non-master IO it also hit control replies, and a settle answers
+    # with the whole captured slice — so one long turn from a TUI agent was
+    # thrown away and the caller told the session was unreachable.
+    it 'never drops a control reply for exceeding the undrained-output ceiling' do
+      client, peer = UNIXSocket.pair
+      oversized = 'x' * (Rune::Session::Supervisor::MAX_OUTBOX_BYTES + 1024)
+
+      supervisor.send(:respond, client, output: oversized)
+
+      expect(client).not_to be_closed
+      expect(supervisor.instance_variable_get(:@outbox)).to have_key(client)
+      [client, peer].each { |io| io.close unless io.closed? }
+    end
+
+    it 'still drops an attached terminal that stops draining' do
+      terminal, peer = UNIXSocket.pair
+      supervisor.instance_variable_get(:@attached) << terminal
+
+      supervisor.send(:enqueue, terminal, 'x' * (Rune::Session::Supervisor::MAX_OUTBOX_BYTES + 1024))
+
+      expect(terminal).to be_closed
+      expect(supervisor.instance_variable_get(:@attached)).not_to include(terminal)
+      peer.close unless peer.closed?
+    end
+
+    # write_nonblock takes at most one socket buffer (~8 KiB on macOS), so a
+    # large reply is still half in @outbox when the loop exits. The process then
+    # died with the answer in its memory and the caller blocked on a newline the
+    # kernel discarded.
+    it 'pushes a partly-written reply out before teardown drops the socket' do
+      client, peer = UNIXSocket.pair
+      payload = 'y' * (512 * 1024)
+      reader = Thread.new { peer.gets }
+
+      supervisor.send(:respond, client, output: payload)
+      supervisor.send(:cleanup, nil)
+      client.close unless client.closed? # what process exit does
+
+      expect(reader.join(10)).not_to be_nil
+      expect(JSON.parse(reader.value, symbolize_names: true)[:output]).to eq(payload)
+      peer.close unless peer.closed?
+    end
+
+    # `enqueue` reports a dead master by setting @child_finished rather than
+    # raising, which left handle_send's own rescue unreachable. A waiting send
+    # is still caught by resolve_pending; --no-wait had no such check and
+    # answered `sent: true` for bytes that reached nothing.
+    it 'reports a --no-wait send as failed when the write to the pty died' do
+      read_end, master = IO.pipe
+      read_end.close
+      supervisor.instance_variable_set(:@writer, master)
+      client, peer = UNIXSocket.pair
+
+      supervisor.send(:handle_send, { text: 'hi', no_wait: true }, client, master)
+
+      expect(JSON.parse(peer.gets, symbolize_names: true)[:error]).to match(/exited/)
+      [client, peer, master].each { |io| io.close unless io.closed? }
+    end
+  end
+
+  describe 'a start without --name' do
+    # The lock serialises one name, but the name was picked before it: two
+    # `start -- grok` racing each other both landed on the same codename, and
+    # the loser failed on a name it never asked for while a dozen others were
+    # free — the parallel-agent case an optional name exists for. The fixed
+    # path picks inside the lock, so it also stops consulting generate_name
+    # during the pre-flight check.
+    it 'retries onto another codename when the one it picked is being claimed' do
+      candidates = %w[taken-one taken-one taken-one open-one]
+      allow_any_instance_of(Rune::Session::Store)
+        .to receive(:generate_name) { candidates.shift || 'open-one' }
+      FileUtils.mkdir_p(store.session_dir('taken-one'))
+      result = File.open(store.lock_path('taken-one'), File::RDWR | File::CREAT, 0o600) do |holder|
+        holder.flock(File::LOCK_EX)
+        session('start', '--', 'bash', '--norc', '-i')
+      end
+
+      expect(result).to be_success
+      expect(result.data[:name]).to eq('open-one')
+    end
   end
 
   describe 'concurrent start of one name' do

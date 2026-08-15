@@ -49,6 +49,9 @@ module Rune
       # tighter than the wait it asked for.
       DEFAULT_SEND_TIMEOUT_MS = 120_000
       CLIENT_TIMEOUT_MARGIN = 15.0
+      # How many codenames a start without --name will try before giving up.
+      # Each retry is another process having claimed the one it picked.
+      GENERATED_NAME_ATTEMPTS = 5
 
       VALUE_FLAGS = {
         name: [/\A--name=(.*)\z/, :string],
@@ -113,7 +116,29 @@ module Rune
         rejection = start_rejection(options, command)
         return rejection if rejection
 
-        serialized_launch(start_name(options, command), command)
+        return serialized_launch(options[:name], command) if options[:name]
+
+        launch_generated(command)
+      end
+
+      # A generated name is chosen inside the lock and retried on contention.
+      # Choosing it outside meant two `start -- grok` racing each other both
+      # landed on `grok-amber`: the lock kept them from damaging each other, but
+      # the loser failed on a name it never asked for while a dozen other
+      # codenames were free — exactly the parallel-agent case an optional name
+      # exists for. The losing attempt reuses the winner's directory, so
+      # retrying costs nothing and `generate_name` skips it next time round.
+      def launch_generated(command)
+        GENERATED_NAME_ATTEMPTS.times do
+          name = store.generate_name(command)
+          outcome = store.with_start_lock(name) do
+            running_conflict(name) ? :taken : launch(name, command)
+          end
+          return outcome unless %i[busy taken].include?(outcome)
+        end
+
+        Result.failure("Could not claim a session name for #{command.first.inspect} after " \
+                       "#{GENERATED_NAME_ATTEMPTS} attempts. Retry, or pass --name.")
       end
 
       # The conflict check has to happen inside the lock, not before it: two
@@ -129,12 +154,6 @@ module Rune
         Result.failure("Session #{name.inspect} is being started by another process.")
       end
 
-      # `--name` is optional for start and required by every other subcommand:
-      # a session should always *have* a name, but an agent spinning one up
-      # should not have to invent an identifier. The generated `<tool>-<word>`
-      # also removes the ambiguity of "the grok session" once there are two.
-      def start_name(options, command) = options[:name] || store.generate_name(command)
-
       def start_rejection(options, command)
         if command.empty?
           return Result.failure('No command specified. Usage: rune session start [--name=NAME] -- <command...>')
@@ -145,8 +164,10 @@ module Rune
         return Result.failure('PTY unavailable: pty stdlib failed to load.') unless PTYRunner.pty_available?
 
         # Cheap early rejection; the authoritative check runs inside the start
-        # lock, where it cannot be raced.
-        running_conflict(start_name(options, command))
+        # lock, where it cannot be raced. Only for an explicit name — a
+        # generated one is picked inside that lock and retried, so there is
+        # nothing here to reject.
+        options[:name] ? running_conflict(options[:name]) : nil
       end
 
       def running_conflict(name)

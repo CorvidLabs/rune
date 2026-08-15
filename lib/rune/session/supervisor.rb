@@ -64,8 +64,13 @@ module Rune
       # or floods cannot hold or exhaust the supervisor.
       REQUEST_READ_TIMEOUT = 2.0
       MAX_REQUEST_BYTES = 1024 * 1024
-      # Per-peer ceiling on undrained output before that peer is dropped.
+      # Per-terminal ceiling on undrained output before that terminal is dropped.
       MAX_OUTBOX_BYTES = 4 * 1024 * 1024
+      # How long teardown will keep trying to push out replies that are already
+      # queued. Bounded so a caller that stopped reading cannot hold the
+      # supervisor open, but long enough to finish a reply larger than one
+      # socket buffer.
+      REPLY_DRAIN_TIMEOUT = 2.0
 
       def self.run(name:, command:, home: nil, project: nil)
         new(name: name, command: command, store: Store.new(home: home, project: project)).run
@@ -239,12 +244,18 @@ module Rune
         return if bytes.nil? || bytes.empty?
 
         @outbox[io] << bytes
-        # A peer that never drains would otherwise grow its queue without limit
-        # until the supervisor runs out of memory. The spec always claimed such
-        # a peer "eventually" loses its connection; this is what makes that
-        # true. Never applied to the pty master: a child that is slow to read is
-        # not a peer to be dropped, it is the session.
-        return drop_writer(io) if !io.equal?(@writer) && @outbox[io].bytesize > MAX_OUTBOX_BYTES
+        # An attached terminal that never drains would otherwise grow its queue
+        # without limit until the supervisor runs out of memory. The spec always
+        # claimed such a peer "eventually" loses its connection; this is what
+        # makes that true.
+        #
+        # Attached terminals only. Capping every non-master IO also capped
+        # control replies, and `settle_pending` answers with the whole captured
+        # slice: one long turn from a TUI agent (megabytes of redraws, inflated
+        # again by JSON escaping) crossed the ceiling and the reply was dropped
+        # unwritten. The caller saw "not reachable" for a send that had in fact
+        # completed, and retried a turn the child had already done.
+        return drop_writer(io) if @attached.include?(io) && @outbox[io].bytesize > MAX_OUTBOX_BYTES
 
         flush_outbox(io)
       end
@@ -349,8 +360,10 @@ module Rune
       # becomes a raw duplex pipe to the pty, which is what lets a human type
       # into a session an agent started.
       def handle_attach(client, request, writer)
-        client.puts(JSON.generate(attached: true, cursor: @transcript.bytesize))
-        client.flush
+        # Queued, not written: `puts`/`flush` here were the last blocking writes
+        # left on the event-loop thread. The outbox is one ordered buffer per
+        # peer, so the ack still precedes the backlog replay below.
+        enqueue(client, "#{JSON.generate(attached: true, cursor: @transcript.bytesize)}\n")
         # The attaching terminal's real dimensions, so a full-screen agent
         # started headless at the default size reflows to the human's window
         # instead of rendering 40x120 inside it.
@@ -465,6 +478,12 @@ module Rune
           @child_finished = true
           return respond(client, error: 'session child has exited')
         end
+        # The queued write can fail without raising here: `enqueue` reports a
+        # dead master by setting @child_finished, it does not propagate. A
+        # waiting send is caught later the same tick by `resolve_pending`, but
+        # --no-wait has no such check, so it answered `sent: true` for bytes
+        # that reached nothing.
+        return respond(client, error: 'session child has exited') if @child_finished
         return respond(client, sent: true, waited: false) if request[:no_wait]
 
         begin_pending(request, client, echo)
@@ -652,6 +671,7 @@ module Rune
       def cleanup(server)
         [
           -> { resolve_orphaned_pending },
+          -> { drain_replies },
           -> { terminate_child },
           -> { (@clients + @attached).each { |client| safe_close(client) } },
           -> { safe_close(server) },
@@ -661,6 +681,23 @@ module Rune
           step.call
         rescue StandardError
           next
+        end
+      end
+
+      # Queueing a reply is not delivering it. `write_nonblock` takes at most one
+      # socket buffer (~8 KiB on macOS), so settling a large slice leaves the
+      # rest in @outbox — and the event loop exits the moment the child is gone
+      # and nothing is pending. Without this the process died with the answer
+      # still in its memory and the caller blocked on a newline the kernel then
+      # discarded: `Unavailable` for a send that had actually completed.
+      def drain_replies
+        deadline = monotonic + REPLY_DRAIN_TIMEOUT
+        until @close_after_drain.empty? || monotonic >= deadline
+          queued = @close_after_drain.select { |io| @outbox.key?(io) }
+          break if queued.empty?
+
+          ready = IO.select(nil, queued, nil, POLL_INTERVAL)
+          drain_outbox(ready ? ready[1] : [])
         end
       end
 
