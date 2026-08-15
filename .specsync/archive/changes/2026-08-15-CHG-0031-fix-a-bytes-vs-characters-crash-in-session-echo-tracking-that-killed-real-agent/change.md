@@ -1,6 +1,6 @@
 ---
 id: CHG-0031-fix-a-bytes-vs-characters-crash-in-session-echo-tracking-that-killed-real-agent
-state: accepted
+state: archived
 type: feature
 base_commit: 763fcc233e57913c80e43300d4a54e6931ffdcb0
 ---

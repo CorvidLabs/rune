@@ -1,6 +1,6 @@
 ---
 id: CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac
-state: accepted
+state: archived
 type: feature
 base_commit: 451a5752b135c54a2324c61f087eacb2bd79252d
 ---

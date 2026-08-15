@@ -1,6 +1,6 @@
 ---
 id: CHG-0029-fix-seven-session-defects-found-by-an-independent-grok-kimi-agy-review-wait-for
-state: accepted
+state: archived
 type: bug_fix
 base_commit: df43a01ba17acbf6391a5177f08502485551eb1b
 ---

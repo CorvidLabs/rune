@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac",
+  "slug": "add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac",
+  "title": "Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously",
+  "description": "Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "451a5752b135c54a2324c61f087eacb2bd79252d",
+  "created_at": 1786740496,
+  "updated_at": 1786764294,
+  "affected_specs": [
+    "session",
+    "cli",
+    "parsers"
+  ],
+  "affected_paths": [
+    "lib/rune/session",
+    "lib/rune/commands/session_command.rb",
+    "lib/rune/cli.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json",
+    "lib/rune.rb",
+    "spec/rune/session_spec.rb",
+    "spec/rune/e2e_spec.rb",
+    "specs/cli/cli.spec.md",
+    "lib/rune/parsers/text_sanitizer.rb",
+    "specs/parsers/parsers.spec.md",
+    "docs/sessions.md",
+    "README.md",
+    "CHANGELOG.md",
+    "examples/agents",
+    "examples/humans",
+    "spec/rune/pty_watcher_spec.rb",
+    "docs/getting_started.md",
+    "fledge.toml",
+    ".github/workflows/ci.yml",
+    "scripts/squash_attest_forwards.sh",
+    "scripts/trust_range.sh",
+    "spec/release_version_check_spec.rb",
+    "spec/squash_attest_forwards_spec.rb",
+    "spec/trust_range_spec.rb",
+    "docs/releasing.md",
+    "examples/smoke_test.rb"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A named session survives across separate rune invocations: 'rune session start --name s -- bash' returns, the rune process exits, and a later 'rune session send --name s \"echo hi\"' returns 'hi' from that same still-running child. send-and-settle returns only output produced after that send (cursor taken at send time), blocking until the child is quiet for --settle-ms, or --wait-for-regex matches, or --timeout-ms caps it (reporting settled:false, timed_out:true). 'rune session list' reports live vs dead sessions, distinguishing a supervisor that died without cleanup. 'rune session stop' kills and reaps both child and supervisor and leaves no orphan. All commands work in --json agent mode with parseable stdout. Session state lives under RUNE_HOME (default ~/.rune) with owner-only 0700 dirs and 0600 files. The full transcript is an NDJSON event log in the same format rune watch already writes, so 'tail -f' works."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}
