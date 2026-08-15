@@ -92,6 +92,7 @@ module Rune
       # is written, as its own write. Long enough that the child completes a read
       # in between, short enough to be invisible next to a model round trip.
       SUBMIT_DELAY = 0.05
+      UNDELIVERED_INPUT_ERROR = 'previous input is still being delivered to the child'
       # How long one `--wait-for-regex` match may run. Generous for any sane
       # pattern against a screenful of output, and short enough that a
       # pathological one costs a fraction of a tick rather than the session.
@@ -137,8 +138,13 @@ module Rune
         reader, writer, pid = PTY.spawn(CHILD_ENV, *@command)
         @child_pid = pid
         @writer = writer
-        apply_window_size(writer)
+        # Recorded before anything else that could fail. A supervisor that dies
+        # between the spawn and this write leaves a child nothing knows about:
+        # `abandon` reads meta, finds no child_pid, and kills only the
+        # supervisor. The window cannot be closed entirely — the pid does not
+        # exist until spawn returns — but it should contain nothing but this.
         record_running(pid)
+        apply_window_size(writer)
         log_event('start', command: Shellwords.join(@command), pid: pid)
         event_loop(server, reader, writer)
       rescue Errno::ENOENT, Errno::EACCES => e
@@ -503,6 +509,10 @@ module Rune
       def handle_send(request, client, writer)
         return respond(client, error: 'a send is already in flight on this session') if @pending
         return respond(client, error: 'session child has exited') if @child_finished
+        # A --no-wait send sets no @pending, so a second send can arrive while
+        # the first is still draining into a backpressured pty. Accepting it
+        # would force the previous terminator out alongside undelivered text.
+        return respond(client, error: UNDELIVERED_INPUT_ERROR) if undelivered_input?
 
         begin
           echo = write_to_child(writer, request)
@@ -545,7 +555,11 @@ module Rune
       # submitted, as did writing the text in small pieces).
       def write_to_child(writer, request)
         # Ordering beats delay if two sends are in flight: an outstanding
-        # terminator goes out now rather than after this text.
+        # terminator goes out now rather than after this text. Only reachable
+        # once the previous text has drained — `handle_send` refuses otherwise,
+        # because appending the terminator to still-queued text puts both in one
+        # write and one read, which is the coalescing the delay exists to
+        # prevent, reintroduced by the guard meant to preserve ordering.
         flush_submit
         text = request[:text].to_s
         enqueue(writer, text)
@@ -573,6 +587,10 @@ module Rune
       end
 
       def pending_text? = @outbox.key?(@writer) && !@outbox[@writer].empty?
+
+      # A previous send whose text has not finished going out, and whose
+      # terminator is therefore still owed.
+      def undelivered_input? = !@submit_at.nil? && pending_text?
 
       def flush_submit
         return if @submit_at.nil?
@@ -643,7 +661,26 @@ module Rune
       # Ordered by precedence: an explicit regex match beats the clock, the
       # hard cap beats a settle that has not happened yet, and a child that
       # exited ends the wait whatever the settle window says.
+      # Nothing that has already arrived can be an answer to input that has not
+      # been submitted yet, so while the terminator is still owed only the hard
+      # limits apply. Without this a small --settle-ms, or a regex matching a
+      # composer repaint, could answer a send in the same tick its carriage
+      # return went out — reporting the screen as it was before the child had
+      # even been given the line.
       def pending_outcome(slice)
+        return unsubmitted_outcome if @submit_at
+
+        submitted_outcome(slice)
+      end
+
+      def unsubmitted_outcome
+        return { settled: false, timed_out: true } if monotonic >= @pending[:deadline]
+        return { settled: true, child_exited: true } if @child_finished
+
+        nil
+      end
+
+      def submitted_outcome(slice)
         # Against the post-echo text, not the raw slice. Matching the raw slice
         # meant `--wait-for-regex MARKER` on `echo MARKER` returned the instant
         # the pty echoed the command back — handing the caller its own words as
@@ -813,10 +850,12 @@ module Rune
         return nil unless @child_pid
 
         _, status = Process.wait2(@child_pid)
-        status.exitstatus || (status.signaled? ? 128 + status.termsig : 1)
+        exit_status(status)
       rescue Errno::ECHILD
         0
       end
+
+      def exit_status(status) = status.exitstatus || (status.signaled? ? 128 + status.termsig : 1)
 
       # Each step is isolated: teardown previously shared one rescue, so a child
       # that would not die took the socket removal and the file descriptors down
@@ -877,7 +916,13 @@ module Rune
         return unless @child_pid
 
         kill_group(@child_pid)
-        Process.wait(@child_pid)
+        # Keeps the status it waited for. Discarding it meant `conclude` then
+        # called `reap`, whose `Process.wait2` raised ECHILD on an already-reaped
+        # child and returned a hardcoded 0 — so a session killed on `stop`
+        # recorded `exit_code: 0`, telling `list` and any inspecting tool that
+        # the child had exited cleanly.
+        _, status = Process.wait2(@child_pid)
+        @exit_code = exit_status(status)
       rescue Errno::ESRCH, Errno::ECHILD
         nil
       end

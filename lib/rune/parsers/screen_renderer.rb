@@ -16,11 +16,13 @@ module Rune
     # answer was absent from all 10333 bytes of `clean_output` because repaints
     # had split it, and present in the 1233-byte rendered screen.
     #
-    # Deliberately not a full terminal emulator. It implements the sequences that
-    # decide *where text lands*: cursor motion, erasing, and line discipline.
-    # Everything else — colours, modes, title strings — is consumed and
-    # discarded, because it cannot move the cursor and so cannot change the text
-    # on the screen.
+    # Not a full terminal emulator, but the boundary is specific: it implements
+    # everything that decides *where text lands* — cursor motion, erasing,
+    # insert and delete, scrolling, and line discipline — and consumes only what
+    # genuinely cannot move the cursor, such as colours and title strings. An
+    # earlier version claimed that boundary while ignoring `ESC D`/`E`/`M`,
+    # cursor save/restore, `VPA`, and the insert/delete family; the first of
+    # those printed a literal `D` into the output.
     class ScreenRenderer
       DEFAULT_ROWS = 40
       DEFAULT_COLUMNS = 120
@@ -29,16 +31,25 @@ module Rune
       # 40x120 terminal is a few KB, so this is orders of magnitude of headroom.
       DEFAULT_TAIL_BYTES = 256 * 1024
       TAB_WIDTH = 8
-      # Everything that is not a control this renderer acts on. Scanned in bulk
-      # so an ordinary line of output costs one match rather than one per byte.
-      PRINTABLE = /[^\e\r\n\x08\t]+/
+      # Everything that is not a control this renderer acts on. Vertical tab and
+      # form feed are line-feed class motion, not text, and were previously
+      # written into the screen as characters.
+      PRINTABLE = /[^\e\r\n\x08\x0b\x0c\t]+/
       # CSI final byte to the operation it performs. A table rather than a case
       # so that adding a sequence is a line, not a branch.
       CONTROLS = {
         'A' => :cursor_up, 'B' => :cursor_down, 'C' => :cursor_right, 'D' => :cursor_left,
         'E' => :cursor_next_line, 'F' => :cursor_previous_line, 'G' => :cursor_column,
-        'H' => :cursor_position, 'f' => :cursor_position,
-        'J' => :erase_display, 'K' => :erase_line
+        'd' => :cursor_row, 'H' => :cursor_position, 'f' => :cursor_position,
+        'J' => :erase_display, 'K' => :erase_line,
+        '@' => :insert_blanks, 'P' => :delete_characters, 'X' => :erase_characters,
+        'L' => :insert_lines, 'M' => :delete_lines, 'S' => :scroll_up, 'T' => :scroll_down,
+        's' => :save_cursor, 'u' => :restore_cursor
+      }.freeze
+      # Single-byte escapes that move the cursor, so cannot be discarded.
+      ESCAPES = {
+        'D' => :index, 'E' => :next_line, 'M' => :reverse_index,
+        '7' => :save_cursor, '8' => :restore_cursor
       }.freeze
 
       class << self
@@ -88,7 +99,7 @@ module Rune
         case scanner.getch
         when "\e" then escape(scanner)
         when "\r" then @screen.carriage_return
-        when "\n" then @screen.newline
+        when "\n", "\v", "\f" then @screen.newline
         when "\x08" then @screen.backspace
         when "\t" then @screen.tab(TAB_WIDTH)
         end
@@ -98,22 +109,32 @@ module Rune
         csi = scanner.scan(/\[[0-9;?<>=!]*[@-~]/)
         return csi_control(csi) if csi
 
+        single = scanner.scan(/[DEM78]/)
+        return @screen.public_send(ESCAPES.fetch(single), []) if single
+
         # Consumed and ignored: none of these can move the cursor, so none of
         # them can change the text on the screen.
         scanner.scan(/\][^\a\e]*(?:\a|\e\\)/) || scanner.scan(/[PX^_][^\e]*\e\\/) ||
-          scanner.scan(/[()][AB0K]/) || scanner.scan(/[=><78]/)
+          scanner.scan(/[()][AB0K]/) || scanner.scan(/[=><]/)
       end
 
       def csi_control(csi)
         operation = CONTROLS[csi[-1]]
-        return unless operation
+        # Private-parameter forms are modes (`\e[?25l`, `\e[?1049h`), never
+        # cursor motion, and must not be mistaken for their public namesakes.
+        return if operation.nil? || csi.include?('?')
 
-        @screen.public_send(operation, csi[1..-2].to_s.delete('?<>=!').split(';').map(&:to_i))
+        @screen.public_send(operation, csi[1..-2].to_s.delete('<>=!').split(';').map(&:to_i))
       end
 
       # The grid and cursor a terminal would maintain. Separated from the
       # stream parsing above so each half is legible on its own: this one knows
       # nothing about escape sequences, only about where text goes.
+      #
+      # rubocop:disable Metrics/ClassLength -- every method here mutates the same three pieces of
+      # state (grid, cursor, pending wrap) and the deferred-wrap rule couples them: splitting the
+      # operations across classes would put that rule out of sight of the methods that must honour
+      # it, which is how the last-column bugs got in.
       class Screen
         def initialize(rows:, columns:)
           @rows = rows.positive? ? rows : DEFAULT_ROWS
@@ -121,33 +142,45 @@ module Rune
           @grid = Array.new(@rows) { +'' }
           @row = 0
           @column = 0
+          # xterm's "deferred wrap": after writing the last cell the cursor
+          # stays on it and the wrap happens when the *next* graphic arrives.
+          # Leaving the column one past the end instead put the cursor in a
+          # state no terminal uses, which every relative move then read wrong.
+          @wrap_pending = false
+          @saved = nil
         end
 
         def to_s = @grid.map(&:rstrip).join("\n").sub(/\n+\z/, '')
 
         def write(chunk)
           chunk.each_char do |char|
-            # Wrapping matters: an agent's status line is usually written to the
-            # full width, and without it the tail would overwrite the same cell.
-            wrap if @column >= @columns
+            wrap if @wrap_pending
             pad
             @grid[@row][@column] = char
-            @column += 1
+            advance
           end
         end
 
-        def carriage_return = @column = 0
-
-        # Not an endless method: `def backspace = ... if ...` binds the modifier
-        # to the definition itself, so the guard runs once at class-definition
-        # time against a nil ivar rather than per call.
-        def backspace
-          @column -= 1 if @column.positive?
+        def carriage_return
+          @column = 0
+          @wrap_pending = false
         end
 
-        def tab(width) = @column = [((@column / width) + 1) * width, @columns - 1].min
+        # Not an endless method: `def backspace = ... if ...` binds the modifier
+        # to the definition, so the guard runs once at class-definition time
+        # against a nil ivar rather than per call.
+        def backspace
+          @column -= 1 if @column.positive?
+          @wrap_pending = false
+        end
+
+        def tab(width)
+          @column = [((@column / width) + 1) * width, @columns - 1].min
+          @wrap_pending = false
+        end
 
         def newline
+          @wrap_pending = false
           if @row >= @rows - 1
             @grid.shift
             @grid.push(+'')
@@ -156,26 +189,56 @@ module Rune
           end
         end
 
-        def cursor_up(numbers) = @row = (@row - count(numbers)).clamp(0, @rows - 1)
+        # ESC D / ESC E / ESC M. Previously unrecognised, so the escape was
+        # eaten and the letter written as text: `hello\eDworld` rendered as
+        # `helloDworld`.
+        def index(_numbers = []) = newline
 
-        def cursor_down(numbers) = @row = (@row + count(numbers)).clamp(0, @rows - 1)
-
-        def cursor_right(numbers) = @column = (@column + count(numbers)).clamp(0, @columns - 1)
-
-        def cursor_left(numbers) = @column = (@column - count(numbers)).clamp(0, @columns - 1)
-
-        def cursor_next_line(numbers) = move_line(count(numbers))
-
-        def cursor_previous_line(numbers) = move_line(-count(numbers))
-
-        def cursor_column(numbers) = @column = (count(numbers) - 1).clamp(0, @columns - 1)
-
-        def cursor_position(numbers)
-          @row = (count(numbers) - 1).clamp(0, @rows - 1)
-          @column = (count(numbers.drop(1)) - 1).clamp(0, @columns - 1)
+        def next_line(_numbers = [])
+          newline
+          @column = 0
         end
 
+        def reverse_index(_numbers = [])
+          @wrap_pending = false
+          return @row -= 1 if @row.positive?
+
+          @grid.pop
+          @grid.unshift(+'')
+        end
+
+        # DECSC/DECRC and CSI s/u. Ignoring these was justified in a comment
+        # claiming the ignored sequences could not move the cursor, which is
+        # exactly what restore does.
+        def save_cursor(_numbers = []) = @saved = [@row, @column, @wrap_pending]
+
+        def restore_cursor(_numbers = [])
+          return unless @saved
+
+          @row, @column, @wrap_pending = @saved
+        end
+
+        def cursor_up(numbers) = move_to(@row - count(numbers), @column)
+
+        def cursor_down(numbers) = move_to(@row + count(numbers), @column)
+
+        def cursor_right(numbers) = move_to(@row, @column + count(numbers))
+
+        def cursor_left(numbers) = move_to(@row, @column - count(numbers))
+
+        def cursor_next_line(numbers) = move_to(@row + count(numbers), 0)
+
+        def cursor_previous_line(numbers) = move_to(@row - count(numbers), 0)
+
+        def cursor_column(numbers) = move_to(@row, count(numbers) - 1)
+
+        # VPA: the row moves, the column does not.
+        def cursor_row(numbers) = move_to(count(numbers) - 1, @column)
+
+        def cursor_position(numbers) = move_to(count(numbers) - 1, count(numbers.drop(1)) - 1)
+
         def erase_display(numbers)
+          @wrap_pending = false
           case numbers.first.to_i
           when 0
             erase_line([0])
@@ -190,16 +253,60 @@ module Rune
 
         # Both directions include the cell under the cursor, per ECMA-48. Mode 1
         # excluded it, so `ABCD` with the cursor on column 3 erased back to
-        # `  CD` where a real terminal leaves `   D` — one character of a
-        # repainted line surviving that should not have. Found by having grok
-        # review this file through rune.
+        # `  CD` where a real terminal leaves `   D`.
         def erase_line(numbers)
+          @wrap_pending = false
           line = @grid[@row]
           @grid[@row] = case numbers.first.to_i
                         when 0 then line[0, @column].to_s
                         when 1 then (' ' * (@column + 1)) + line[(@column + 1)..].to_s
                         else +''
                         end
+        end
+
+        # ICH: shift the rest of the line right, losing what falls off the edge.
+        def insert_blanks(numbers)
+          line = padded_line
+          @grid[@row] = (line[0, @column].to_s + (' ' * count(numbers)) + line[@column..].to_s)[0, @columns].to_s
+          @wrap_pending = false
+        end
+
+        # DCH: shift the rest of the line left over the deleted characters.
+        def delete_characters(numbers)
+          line = padded_line
+          @grid[@row] = line[0, @column].to_s + line[(@column + count(numbers))..].to_s
+          @wrap_pending = false
+        end
+
+        # ECH: blank characters in place, without shifting anything.
+        def erase_characters(numbers)
+          line = padded_line
+          @grid[@row] = line[0, @column].to_s + (' ' * count(numbers)) + line[(@column + count(numbers))..].to_s
+          @wrap_pending = false
+        end
+
+        def insert_lines(numbers)
+          count(numbers).times { @grid.insert(@row, +'') }
+          @grid.slice!(@rows..)
+          @wrap_pending = false
+        end
+
+        def delete_lines(numbers)
+          count(numbers).times { @grid.delete_at(@row) }
+          @grid.push(+'') while @grid.length < @rows
+          @wrap_pending = false
+        end
+
+        def scroll_up(numbers)
+          count(numbers).times { @grid.shift }
+          @grid.push(+'') while @grid.length < @rows
+          @wrap_pending = false
+        end
+
+        def scroll_down(numbers)
+          count(numbers).times { @grid.unshift(+'') }
+          @grid.slice!(@rows..)
+          @wrap_pending = false
         end
 
         private
@@ -210,14 +317,31 @@ module Rune
           value.positive? ? value : 1
         end
 
-        def move_line(delta)
-          @row = (@row + delta).clamp(0, @rows - 1)
-          @column = 0
+        # Every explicit move clears a pending wrap, which is what makes the
+        # deferred-wrap state observable only to the next graphic character.
+        def move_to(row, column)
+          @row = row.clamp(0, @rows - 1)
+          @column = column.clamp(0, @columns - 1)
+          @wrap_pending = false
+        end
+
+        def advance
+          if @column >= @columns - 1
+            @wrap_pending = true
+          else
+            @column += 1
+          end
         end
 
         def wrap
+          @wrap_pending = false
           @column = 0
           newline
+        end
+
+        def padded_line
+          pad
+          @grid[@row]
         end
 
         def pad
@@ -225,6 +349,7 @@ module Rune
           line << (' ' * (@column - line.length)) if line.length < @column
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end
