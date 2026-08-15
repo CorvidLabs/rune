@@ -33,7 +33,7 @@ ruby bin/rune version
 Or as a [fledge](https://github.com/CorvidLabs/fledge) plugin:
 
 ```sh
-fledge plugins install rune
+fledge plugins install CorvidLabs/rune
 fledge rune run --json -- git status
 ```
 
