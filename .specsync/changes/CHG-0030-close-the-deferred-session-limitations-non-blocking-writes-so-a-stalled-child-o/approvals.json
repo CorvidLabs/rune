@@ -13,6 +13,20 @@
       "timestamp": 1786754544,
       "digest": "bda642983a71505f55e2a608370068060c9c513f9e71a207f7e9e2ad7efb67a1",
       "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786754584,
+      "digest": "123e111f074a94e5cda4124bf59dad43aaf9655731989094069667b04716ffb9",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "agent:claude",
+      "timestamp": 1786754706,
+      "digest": "406540b0c3c8be446a95d570f18ecba50b9eceab138ea5602eeebace61c3cd7d",
+      "note": null
     }
   ],
   "reopenings": []
