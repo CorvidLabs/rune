@@ -6,6 +6,7 @@ require 'json'
 require 'open3'
 require 'socket'
 require 'fileutils'
+require 'stringio'
 
 # These are the first specs in this suite that drive real *detached*
 # out-of-process children, so cleanup is not optional bookkeeping: a leaked
@@ -839,7 +840,15 @@ RSpec.describe Rune::Commands::SessionCommand do
       session_store.write_meta('crashy', name: 'crashy', command: ['true'], state: 'running')
       supervisor.instance_variable_set(:@output_log, session_store.open_output('crashy'))
 
-      supervisor.send(:crashed, TypeError.new('boom'))
+      # `crashed` deliberately writes to stderr; capture it so a passing suite
+      # does not print a crash report that looks like a real failure.
+      original = $stderr
+      $stderr = StringIO.new
+      begin
+        supervisor.send(:crashed, TypeError.new('boom'))
+      ensure
+        $stderr = original
+      end
 
       meta = session_store.read_meta('crashy')
       expect(meta[:state]).to eq('exited')
