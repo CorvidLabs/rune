@@ -1207,9 +1207,28 @@ RSpec.describe Rune::Commands::SessionCommand do
     # The characteristic failure measured against a real agent CLI is not a
     # truncated answer: it is the *previous* turn's answer, whole and
     # well-formed, which the caller cannot distinguish from a correct reply.
+    # The child keeps printing for several seconds rather than replying once,
+    # so the second send lands mid-output however long this process takes to
+    # boot. The first version used a child that printed once and relied on the
+    # second send starting within the settle window of it — which held locally
+    # and failed on Ruby 3.0 in CI, where interpreter startup ate the window.
+    # A test whose result depends on how fast the runner starts Ruby is not
+    # testing the thing it names.
+    def chattering_child
+      ['ruby', '-e', <<~CHILD]
+        STDOUT.sync = true
+        while (line = STDIN.gets)
+          25.times { print('.'); sleep 0.1 }
+        end
+      CHILD
+    end
+
     it 'flags a send issued while the previous turn was still producing output' do
-      start_session('busy1', thinking_child(delay: 0.4))
+      start_session('busy1', chattering_child)
       session('send', '--name=busy1', '--no-wait', '--', 'first')
+      wait_until(reason: 'the child to start printing') do
+        session('read', '--name=busy1').data[:output].include?('.')
+      end
 
       result = session('send', '--name=busy1', '--settle-ms=1500', '--timeout-ms=15000', '--', 'second')
 
