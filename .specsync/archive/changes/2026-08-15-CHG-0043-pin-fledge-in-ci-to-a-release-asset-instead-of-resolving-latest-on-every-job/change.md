@@ -1,6 +1,6 @@
 ---
 id: CHG-0043-pin-fledge-in-ci-to-a-release-asset-instead-of-resolving-latest-on-every-job
-state: accepted
+state: archived
 type: feature
 base_commit: 7789240d5b70dec0b981dbaddfcb68ae85fa3401
 ---

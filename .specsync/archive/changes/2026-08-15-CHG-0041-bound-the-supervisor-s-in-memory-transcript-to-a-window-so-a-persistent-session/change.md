@@ -1,6 +1,6 @@
 ---
 id: CHG-0041-bound-the-supervisor-s-in-memory-transcript-to-a-window-so-a-persistent-session
-state: accepted
+state: archived
 type: feature
 base_commit: 932b3f628d81cffe48901eb619b0af33189f36e9
 ---

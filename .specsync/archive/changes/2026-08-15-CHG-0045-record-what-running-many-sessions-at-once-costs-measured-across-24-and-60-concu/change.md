@@ -1,6 +1,6 @@
 ---
 id: CHG-0045-record-what-running-many-sessions-at-once-costs-measured-across-24-and-60-concu
-state: accepted
+state: archived
 type: feature
 base_commit: 67222d94b486f2318658402340da04c598ea1199
 ---

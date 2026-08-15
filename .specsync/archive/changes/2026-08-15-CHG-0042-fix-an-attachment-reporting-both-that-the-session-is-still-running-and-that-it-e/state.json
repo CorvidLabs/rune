@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0042-fix-an-attachment-reporting-both-that-the-session-is-still-running-and-that-it-e",
+  "slug": "fix-an-attachment-reporting-both-that-the-session-is-still-running-and-that-it-e",
+  "title": "Fix an attachment reporting both that the session is still running and that it ended, in the same exit",
+  "description": "Fix an attachment reporting both that the session is still running and that it ended, in the same exit",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "6a787480056528f918314658b2d359e4d1129024",
+  "created_at": 1786813086,
+  "updated_at": 1786830023,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/session/attachment.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A deliberate detach prints the still-running note and exits 0; an attachment that ends because output stopped prints no such note, exits 1, and says what is known rather than asserting that the child or supervisor exited. Verified end to end over a pty on both paths, with no contradictory pair on either. Two of three regression tests fail against the unfixed version. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

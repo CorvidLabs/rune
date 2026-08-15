@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0046-rotate-a-session-transcript-without-reading-it-seek-to-the-cut-and-copy-the-tai",
+  "slug": "rotate-a-session-transcript-without-reading-it-seek-to-the-cut-and-copy-the-tai",
+  "title": "Rotate a session transcript without reading it: seek to the cut and copy the tail, instead of parsing every line",
+  "description": "Rotate a session transcript without reading it: seek to the cut and copy the tail, instead of parsing every line",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "b89daa34de393815c5adbbbdf239bc732a51bb90",
+  "created_at": 1786825580,
+  "updated_at": 1786830069,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/session/store.rb",
+    "lib/rune/session/supervisor.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A transcript rotation costs no measurable memory: 0.1MB against 229MB for the original implementation and 96MB for a streaming-but-still-parsing one. Rotation seeks to the cut point rather than scanning the dropped region, reads the bytes field each event already records rather than parsing events, and copies with IO.copy_stream so bytes never enter Ruby. The accounting stays exact and cursors keep their meaning. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}
