@@ -355,10 +355,19 @@ deciding who talks to whom stays the calling agent's job.
     and a full disk while logging does not end the session.
 40. Every directory rune creates under `RUNE_HOME` is owner-only, not just the leaf session
     directory, so the set of tools being driven and their session names is not world-readable.
-41. Nothing on the event-loop thread blocks on a write. Output to the child and to attached
-    terminals is queued and drained when the destination reports writable, so a child that stops
-    reading stdin, or a terminal that stops reading, costs memory and eventually its own connection
-    — never the session's ability to pump the pty, evaluate a settle, or handle `stop`.
+41. Nothing on the event-loop thread blocks on a write — including control replies and the attach
+    acknowledgement, which are queued like everything else and whose client is closed only once the
+    reply has actually drained. Output to the child and to attached terminals is queued and drained
+    when the destination reports writable, so a child that stops reading stdin, or a peer that stops
+    reading, never costs the session its ability to pump the pty, evaluate a settle, or handle
+    `stop`.
+41a. Queued output for a peer is bounded. A peer whose queue exceeds the ceiling is dropped and its
+    queue discarded, so a terminal that accepts an attachment and then never reads cannot grow the
+    supervisor's memory without limit. The ceiling deliberately does not apply to the pty master: a
+    child that is slow to read is the session, not a peer to be disconnected.
+41b. Closing an IO unregisters it from every structure the event loop selects on. A closed
+    descriptor reaching `IO.select` raises, which would unwind the loop and let teardown kill a
+    healthy child, so the bookkeeping lives in one place rather than at each call site.
 42. Attaching propagates the terminal's real dimensions to the child and forwards SIGWINCH for the
     duration, over separate short-lived control connections — the attachment socket itself is a raw
     byte pipe after the ack, so a control frame written there would be typed at the child instead.

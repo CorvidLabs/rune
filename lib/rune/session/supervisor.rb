@@ -64,6 +64,8 @@ module Rune
       # or floods cannot hold or exhaust the supervisor.
       REQUEST_READ_TIMEOUT = 2.0
       MAX_REQUEST_BYTES = 1024 * 1024
+      # Per-peer ceiling on undrained output before that peer is dropped.
+      MAX_OUTBOX_BYTES = 4 * 1024 * 1024
 
       def self.run(name:, command:, home: nil, project: nil)
         new(name: name, command: command, store: Store.new(home: home, project: project)).run
@@ -84,6 +86,7 @@ module Rune
         # eventually its own connection — never the whole session.
         @outbox = Hash.new { |queue, io| queue[io] = +'' }
         @accepted_at = {}
+        @close_after_drain = []
         @stopping = false
         @exit_code = nil
       end
@@ -94,6 +97,7 @@ module Rune
         server = build_server
         reader, writer, pid = PTY.spawn(CHILD_ENV, *@command)
         @child_pid = pid
+        @writer = writer
         apply_window_size(writer)
         record_running(pid)
         log_event('start', command: Shellwords.join(@command), pid: pid)
@@ -166,7 +170,7 @@ module Rune
                             @outbox.keys, nil, POLL_INTERVAL)
           if ready
             dispatch_ready(ready, server, reader, writer)
-            drain_outbox(ready[1], writer)
+            drain_outbox(ready[1])
           end
           resolve_pending
           reap_idle_clients
@@ -235,14 +239,21 @@ module Rune
         return if bytes.nil? || bytes.empty?
 
         @outbox[io] << bytes
+        # A peer that never drains would otherwise grow its queue without limit
+        # until the supervisor runs out of memory. The spec always claimed such
+        # a peer "eventually" loses its connection; this is what makes that
+        # true. Never applied to the pty master: a child that is slow to read is
+        # not a peer to be dropped, it is the session.
+        return drop_writer(io) if !io.equal?(@writer) && @outbox[io].bytesize > MAX_OUTBOX_BYTES
+
         flush_outbox(io)
       end
 
-      def drain_outbox(writable, writer)
-        Array(writable).each { |io| flush_outbox(io, writer) }
+      def drain_outbox(writable)
+        Array(writable).each { |io| flush_outbox(io) }
       end
 
-      def flush_outbox(io, writer = nil)
+      def flush_outbox(io)
         pending = @outbox[io]
         return @outbox.delete(io) if pending.empty?
 
@@ -251,29 +262,37 @@ module Rune
           nil
         elsif written >= pending.bytesize
           @outbox.delete(io)
+          # A reply is only closed once it has actually gone out; closing at
+          # write time would truncate anything the socket could not take yet.
+          safe_close(io) if @close_after_drain.include?(io)
         else
           @outbox[io] = pending.byteslice(written..).to_s
         end
       rescue IOError, SystemCallError
-        @outbox.delete(io)
-        drop_writer(io, writer)
+        drop_writer(io)
       end
 
       # A terminal that has gone away (or stopped reading for good) loses its
       # attachment; the pty master failing means the child is gone.
-      def drop_writer(io, writer)
-        return @child_finished = true if writer && io.equal?(writer)
+      #
+      # This compares against the stored master rather than a parameter threaded
+      # through every caller: `enqueue` called `flush_outbox` without one, so a
+      # failed write to the pty was mistaken for a dead terminal — closing the
+      # master and leaving `@child_finished` false, which left the in-flight
+      # send waiting out its whole timeout instead of reporting the exit.
+      def drop_writer(io)
+        return @child_finished = true if @writer && io.equal?(@writer)
 
-        detach(io, writer)
+        detach(io)
       end
 
       # Back to the headless default when the last terminal goes, so a session's
       # geometry does not depend on whether a human happened to attach earlier —
       # programmatic sends should render the same either way.
-      def detach(client, writer)
+      def detach(client)
         @attached.delete(client)
         safe_close(client)
-        resize_child(writer, DEFAULT_ROWS, DEFAULT_COLUMNS) if @attached.empty? && writer
+        resize_child(@writer, DEFAULT_ROWS, DEFAULT_COLUMNS) if @attached.empty? && @writer
       end
 
       def accept_client(server)
@@ -332,11 +351,13 @@ module Rune
       def handle_attach(client, request, writer)
         client.puts(JSON.generate(attached: true, cursor: @transcript.bytesize))
         client.flush
-        @attached << client
         # The attaching terminal's real dimensions, so a full-screen agent
         # started headless at the default size reflows to the human's window
         # instead of rendering 40x120 inside it.
         resize_child(writer, request[:rows], request[:cols])
+        # Registered last: an exception after this point used to leave a closed
+        # socket in @attached, which the next IO.select then raised on.
+        @attached << client
         enqueue(client, recent_transcript)
       rescue IOError, SystemCallError
         safe_close(client)
@@ -358,7 +379,9 @@ module Rune
         writer.winsize = [rows, cols]
         # SIGWINCH is what tells a TUI to re-lay-out; setting the size alone
         # leaves it drawing at the old geometry until something else repaints.
-        Process.kill('WINCH', @child_pid) if @child_pid
+        # Skipped once the child is known gone: the pid may since belong to
+        # something else entirely.
+        Process.kill('WINCH', @child_pid) if @child_pid && !@child_finished
       rescue TypeError, ArgumentError, IOError, SystemCallError, NoMethodError
         nil
       end
@@ -374,7 +397,7 @@ module Rune
       rescue IO::WaitReadable
         nil
       rescue IOError, SystemCallError
-        detach(client, writer)
+        detach(client)
       end
 
       # ---- control protocol: one JSON request line in, one JSON reply line out
@@ -595,13 +618,14 @@ module Rune
         }
       end
 
+      # Queued like everything else, then closed once it has drained. `puts` +
+      # `flush` here were the last blocking writes on this thread: a control
+      # peer that sent a request and then stopped reading its reply could stall
+      # the loop, which made invariant "nothing blocks on a write" untrue for
+      # the one path most likely to face a misbehaving client.
       def respond(client, payload)
-        client.puts(JSON.generate(payload))
-        client.flush
-      rescue Errno::EPIPE, IOError
-        nil
-      ensure
-        safe_close(client)
+        @close_after_drain << client
+        enqueue(client, "#{JSON.generate(payload)}\n")
       end
 
       # ---- teardown
@@ -673,8 +697,20 @@ module Rune
         end
       end
 
+      # Unregisters before closing. A closed descriptor left in @outbox (or
+      # @attached) reaches the next IO.select, which raises IOError — unhandled
+      # in the event loop, so the supervisor dies and its teardown SIGKILLs a
+      # perfectly healthy child. Doing the bookkeeping here rather than at each
+      # call site is what makes that unrepeatable.
       def safe_close(io)
-        io&.close unless io.nil? || io.closed?
+        return if io.nil?
+
+        @outbox.delete(io)
+        @attached.delete(io)
+        @accepted_at.delete(io)
+        @clients.delete(io)
+        @close_after_drain.delete(io)
+        io.close unless io.closed?
       rescue IOError
         nil
       end

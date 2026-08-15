@@ -664,6 +664,62 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # Round-2 review findings (agy), all in the write-queue work itself. These are
+  # deliberately white-box: the end-to-end versions passed against the unfixed
+  # code because filling a socket buffer on demand is not reliable, and a test
+  # that cannot fail against the bug it names is worse than no test.
+  describe 'write-queue bookkeeping' do
+    let(:supervisor) do
+      Rune::Session::Supervisor.new(name: 'unit', command: ['true'], store: store)
+    end
+
+    it 'unregisters a closed IO everywhere, so it can never reach IO.select' do
+      reader, writer = IO.pipe
+      supervisor.instance_variable_get(:@outbox)[writer] << 'queued'
+      supervisor.instance_variable_get(:@attached) << writer
+      supervisor.instance_variable_get(:@clients) << writer
+      supervisor.instance_variable_get(:@accepted_at)[writer] = 0
+
+      supervisor.send(:safe_close, writer)
+
+      # A closed descriptor left in any of these reaches the next IO.select,
+      # which raises IOError — unhandled, so the supervisor dies and its
+      # teardown SIGKILLs a healthy child.
+      expect(supervisor.instance_variable_get(:@outbox)).not_to have_key(writer)
+      expect(supervisor.instance_variable_get(:@attached)).not_to include(writer)
+      expect(supervisor.instance_variable_get(:@clients)).not_to include(writer)
+      expect(supervisor.instance_variable_get(:@accepted_at)).not_to have_key(writer)
+      reader.close
+    end
+
+    it 'treats a failed write to the pty master as the child exiting, not as a dead terminal' do
+      reader, master = IO.pipe
+      supervisor.instance_variable_set(:@writer, master)
+
+      supervisor.send(:drop_writer, master)
+
+      # `enqueue` used to call `flush_outbox` without the writer, so a failed
+      # pty write was mistaken for a terminal going away: the master was closed
+      # and @child_finished stayed false, leaving the in-flight send to wait out
+      # its entire timeout instead of reporting the exit.
+      expect(supervisor.instance_variable_get(:@child_finished)).to be true
+      [reader, master].each do |io|
+        io.close
+      rescue IOError
+        nil
+      end
+    end
+
+    it 'registers an attaching terminal only after every fallible step has succeeded' do
+      source = File.read('lib/rune/session/supervisor.rb')
+      body = source[/def handle_attach.*?\n      end/m]
+
+      # Ordering is the fix: an exception between the push and the end of setup
+      # used to leave a closed socket in @attached.
+      expect(body.index('resize_child')).to be < body.index('@attached << client')
+    end
+  end
+
   describe 'concurrent start of one name' do
     it 'lets exactly one win and leaves no orphaned supervisor' do
       results = 4.times.map { Thread.new { session('start', '--name=dup', '--', 'bash', '--norc', '-i') } }
