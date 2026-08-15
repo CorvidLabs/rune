@@ -806,6 +806,38 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'how an attachment reports the way it ended' do
+    # Reported from real use against a grok session: rune printed both
+    # "detached; the session is still running" and "Session ended while
+    # attached" in the same exit, and exited 1. One of those is always wrong.
+    # The note fired whenever an attachment had been established, rather than
+    # only when the human actually detached.
+    def attachment_after(pump_result)
+      announce = StringIO.new
+      attachment = Rune::Session::Attachment.new('/nonexistent.sock', announce: announce)
+      attachment.instance_variable_set(:@attached, true)
+      attachment.instance_variable_set(:@detached, pump_result)
+      attachment.send(:close_quietly, nil)
+      announce.string
+    end
+
+    it 'says the session is still running only when the human detached' do
+      expect(attachment_after(true)).to include('still running')
+    end
+
+    it 'says nothing about the session still running when it ended underneath' do
+      expect(attachment_after(false)).not_to include('still running')
+    end
+
+    # The attachment can tell that output stopped; it cannot tell a child that
+    # exited from a supervisor that was stopped, so it points at the command
+    # that can rather than asserting a cause.
+    it 'reports what it knows and where to look' do
+      expect(Rune::Session::Attachment::ENDED_WHILE_ATTACHED).to include('rune session list')
+      expect(Rune::Session::Attachment::ENDED_WHILE_ATTACHED).not_to include('supervisor exited')
+    end
+  end
+
   describe 'what a long-running session costs' do
     let(:supervisor) do
       Rune::Session::Supervisor.new(name: 'unit', command: ['true'], store: store)

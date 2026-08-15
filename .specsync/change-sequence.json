@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 41,
-  "id": "CHG-0041-bound-the-supervisor-s-in-memory-transcript-to-a-window-so-a-persistent-session",
+  "sequence": 42,
+  "id": "CHG-0042-fix-an-attachment-reporting-both-that-the-session-is-still-running-and-that-it-e",
   "acknowledged_collisions": []
 }
