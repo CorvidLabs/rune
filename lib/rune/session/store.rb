@@ -126,6 +126,14 @@ module Rune
       # bind/connect: the supervisor binds before spawning its child, so the
       # child never inherits the temporary cwd.
       SOCKET_PATH_LIMIT = 100
+      # A session's transcript is append-only and a driven agent is chatty, so
+      # without a ceiling the file grows for as long as the session lives: a
+      # 150-second run at 500KB/s left 80MB behind, and nothing ever removed it.
+      # `archive` moves the directory rather than pruning it, so the cost is
+      # permanent. Rotating keeps the recent tail, which is what `--since` and
+      # an attach backlog actually reach for.
+      MAX_LOG_BYTES = 32 * 1024 * 1024
+      LOG_KEEP_BYTES = 8 * 1024 * 1024
 
       def self.with_bindable_path(path)
         return yield(path) if path.bytesize < SOCKET_PATH_LIMIT
@@ -246,6 +254,62 @@ module Rune
       # rubocop:disable Style/FileOpen -- the caller keeps this handle for the
       # life of the supervisor and closes it in its own teardown; the block
       # form would close it before a single event could be written.
+      # Rewrites the transcript keeping only its recent tail, and returns the
+      # reopened handle. The dropped byte count is carried in a `truncated`
+      # event so cursors stay absolute: a reader adds it to its running offset
+      # without emitting text, which means a cursor taken before a rotation
+      # still means the same position in the stream.
+      def rotate_output(name, file)
+        path = output_path(name)
+        file&.close
+        kept, dropped = tail_events(path)
+        temp = "#{path}.rotating"
+        write_private(temp) do |handle|
+          handle.puts JSON.generate(event: 'truncated', ts: Time.now.to_f, dropped_bytes: dropped)
+          kept.each { |line| handle.write(line) }
+        end
+        File.rename(temp, path)
+        open_output(name)
+      end
+
+      # The newest events whose output totals at most LOG_KEEP_BYTES, plus how
+      # many output bytes are being dropped — including anything a previous
+      # rotation already dropped, so the count stays cumulative.
+      def tail_events(path)
+        lines = File.readlines(path)
+        already_dropped = 0
+        kept = []
+        kept_bytes = 0
+        lines.reverse_each do |line|
+          event = begin
+            JSON.parse(line, symbolize_names: true)
+          rescue JSON::ParserError
+            next
+          end
+          already_dropped += event[:dropped_bytes].to_i if event[:event] == 'truncated'
+          size = event[:event] == 'output' ? event[:text].to_s.bytesize : 0
+          break if kept_bytes + size > LOG_KEEP_BYTES
+
+          kept_bytes += size
+          kept.unshift(line)
+        end
+        total = lines.sum { |line| output_bytes(line) }
+        [kept, already_dropped + total - kept_bytes]
+      end
+
+      def output_bytes(line)
+        event = JSON.parse(line, symbolize_names: true)
+        event[:event] == 'output' ? event[:text].to_s.bytesize : 0
+      rescue JSON::ParserError
+        0
+      end
+
+      def output_size(name)
+        File.size(output_path(name))
+      rescue SystemCallError
+        0
+      end
+
       def open_output(name)
         path = output_path(name)
         file = File.open(path, File::WRONLY | File::CREAT | File::APPEND, FILE_MODE)

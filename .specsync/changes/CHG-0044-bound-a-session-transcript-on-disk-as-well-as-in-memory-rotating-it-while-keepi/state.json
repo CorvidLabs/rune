@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0044-bound-a-session-transcript-on-disk-as-well-as-in-memory-rotating-it-while-keepi",
+  "slug": "bound-a-session-transcript-on-disk-as-well-as-in-memory-rotating-it-while-keepi",
+  "title": "Bound a session transcript on disk as well as in memory, rotating it while keeping cursors absolute",
+  "description": "Bound a session transcript on disk as well as in memory, rotating it while keeping cursors absolute",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "20179ed9ab0f05489c58449a1881dc565cc01ad4",
+  "created_at": 1786816284,
+  "updated_at": 1786816437,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/session/store.rb",
+    "lib/rune/session/supervisor.rb",
+    "lib/rune/commands/session_command.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A session's transcript file stays under a ceiling however long the session runs, rotation keeps the recent tail, and every dropped byte is accounted for in a truncated event so cursors stay absolute. A cursor taken after a rotation resolves exactly; one from before it returns what is still held, with dropped_bytes in the reply. Measured: 40MB of output leaves a 16MB file with a 32MB peak, and dropped plus retained equals written exactly. Four regression tests, all failing against the unbounded version. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

@@ -44,6 +44,8 @@ RSpec.describe Rune::Commands::SessionCommand do
 
   def store = Rune::Session::Store.new(home: @home)
 
+  def session_command = described_class.new
+
   def session(*args)
     described_class.new.call(args.map(&:to_s), {})
   end
@@ -803,6 +805,59 @@ RSpec.describe Rune::Commands::SessionCommand do
     # silently ate the first characters of the reply.
     it 'strips exactly the echo when the sent text was not ASCII' do
       expect(pending(echo: 'héllo').beyond_echo('hélloANSWER', now: 0)).to eq('ANSWER')
+    end
+  end
+
+  describe 'what a long-running session costs on disk' do
+    # The in-memory window stopped resident memory tracking output, but the
+    # transcript file kept every byte for the life of the session and `archive`
+    # moves it rather than pruning, so that cost outlived the session paying it:
+    # a 150-second run at 500KB/s left 80MB behind permanently.
+    def flood(name, chunks:, size: 100_000)
+      store.create(name)
+      store.write_meta(name, name: name, state: 'running')
+      supervisor = Rune::Session::Supervisor.new(name: name, command: ['true'], store: store)
+      supervisor.instance_variable_set(:@output_log, store.open_output(name))
+      supervisor.instance_variable_set(:@log_bytes, 0)
+      written = 0
+      chunks.times do
+        text = 'z' * size
+        supervisor.send(:log_event, 'output', bytes: text.bytesize, text: text)
+        written += text.bytesize
+      end
+      written
+    end
+
+    it 'keeps the transcript file under the ceiling however long the session runs' do
+      flood('disk1', chunks: 420)
+
+      expect(File.size(store.output_path('disk1'))).to be < Rune::Session::Store::MAX_LOG_BYTES
+    end
+
+    # Rotation must not make cursors lie. What was dropped is recorded, so a
+    # cursor still names the same position in the stream.
+    it 'accounts for every byte it drops' do
+      written = flood('disk2', chunks: 420)
+
+      text, dropped = session_command.send(:read_transcript_file, 'disk2')
+      expect(dropped + text.bytesize).to eq(written)
+      expect(dropped).to be > 0
+    end
+
+    it 'resolves a cursor taken after the rotation exactly' do
+      flood('disk3', chunks: 420)
+      text, dropped = session_command.send(:read_transcript_file, 'disk3')
+
+      recent = dropped + text.bytesize - 500
+
+      expect(session_command.send(:slice_from, text, recent, dropped).bytesize).to eq(500)
+    end
+
+    it 'returns what it still holds for a cursor from before the rotation' do
+      flood('disk4', chunks: 420)
+      text, dropped = session_command.send(:read_transcript_file, 'disk4')
+
+      expect(session_command.send(:slice_from, text, 1, dropped).bytesize).to eq(text.bytesize)
     end
   end
 

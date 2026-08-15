@@ -126,6 +126,7 @@ module Rune
         @accepted_at = {}
         @close_after_drain = []
         @stopping = false
+        @log_bytes = 0
         @submit_at = nil
         @exit_code = nil
         @finished = false
@@ -134,6 +135,7 @@ module Rune
       def run
         detach_from_terminal
         @output_log = @store.open_output(@name)
+        @log_bytes = @store.output_size(@name)
         server = build_server
         reader, writer, pid = PTY.spawn(CHILD_ENV, *@command)
         @child_pid = pid
@@ -708,6 +710,17 @@ module Rune
       # exit code and an empty supervisor.log — nothing anywhere named the
       # cause. The transcript is where an operator already looks, so the cause
       # goes there as well as on stderr.
+      # Bounded on disk as well as in memory. The in-memory window stopped
+      # resident memory tracking output, but the transcript file kept every byte
+      # for the life of the session and `archive` preserved it, so the cost
+      # outlived the session that paid it.
+      def rotate_log
+        @output_log = @store.rotate_output(@name, @output_log)
+        @log_bytes = @store.output_size(@name)
+      rescue IOError, SystemCallError
+        nil
+      end
+
       def crashed(error)
         log_event('crash', error: error.class.name, message: error.message,
                            backtrace: Array(error.backtrace).first(10))
@@ -829,7 +842,10 @@ module Rune
       def log_event(event, **fields)
         return unless @output_log
 
-        @output_log.puts JSON.generate({ event: event, ts: Time.now.to_f }.merge(fields))
+        line = JSON.generate({ event: event, ts: Time.now.to_f }.merge(fields))
+        @output_log.puts line
+        @log_bytes += line.bytesize + 1
+        rotate_log if @log_bytes >= Store::MAX_LOG_BYTES
       # SystemCallError covers ENOSPC and friends: losing the transcript is bad,
       # losing the running session because the disk filled is worse.
       rescue IOError, SystemCallError
