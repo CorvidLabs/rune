@@ -1,6 +1,6 @@
 ---
 id: CHG-0030-close-the-deferred-session-limitations-non-blocking-writes-so-a-stalled-child-o
-state: draft
+state: implementing
 type: feature
 base_commit: d0a067ae361b2fce5e20d8b8fce6ea91f0de3520
 ---

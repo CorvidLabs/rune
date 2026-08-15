@@ -1,4 +1,12 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786754499,
+      "digest": "a017dc580b505a645d740f563dd7183764227c919483065ff584b3d21b81c1f6",
+      "note": null
+    }
+  ],
   "reopenings": []
 }

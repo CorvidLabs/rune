@@ -5,10 +5,10 @@
   "title": "Close the deferred session limitations: non-blocking writes so a stalled child or attached terminal cannot wedge the supervisor, terminal-size propagation on attach and SIGWINCH, idle control-connection reaping, and a lock file that makes concurrent start of one name safe",
   "description": "Close the deferred session limitations: non-blocking writes so a stalled child or attached terminal cannot wedge the supervisor, terminal-size propagation on attach and SIGWINCH, idle control-connection reaping, and a lock file that makes concurrent start of one name safe",
   "kind": "feature",
-  "state": "draft",
+  "state": "implementing",
   "base_commit": "d0a067ae361b2fce5e20d8b8fce6ea91f0de3520",
   "created_at": 1786753314,
-  "updated_at": 1786753335,
+  "updated_at": 1786754499,
   "affected_specs": [
     "session"
   ],

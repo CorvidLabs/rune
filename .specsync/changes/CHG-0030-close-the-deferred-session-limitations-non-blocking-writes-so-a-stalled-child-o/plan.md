@@ -1,8 +1,10 @@
 ---
-change: CHG-0030-close-the-deferred-session-limitations-non-blocking-writes-so-a-stalled-child-o
 artifact: plan
 ---
 
-# Plan
+# plan
 
-<!-- TODO: complete this artifact or remove it from selected_artifacts before approval. -->
+See design.md. Four documented limitations closed, each pinned by a regression test:
+non-blocking writes, terminal-size propagation on attach, idle-connection reaping, and a
+per-name start lock. Plus one discovery documented rather than fixed: the 1024-byte
+MAX_CANON limit on a cooked-mode child's input.
