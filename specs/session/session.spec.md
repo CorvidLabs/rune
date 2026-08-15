@@ -1,6 +1,6 @@
 ---
 module: session
-version: 15
+version: 16
 status: active
 files:
   - lib/rune/session/store.rb
@@ -585,6 +585,11 @@ deciding who talks to whom stays the calling agent's job.
   reachable by nothing. The window now contains only the metadata write and cannot be closed
   entirely, since the pid does not exist until the spawn returns. In practice the pty master closing
   delivers SIGHUP, which ends most children; one that ignores SIGHUP is leaked.
+- **One session is one supervisor process, which costs about 23MB and 27 descriptors.** The
+  isolation is deliberate — a wedged agent takes down its own session and nothing else — but the
+  price is a Ruby interpreter per session, paid up front. Measured with idle children: 24 sessions
+  held 543MB and 648 descriptors, 60 held 1361MB and 1620, flat per session and unchanged across
+  rounds of sends. Sixty agents therefore cost over a gigabyte before any of them does anything.
 - **`stop` signals the pids recorded in `meta.json`.** If a supervisor was SIGKILLed and the kernel
   has since recycled its pid, `stop` could signal an unrelated process. Narrow, but real.
 - **Settle is a heuristic, but it is a better one than 0.4.0 claimed.** That release recorded the
@@ -660,3 +665,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-15 | CHG-0041-bound-the-supervisor-s-in-memory-transcript-to-a-window-so-a-persistent-session: Bound the supervisor's in-memory transcript to a window, so a persistent session's resident memory stops tracking output one-for-one |
 | 2026-08-15 | CHG-0042-fix-an-attachment-reporting-both-that-the-session-is-still-running-and-that-it-e: Fix an attachment reporting both that the session is still running and that it ended, in the same exit |
 | 2026-08-15 | CHG-0044-bound-a-session-transcript-on-disk-as-well-as-in-memory-rotating-it-while-keepi: Bound a session transcript on disk as well as in memory, rotating it while keeping cursors absolute |
+| 2026-08-15 | CHG-0045-record-what-running-many-sessions-at-once-costs-measured-across-24-and-60-concu: Record what running many sessions at once costs, measured across 24 and 60 concurrent supervisors |
