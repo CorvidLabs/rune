@@ -780,6 +780,77 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'echo tracking with multibyte output' do
+    let(:supervisor) do
+      Rune::Session::Supervisor.new(name: 'unit', command: ['true'], store: store)
+    end
+
+    # Found by driving agy: the supervisor died reproducibly within a few turns,
+    # taking the agent with it. An agent TUI paints spinners and box-drawing
+    # rules, so multibyte output inside the echo grace window is the norm, not
+    # an edge case.
+    it 'does not raise when the arriving slice is multibyte' do
+      expect { supervisor.send(:echo_still_arriving?, '⣟', 'run the command') }.not_to raise_error
+    end
+
+    it 'reports a multibyte slice that is not the echo as not-the-echo' do
+      expect(supervisor.send(:echo_still_arriving?, '⣟⣯⣷', 'hello')).to be false
+    end
+
+    # Advancing past the echo by its byte length overshoots for non-ASCII, which
+    # silently ate the first characters of the reply.
+    it 'strips exactly the echo when the sent text was not ASCII' do
+      supervisor.instance_variable_set(:@pending, { echo: 'héllo', sent_at: 0 })
+
+      expect(supervisor.send(:beyond_echo, 'hélloANSWER')).to eq('ANSWER')
+    end
+  end
+
+  describe 'a send that lands while the child is still talking' do
+    # The characteristic failure measured against a real agent CLI is not a
+    # truncated answer: it is the *previous* turn's answer, whole and
+    # well-formed, which the caller cannot distinguish from a correct reply.
+    it 'flags a send issued while the previous turn was still producing output' do
+      start_session('busy1', thinking_child(delay: 0.4))
+      session('send', '--name=busy1', '--no-wait', '--', 'first')
+
+      result = session('send', '--name=busy1', '--settle-ms=1500', '--timeout-ms=15000', '--', 'second')
+
+      expect(result.data[:busy_at_send]).to be true
+    end
+
+    it 'does not flag a send into a quiet child' do
+      start_session('busy2', thinking_child(delay: 0.1))
+      session('send', '--name=busy2', '--settle-ms=400', '--timeout-ms=15000', '--', 'settle-first')
+
+      result = session('send', '--name=busy2', '--settle-ms=400', '--timeout-ms=15000', '--', 'now-quiet')
+
+      expect(result.data[:busy_at_send]).to be false
+    end
+  end
+
+  describe 'a supervisor that dies unexpectedly' do
+    # It used to leave meta saying "running" with no exit code and an empty
+    # supervisor.log, so nothing anywhere named the cause.
+    it 'records the crash and marks the session finished' do
+      session_store = store
+      supervisor = Rune::Session::Supervisor.new(name: 'crashy', command: ['true'], store: session_store)
+      session_store.create('crashy')
+      session_store.write_meta('crashy', name: 'crashy', command: ['true'], state: 'running')
+      supervisor.instance_variable_set(:@output_log, session_store.open_output('crashy'))
+
+      supervisor.send(:crashed, TypeError.new('boom'))
+
+      meta = session_store.read_meta('crashy')
+      expect(meta[:state]).to eq('exited')
+      expect(meta[:exit_code]).to eq(Rune::Session::Supervisor::EXIT_SUPERVISOR_CRASHED)
+      events = File.readlines(session_store.output_path('crashy')).map { |line| JSON.parse(line) }
+      crash = events.find { |event| event['event'] == 'crash' }
+      expect(crash['error']).to eq('TypeError')
+      expect(crash['message']).to eq('boom')
+    end
+  end
+
   describe 'a start without --name' do
     # The lock serialises one name, but the name was picked before it: two
     # `start -- grok` racing each other both landed on the same codename, and

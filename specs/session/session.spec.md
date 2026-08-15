@@ -386,6 +386,18 @@ deciding who talks to whom stays the calling agent's job.
 41d. A send whose write to the pty failed is reported as an error, never as sent. A queued write
     reports a dead master by marking the child finished rather than by raising, so a `--no-wait`
     send — which has no later settle to catch it — must check for that before answering.
+41e. A supervisor that dies for any reason records why and leaves the session marked finished. It
+    previously died silently: `meta.json` still read "running" with no exit code, no exit event was
+    logged, and supervisor.log was empty, so nothing anywhere named the cause. The cause is written
+    to the transcript as a `crash` event and to stderr, and the exit code becomes 70 (EX_SOFTWARE),
+    distinct from any status the child could return.
+41f. Echo tracking counts characters, never bytes. `String#index`, `String#[]` and `start_with?` are
+    character-based, so mixing in a byte length both overshot the echo for non-ASCII input and asked
+    for more characters than existed — the latter yielding nil and raising, which killed the whole
+    supervisor and took the agent CLI with it. Multibyte output inside the echo grace window is the
+    norm for an agent TUI (spinners, box drawing), not an edge case.
+41g. A send issued while the child was still producing output is reported as `busy_at_send: true`.
+    That is when the reply is most likely to be the previous turn's answer rather than this one's.
 42. Attaching propagates the terminal's real dimensions to the child and forwards SIGWINCH for the
     duration, over separate short-lived control connections — the attachment socket itself is a raw
     byte pipe after the ack, so a control frame written there would be typed at the child instead.
@@ -457,9 +469,25 @@ deciding who talks to whom stays the calling agent's job.
   drive a raw-mode target.
 - **`stop` signals the pids recorded in `meta.json`.** If a supervisor was SIGKILLed and the kernel
   has since recycled its pid, `stop` could signal an unrelated process. Narrow, but real.
-- **Settle is a heuristic.** A child that pauses mid-answer for longer than `--settle-ms` returns a
-  truncated response. `--wait-for-regex` is the deterministic answer when the callee's prompt is
-  known.
+- **Settle is a heuristic, and its characteristic failure is not truncation.** Measured against
+  Claude Code over 27 turns (three task shapes × three trials × three settle windows), the reply was
+  the answer to the question actually asked in 5/9 at 800 ms, 8/9 at 3000 ms and 8/9 at 6000 ms. The
+  failures were almost all one specific shape: the *previous* turn's answer, returned whole and
+  well-formed, because that turn was still arriving when the next send landed. A caller cannot tell
+  that from a correct reply, which makes it worse than a timeout. `--settle-ms` therefore defaults to
+  3000; 6000 bought nothing over 3000 and cost 2.5s per call. A send issued while the child was still
+  producing output is reported as `busy_at_send: true` — the residual case, reported rather than
+  prevented, because waiting for quiet before writing would need another deferred state in the event
+  loop. `--wait-for-regex` on a *completion* marker remains the deterministic answer.
+- **A continuously animating child never settles.** Agents whose spinner runs for the whole turn
+  (grok) are the easy case — byte silence genuinely means the turn ended. A child that animates while
+  *idle*, or a long-running `top`-style command, never goes quiet and the send waits out
+  `--timeout-ms` instead.
+- **A settled reply is a byte stream, not a rendered screen.** A full-screen agent's answer is
+  interleaved with its own redraws, so a 13-character reply arrives inside ~16 KB of repaints with
+  the answer itself split across them — searching the reply for an expected string can fail even
+  though the agent displayed it correctly. Callers that need to match on content should strip ANSI
+  and collapse whitespace first, or drive the callee with `--wait-for-regex`.
 - **`start` returns when the *supervisor* is ready, not when the child is.** An agent CLI takes
   seconds to boot, and input sent before it is listening is simply lost (or echoed by the
   still-cooked tty). Callers should wait for a readiness marker — via `read`, or a first `send`

@@ -71,6 +71,20 @@ module Rune
       # supervisor open, but long enough to finish a reply larger than one
       # socket buffer.
       REPLY_DRAIN_TIMEOUT = 2.0
+      # How long the child must be quiet before a send is considered answered.
+      #
+      # Measured, not guessed. Driving Claude Code through 27 turns (three shapes
+      # of task, three trials each, at 800/3000/6000 ms) the reply was the answer
+      # to the question actually asked in 5/9, 8/9 and 8/9 cases. At 800 ms the
+      # failure was not a truncated answer but the *previous* turn's answer,
+      # returned whole and well-formed — indistinguishable from a correct reply
+      # to the caller, which is worse than a timeout. 6000 ms bought nothing over
+      # 3000 ms and cost 2.5s per call.
+      DEFAULT_SETTLE_MS = 3000
+      # Recorded as the session's exit code when the supervisor itself died
+      # rather than the child. 70 is sysexits' EX_SOFTWARE: an internal fault,
+      # distinct from any status the child could have returned.
+      EXIT_SUPERVISOR_CRASHED = 70
 
       def self.run(name:, command:, home: nil, project: nil)
         new(name: name, command: command, store: Store.new(home: home, project: project)).run
@@ -94,6 +108,7 @@ module Rune
         @close_after_drain = []
         @stopping = false
         @exit_code = nil
+        @finished = false
       end
 
       def run
@@ -112,6 +127,8 @@ module Rune
         # non-executable (126) target is the child's exit status, not a
         # supervisor-level crash.
         finish(e.is_a?(Errno::ENOENT) ? 127 : 126)
+      rescue StandardError => e
+        crashed(e)
       ensure
         cleanup(server)
       end
@@ -507,7 +524,7 @@ module Rune
       # what this send produced. Without it a banner or a previous command's
       # trailing output would be misattributed to this request.
       def begin_pending(request, client, echo)
-        settle_ms = positive_int(request[:settle_ms], 800)
+        settle_ms = positive_int(request[:settle_ms], DEFAULT_SETTLE_MS)
         timeout_ms = positive_int(request[:timeout_ms], 120_000)
         @pending = {
           client: client,
@@ -516,6 +533,14 @@ module Rune
           regex: compile_regex(request[:wait_for_regex]),
           deadline: monotonic + (timeout_ms / 1000.0),
           echo: echo,
+          # The child was still talking when this send landed, so what follows
+          # may be the tail of the previous turn rather than a reply to this
+          # one. Measured against a real agent CLI, that is the characteristic
+          # failure: not a truncated answer but the previous answer, whole and
+          # well-formed, which a caller cannot tell from a correct one. It is
+          # reported rather than prevented — waiting for quiet before writing
+          # would need another deferred state in this loop.
+          busy_at_send: child_still_talking?(settle_ms),
           sent_at: monotonic,
           saw_output: false
         }
@@ -576,8 +601,12 @@ module Rune
         # check fail and hand the whole slice back as if it were a reply. That
         # showed up as --wait-for-regex matching its own echoed input roughly
         # one run in three.
+        # Characters throughout. `index` and `[]` count characters, so advancing
+        # past the echo by its *byte* length overshot for any non-ASCII input —
+        # a prompt containing a curly quote or an emoji silently ate the first
+        # bytes of the reply.
         index = normalized.index(echo)
-        return normalized[(index + echo.bytesize)..].to_s if index
+        return normalized[(index + echo.length)..].to_s if index
         # Not all there yet: treat a trailing partial echo as "still arriving",
         # but only inside the grace window, so a genuine reply that happens to
         # be a prefix of the input cannot stall the send indefinitely.
@@ -591,10 +620,16 @@ module Rune
       # child that was still printing something else (bash's startup banner)
       # when the send landed pushes the partial echo off the front, so the
       # prefix test failed and a half-arrived echo counted as a reply.
+      # Characters, not bytes. `normalized[-length, length]` counts characters
+      # while the bound was counted in bytes, so any multibyte output inside the
+      # echo grace window — a spinner glyph, a box-drawing rule, which is most
+      # of what an agent TUI paints — asked for more characters than existed and
+      # got nil, and `start_with?(nil)` raised. That killed the whole supervisor
+      # and took the agent CLI with it, reproducibly, within a handful of turns.
       def echo_still_arriving?(normalized, echo)
         return true if normalized.strip.empty?
 
-        limit = [normalized.bytesize, echo.bytesize].min
+        limit = [normalized.length, echo.length].min
         (1..limit).any? { |length| echo.start_with?(normalized[-length, length]) }
       end
 
@@ -612,13 +647,23 @@ module Rune
         (monotonic - @last_output_at) >= (@pending[:settle_ms] / 1000.0)
       end
 
+      # True when the child produced output within the settle window that is
+      # about to be applied — i.e. a previous turn had not finished when this
+      # send arrived.
+      def child_still_talking?(settle_ms)
+        return false if @last_output_at.nil?
+
+        (monotonic - @last_output_at) < (settle_ms / 1000.0)
+      end
+
       def settle_pending(slice, **flags)
         pending = @pending
         @pending = nil
         respond(pending[:client], {
           output: slice,
           cursor: @transcript.bytesize,
-          prompt_detected: PromptScanner.prompt_at_end?(slice)
+          prompt_detected: PromptScanner.prompt_at_end?(slice),
+          busy_at_send: pending[:busy_at_send] || false
         }.merge(flags))
       end
 
@@ -650,9 +695,24 @@ module Rune
       # ---- teardown
 
       def finish(exit_code)
+        @finished = true
         @exit_code = exit_code
         @store.update_meta(@name, state: 'exited', exit_code: exit_code, exited_at: Time.now.to_f)
         log_event('exit', exit_code: exit_code)
+      end
+
+      # A supervisor that dies without saying why is undebuggable. Driving a
+      # real agent CLI produced exactly that: the socket was gone, the caller
+      # got `supervisor_exited`, and `meta.json` still read "running" with no
+      # exit code and an empty supervisor.log — nothing anywhere named the
+      # cause. The transcript is where an operator already looks, so the cause
+      # goes there as well as on stderr.
+      def crashed(error)
+        log_event('crash', error: error.class.name, message: error.message,
+                           backtrace: Array(error.backtrace).first(10))
+        warn "rune session #{@name}: supervisor crashed: #{error.class}: #{error.message}"
+        warn Array(error.backtrace).first(10).join("\n")
+        finish(EXIT_SUPERVISOR_CRASHED)
       end
 
       def reap
@@ -672,6 +732,11 @@ module Rune
         [
           -> { resolve_orphaned_pending },
           -> { drain_replies },
+          # Whatever brought us here, the session is over. Leaving meta saying
+          # "running" makes every later command report a session that is not
+          # there, with no exit code to explain it — and `list` then shows a
+          # live session backed by nothing.
+          -> { finish(EXIT_SUPERVISOR_CRASHED) unless @finished },
           -> { terminate_child },
           -> { (@clients + @attached).each { |client| safe_close(client) } },
           -> { safe_close(server) },
