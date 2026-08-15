@@ -1,6 +1,6 @@
 ---
 id: CHG-0037-fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune
-state: accepted
+state: archived
 type: feature
 base_commit: ec7cb59c877ecc4bb64d5dbb8b2c95ea015becd5
 ---

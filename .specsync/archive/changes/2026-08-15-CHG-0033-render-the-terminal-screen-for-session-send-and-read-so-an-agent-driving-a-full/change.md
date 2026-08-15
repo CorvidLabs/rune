@@ -1,6 +1,6 @@
 ---
 id: CHG-0033-render-the-terminal-screen-for-session-send-and-read-so-an-agent-driving-a-full
-state: accepted
+state: archived
 type: feature
 base_commit: 9176cf741f0d98a663530d6d0fac1e361ae40be1
 ---

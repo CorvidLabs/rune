@@ -1,6 +1,6 @@
 ---
 id: CHG-0035-write-a-send-s-terminating-carriage-return-as-a-separate-delayed-write-so-an-ag
-state: accepted
+state: archived
 type: feature
 base_commit: 9fcf83cfeb4f28ace4dfeacbae29b4afc20e72b7
 ---

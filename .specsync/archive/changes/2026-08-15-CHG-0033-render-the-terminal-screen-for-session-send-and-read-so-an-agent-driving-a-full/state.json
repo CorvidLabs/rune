@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0033-render-the-terminal-screen-for-session-send-and-read-so-an-agent-driving-a-full",
+  "slug": "render-the-terminal-screen-for-session-send-and-read-so-an-agent-driving-a-full",
+  "title": "Render the terminal screen for session send and read, so an agent driving a full-screen agent can find the answer instead of searching every repaint frame",
+  "description": "Render the terminal screen for session send and read, so an agent driving a full-screen agent can find the answer instead of searching every repaint frame",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "9176cf741f0d98a663530d6d0fac1e361ae40be1",
+  "created_at": 1786768133,
+  "updated_at": 1786803467,
+  "affected_specs": [
+    "session",
+    "parsers",
+    "cli"
+  ],
+  "affected_paths": [
+    "lib/rune/parsers/screen_renderer.rb",
+    "lib/rune/commands/session_command.rb",
+    "lib/rune.rb",
+    "spec/rune/parsers/screen_renderer_spec.rb",
+    "spec/rune/session_spec.rb",
+    "specs/parsers/parsers.spec.md",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "rune session read --screen and rune session send --screen return a Must be connected to a terminal.\r field holding the rendered terminal, and omit it entirely when not passed so the default result shape is unchanged. Parsers::ScreenRenderer replays cursor motion, erasing and line discipline rather than deleting escapes as TextSanitizer does, never fails to consume input, tolerates invalid UTF-8, and bounds work by rendering only the transcript tail. Verified end to end against grok: the answer was absent from the byte stream 3/3 turns and present in the rendered screen 3/3 turns. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

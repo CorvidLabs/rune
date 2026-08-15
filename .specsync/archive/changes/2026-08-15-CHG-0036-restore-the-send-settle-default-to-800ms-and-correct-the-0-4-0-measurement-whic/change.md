@@ -1,6 +1,6 @@
 ---
 id: CHG-0036-restore-the-send-settle-default-to-800ms-and-correct-the-0-4-0-measurement-whic
-state: accepted
+state: archived
 type: feature
 base_commit: 45e5df15e718203d4e986efd2687e3ca33eac263
 ---
