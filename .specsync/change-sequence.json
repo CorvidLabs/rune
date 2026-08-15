@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 31,
-  "id": "CHG-0031-fix-a-bytes-vs-characters-crash-in-session-echo-tracking-that-killed-real-agent",
+  "sequence": 32,
+  "id": "CHG-0032-prep-0-4-0-release-bump-version-roll-up-changelog",
   "acknowledged_collisions": []
 }

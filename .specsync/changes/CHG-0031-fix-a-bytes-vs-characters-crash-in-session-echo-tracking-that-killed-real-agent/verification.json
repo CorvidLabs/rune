@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786759617,
-  "commit": "763fcc233e57913c80e43300d4a54e6931ffdcb0",
+  "timestamp": 1786762202,
+  "commit": "e126434feb9a9743bfe0982e5c108a180ba67ae4",
   "contract_digest": "fdb24e1cd43334c8612acc55e2abe5f2fd5a398fd25b311fccb49fa34f8e6938",
-  "workspace_digest": "2928fab400674fe255299e90b11efd58915ab7234241c88d64533278082f4914",
-  "acceptance_input_digest": "3dc853a4b83223007785f54614b1a13b3a1b71b9c550c0ab226338ff60ed81db",
+  "workspace_digest": "5a89c303f479a4cfec890e4f55b2be36617b824dae6d2eed545bae7402bdb13a",
+  "acceptance_input_digest": "da2ab03c7492487ffe4fd8fac48e1785955dd8f2c6a85a2e71e6af136be45357",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -41,8 +41,8 @@
         "path": "spec/rune/session_spec.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "591bfa8902714f2a1bc050fa534dc934728e80233f0761559574f4cd9ebf38f9",
-        "entry_digest": "b5e79b1fe5c650016009c980265c379d96c1b3bdb41f938f790cc75d99141399",
+        "payload_digest": "85b703a22e025d1e8f699e6042cdf7bc3202370ec52a842136bcd565ecf88dd7",
+        "entry_digest": "7c1beccb343736beb4985f97ab4c6c13de11e4258010c6b83ad991e0e834a0b1",
         "owners": [
           "@exact:delivery"
         ]

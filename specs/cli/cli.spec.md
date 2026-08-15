@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 11
+version: 12
 status: active
 files:
   - lib/rune.rb
@@ -176,3 +176,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-08-14 | CHG-0025-prep-0-3-0-release-bump-version-roll-up-changelog: Bump `Rune::VERSION` to 0.3.0 for the 0.3.0 release prep. No public API or contract change — version constant value only. |
 | 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Register the new `rune session` subcommand by requiring the session module and `SessionCommand` from `lib/rune.rb`. No change to the CLI framework's own public API, output modes, or help contract — the session surface is specified in its own `session` canonical spec. |
 | 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously |
+| 2026-08-15 | CHG-0032-prep-0-4-0-release-bump-version-roll-up-changelog: Prep 0.4.0 release: bump version, roll up CHANGELOG |

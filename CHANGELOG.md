@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-08-15
+
 ### Added
 
 - `rune session` — persistent, named PTY sessions that outlive a single `rune` invocation, so one
@@ -37,12 +39,11 @@
 
 ### Changed
 
-- Examples are split by audience: `examples/agents/` (structured, programmatic — including a
-  bash+jq example for agents that shell out rather than requiring the gem) and `examples/humans/`
-  (interactive programs meant to be driven from a terminal). Each folder has a README, and new
-  examples cover the library surface, multi-session fan-out, failure handling, driving rune as a
-  subprocess without loading the library, and a stand-in agent REPL that costs no API quota. The
-  repository is now Ruby end to end — no shell scripts remain.
+- Examples are split by audience: `examples/agents/` (structured, programmatic) and
+  `examples/humans/` (interactive programs meant to be driven from a terminal). Each folder has a
+  README, and new examples cover the library surface, multi-session fan-out, failure handling,
+  driving rune as a subprocess without loading the library, and a stand-in agent REPL that costs no
+  API quota. The repository is now Ruby end to end — no shell scripts remain.
 - CI no longer runs the Augur risk gate or Attest provenance verification, and `spec-sync` runs
   without `--strict`/`--stale`. The contract itself — specs matching code, coverage staying
   complete — is the part worth gating on; the rest was rejecting work for bookkeeping reasons
@@ -53,8 +54,37 @@
   `scripts/squash_attest_forwards.sh` existed only to make those gates non-vacuous and are removed
   with them.
 
+- **`--settle-ms` now defaults to 3000 rather than 800**, on measurement rather than taste. Driving
+  Claude Code through 27 turns (three task shapes × three trials × three windows), the reply was the
+  answer to the question actually asked in 5/9 at 800ms, 8/9 at 3000ms and 8/9 at 6000ms. The
+  failure at 800ms was almost never a truncated answer — it was the *previous* turn's answer,
+  returned whole and well-formed, which a caller cannot distinguish from a correct reply. 6000ms
+  bought nothing over 3000ms and cost 2.5s per call. Sends against fast, non-agent children (a
+  cooked shell) should pass a smaller `--settle-ms` explicitly; the default is now tuned for the
+  agent CLIs this feature exists to drive.
+- A send issued while the child was still producing output reports `busy_at_send: true` — the case
+  where a reply is most likely to be the previous turn's answer. Reported rather than prevented:
+  deferring the write until the child goes quiet needs another deferred state in the event loop.
+
 ### Fixed
 
+- **A session driving a real agent CLI died within a handful of turns.** `echo_still_arriving?`
+  bounded its loop by *byte* length while indexing by *character*, so any multibyte output arriving
+  inside the echo grace window asked for more characters than existed, got `nil`, and
+  `start_with?(nil)` raised — killing the supervisor and taking the agent process with it. An agent
+  TUI paints spinners and box-drawing rules constantly, so this was the normal case for exactly the
+  targets sessions exist to drive: reproducible within 2–4 turns, three runs out of three, and
+  12/12 rounds clean after the fix. `beyond_echo` had the same mix-up in the other direction —
+  advancing past the echo by its byte length overshot for any non-ASCII prompt and silently ate the
+  first characters of the reply. Both now count characters throughout. Found by dogfooding; three
+  rounds of independent code review did not.
+- **A supervisor that died said nothing about why.** `meta.json` still read `state: running` with no
+  exit code, no exit event was written to the transcript, and `supervisor.log` — the supervisor's
+  own stderr — was empty, so every later command reported a session that was not there and nothing
+  named the cause. The supervisor now records a `crash` event with class, message and backtrace to
+  the transcript and to stderr, and exits `70` (sysexits `EX_SOFTWARE`, distinct from any status the
+  child could return). Teardown marks the session finished no matter how it got there, so no path
+  leaves a session claiming to be running.
 - `Parsers::TextSanitizer` now strips private-parameter CSI (`\e[?1049h`, `\e[?2026h`), OSC strings
   (`\e]0;title\a`), DCS/SOS/PM/APC strings, and keypad/cursor-key modes, not just SGR-shaped
   sequences. The old pattern left a full-screen TUI's escape traffic almost entirely intact, so

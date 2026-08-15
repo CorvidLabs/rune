@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0032-prep-0-4-0-release-bump-version-roll-up-changelog",
+  "slug": "prep-0-4-0-release-bump-version-roll-up-changelog",
+  "title": "Prep 0.4.0 release: bump version, roll up CHANGELOG",
+  "description": "Prep 0.4.0 release: bump version, roll up CHANGELOG",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "a15e73f1943f0c482ed7351f9d6eb546d97ae120",
+  "created_at": 1786760978,
+  "updated_at": 1786763719,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "lib/rune/version.rb",
+    "plugin.toml",
+    "CHANGELOG.md",
+    "Gemfile.lock",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Rune::VERSION and plugin.toml [plugin].version both read 0.4.0; fledge run version-check passes; CHANGELOG.md's Unreleased section is rolled into a new [v0.4.0] - 2026-08-15 section with a fresh empty Unreleased above it; fledge lanes run release (version-check, fmt-check, lint, test, spec-check, spec-lifecycle, smoke-test, build) passes end to end, including a successful gem build."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}
