@@ -1,6 +1,6 @@
 ---
 id: CHG-0044-bound-a-session-transcript-on-disk-as-well-as-in-memory-rotating-it-while-keepi
-state: accepted
+state: archived
 type: feature
 base_commit: 20179ed9ab0f05489c58449a1881dc565cc01ad4
 ---

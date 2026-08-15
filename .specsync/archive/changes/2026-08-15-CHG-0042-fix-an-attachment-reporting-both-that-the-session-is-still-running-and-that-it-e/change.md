@@ -1,6 +1,6 @@
 ---
 id: CHG-0042-fix-an-attachment-reporting-both-that-the-session-is-still-running-and-that-it-e
-state: accepted
+state: archived
 type: feature
 base_commit: 6a787480056528f918314658b2d359e4d1129024
 ---

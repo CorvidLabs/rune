@@ -1,6 +1,6 @@
 ---
 id: CHG-0046-rotate-a-session-transcript-without-reading-it-seek-to-the-cut-and-copy-the-tai
-state: accepted
+state: archived
 type: feature
 base_commit: b89daa34de393815c5adbbbdf239bc732a51bb90
 ---

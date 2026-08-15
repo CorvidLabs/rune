@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0039-fix-six-defects-found-by-a-read-only-grok-kimi-and-agy-council-review-of-0-5-0",
+  "slug": "fix-six-defects-found-by-a-read-only-grok-kimi-and-agy-council-review-of-0-5-0",
+  "title": "Fix six defects found by a read-only grok, kimi and agy council review of 0.5.0: renderer escapes and last-column cursor, a send accepted mid-delivery, a send settled before submission, stop killing before teardown, a false exit code, and a skipped process-group kill",
+  "description": "Fix six defects found by a read-only grok, kimi and agy council review of 0.5.0: renderer escapes and last-column cursor, a send accepted mid-delivery, a send settled before submission, stop killing before teardown, a false exit code, and a skipped process-group kill",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "e70d8d35af9520a34f5302b784ce15f5fef13b64",
+  "created_at": 1786806651,
+  "updated_at": 1786829959,
+  "affected_specs": [
+    "parsers",
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/parsers/screen_renderer.rb",
+    "lib/rune/session/supervisor.rb",
+    "lib/rune/commands/session_command.rb",
+    "spec/rune/parsers/screen_renderer_spec.rb",
+    "spec/rune/session_spec.rb",
+    "specs/parsers/parsers.spec.md",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "ScreenRenderer obeys ESC D/E/M, cursor save and restore in both DECSC/DECRC and CSI forms, VPA, the insert/delete/erase-character family, line insert/delete/scroll, and vertical tab and form feed as motion; the last-column cursor follows xterm deferred wrap. A send is refused while a previous send's text is still going out, and nothing settles a send whose terminator has not gone out. stop waits for the cooperative shutdown before force-killing, so an in-flight send gets its captured output and the control socket is removed; the recorded exit code reflects the signal; and a process-group kill is not gated on the leader being alive. Regression tests for all of it, verified against the unfixed code. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

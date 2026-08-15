@@ -1,6 +1,6 @@
 ---
 id: CHG-0039-fix-six-defects-found-by-a-read-only-grok-kimi-and-agy-council-review-of-0-5-0
-state: accepted
+state: archived
 type: feature
 base_commit: e70d8d35af9520a34f5302b784ce15f5fef13b64
 ---

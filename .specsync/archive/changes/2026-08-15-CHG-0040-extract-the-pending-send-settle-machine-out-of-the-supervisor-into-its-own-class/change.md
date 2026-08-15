@@ -1,6 +1,6 @@
 ---
 id: CHG-0040-extract-the-pending-send-settle-machine-out-of-the-supervisor-into-its-own-class
-state: accepted
+state: archived
 type: feature
 base_commit: 839d392bb81565dc9cc8fa0e50bafbda9974b7ab
 ---
