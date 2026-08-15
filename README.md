@@ -8,6 +8,10 @@ Every command produces formatted, colored terminal output for humans and structu
 agents. `rune watch` additionally writes a live NDJSON event stream while the human drives the
 session. Same tool, same commands, dual interface.
 
+`rune session` goes one step further: it holds an agent CLI — `claude`, `grok`, `codex` — open
+across separate invocations, so one agent can drive another conversationally and a human can attach
+to the same session and take over.
+
 📖 New here? Start with the **[Getting Started guide](docs/getting_started.md)**.
 
 ---
@@ -35,6 +39,18 @@ session. Same tool, same commands, dual interface.
      returns everything at the end)
    - Simultaneously logs every chunk as an NDJSON event to a temp file (path announced once, or
      `--log=PATH`) so an AI agent can tail the session live while a human drives it
+6. **Persistent Named Sessions (`rune session`)**
+   - Holds a REPL-shaped child — `claude`, `grok`, `codex`, a shell — open *across* separate `rune`
+     invocations, which neither `run` (buffers and returns once) nor `watch` (dies with its child)
+     can do
+   - **Send-and-settle**: write input, wait for the child to go quiet, get back exactly the output
+     that send produced, turning an async TTY into a synchronous request/response call
+   - `--screen` returns the *rendered terminal* rather than the raw byte stream, which matters
+     because a full-screen agent interleaves its answer with its own repaints — one measured
+     transcript went from 361KB of repaint traffic to a 1.1KB screen
+   - `attach` hands the live session to a human terminal and **Ctrl-]** gives it back, still running
+   - Sessions are named, project-scoped, and archivable; transcripts are bounded on disk and in
+     memory, so a session left running for a day does not grow without limit
 
 ---
 
@@ -169,6 +185,49 @@ view; the calling program gets clean JSON:
 ```sh
 rune watch --json -- ruby examples/humans/demo_tui.rb 2>/dev/null | jq .data.log_path
 ```
+
+### 6. Drive One Agent CLI From Another (`rune session`)
+
+`run` buffers and returns once; `watch` needs a human at a terminal and ends with its child. Neither
+can hold an agent REPL open across calls. `session` can:
+
+```sh
+# Start a named session. The child outlives this command.
+rune session start --name reviewer -- grok
+
+# Send a prompt and wait for the answer. --screen returns the rendered
+# terminal, which is where the answer is actually legible.
+rune session send --name reviewer --screen -- "Review lib/rune/session/supervisor.rb for races"
+
+# Come back later — from another process, another agent, another hour.
+rune session send --name reviewer --screen -- "Now just the highest-severity one, in one line"
+
+rune session list          # what is running, how idle, what it last printed
+rune session stop --name reviewer
+```
+
+**Why `--screen` rather than the raw output.** A full-screen agent repaints continuously, so the
+byte stream contains every frame of every repaint with the answer split across them. Measured
+against grok: a 361KB transcript rendered to a 1.1KB screen, and an answer the agent had plainly
+displayed was absent from the byte stream in 3 of 3 turns and present in the rendered screen in 3 of
+3. If you are matching on content, match on `screen`.
+
+**Take the wheel yourself**, then give it back without stopping anything:
+
+```sh
+rune session attach --name reviewer   # Ctrl-] detaches; the session keeps running
+```
+
+Sessions are scoped to the enclosing git working tree, so `reviewer` in two checkouts is two
+sessions. That is deliberate, and it is also the most common surprise — if `list` shows nothing,
+check the directory you are in and `RUNE_HOME`:
+
+```sh
+rune session list --all-projects
+```
+
+📖 Full guide, including settle tuning and the known limitations:
+**[docs/sessions.md](docs/sessions.md)**.
 
 ---
 

@@ -116,6 +116,19 @@ generous because agents are slow, so a mistaken call costs two minutes.
 
 `--no-wait` writes and returns immediately, for when you don't expect a reply at all.
 
+### The other fields on a reply
+
+- `settled: true` — the child went quiet for the settle window. The normal success.
+- `timed_out: true` — `--timeout-ms` was reached first. A result, not a failure.
+- `matched: true` — `--wait-for-regex` matched.
+- `child_exited: true` — the child ended while the send was in flight.
+- `busy_at_send: true` — the child was *still producing output* when this send landed, so the reply
+  may contain the tail of the previous turn. Worth checking if an answer looks like it belongs to
+  the previous question.
+- `regex_timed_out: true` — the `--wait-for-regex` pattern exceeded its match budget and was
+  abandoned. Almost always a catastrophically backtracking pattern; simplify it.
+- `dropped_bytes` — earlier output was rotated away before this read.
+
 ### `prompt_detected` is advisory only
 
 Every `send`/`read` result carries `prompt_detected`, but **do not gate on it**. rune's prompt
@@ -143,6 +156,31 @@ $ tail -f ~/.rune/projects/<project>/sessions/grok/output.ndjson
 
 Full-screen TUI agents generate a lot of ANSI repaint traffic, so prefer `--tail`/`--max-output`
 over reading a whole transcript.
+
+### `--screen`: what the terminal shows, not what arrived
+
+For a full-screen agent this is usually the field you want. The byte stream contains every frame of
+every repaint, with the answer split across them; the screen contains only what is displayed.
+
+```console
+$ rune session send --name grok --screen -- "reply with just the branch name"
+$ rune session read --name grok --screen
+```
+
+Measured against grok: a 361KB transcript rendered to a 1.1KB screen, and an answer the agent had
+plainly displayed was **absent from the byte stream in 3 of 3 turns and present in the rendered
+screen in 3 of 3**. If you are matching on content, match on `screen`.
+
+Two things it is not. It is the *end state*, so anything scrolled away is gone — the transcript
+remains the record of what happened. And it is opt-in because it is only meaningful for a child that
+paints a screen: for a cooked-mode shell the byte stream already is the answer.
+
+### The transcript is bounded
+
+Both the file and the supervisor's memory are capped, so a session left running for a day does not
+grow without limit. When rotation drops older output, `read` reports `dropped_bytes` and cursors
+stay absolute — a cursor still names the same position in the stream, it just points at output no
+longer held.
 
 ## What to know before driving a real agent
 
