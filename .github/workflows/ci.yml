@@ -38,10 +38,23 @@ jobs:
           bundler: ${{ matrix.bundler }}
           bundler-cache: true
 
+      # Pinned, and fetched as a release asset rather than through the install
+      # script. That script resolves "latest" via the unauthenticated GitHub API,
+      # which is rate-limited per IP — and Actions runners share IPs, so with
+      # seven jobs calling it on every push the lookup intermittently returned
+      # nothing and the job died with "could not determine latest version".
+      # Four CI runs were lost to it. A direct release download makes no API
+      # call at all. (fledge ships no action.yml, unlike spec-sync below, so
+      # there is no marketplace action to use instead.)
       - name: Install Fledge
+        env:
+          FLEDGE_VERSION: v1.7.2
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash
+          curl -fsSL --retry 3 --retry-all-errors \
+            "https://github.com/CorvidLabs/fledge/releases/download/${FLEDGE_VERSION}/fledge-linux-x86_64" \
+            -o "$HOME/.local/bin/fledge"
+          chmod +x "$HOME/.local/bin/fledge"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run Fledge checks
@@ -79,10 +92,23 @@ jobs:
           bundler: '2.4.22'
           bundler-cache: true
 
+      # Pinned, and fetched as a release asset rather than through the install
+      # script. That script resolves "latest" via the unauthenticated GitHub API,
+      # which is rate-limited per IP — and Actions runners share IPs, so with
+      # seven jobs calling it on every push the lookup intermittently returned
+      # nothing and the job died with "could not determine latest version".
+      # Four CI runs were lost to it. A direct release download makes no API
+      # call at all. (fledge ships no action.yml, unlike spec-sync below, so
+      # there is no marketplace action to use instead.)
       - name: Install Fledge
+        env:
+          FLEDGE_VERSION: v1.7.2
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL https://raw.githubusercontent.com/CorvidLabs/fledge/main/install.sh | bash
+          curl -fsSL --retry 3 --retry-all-errors \
+            "https://github.com/CorvidLabs/fledge/releases/download/${FLEDGE_VERSION}/fledge-linux-x86_64" \
+            -o "$HOME/.local/bin/fledge"
+          chmod +x "$HOME/.local/bin/fledge"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # Deliberately not `--strict` and without `--stale N`. The contract itself
