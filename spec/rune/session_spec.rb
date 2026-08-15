@@ -864,6 +864,32 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'telling working from finished' do
+    # A caller was grepping the callee's own rendered UI for a busy marker,
+    # which is presentation rather than API and changes without notice.
+    def printing_child
+      ['ruby', '-e', <<~CHILD]
+        STDOUT.sync = true
+        while (line = STDIN.gets)
+          12.times { print("working\r\n"); sleep 0.12 }
+          print("DONE\r\n")
+        end
+      CHILD
+    end
+
+    it 'reports the child as busy while it is printing, and idle once it stops' do
+      start_session('busy1', printing_child)
+      session('send', '--name=busy1', '--no-wait', '--', 'go')
+      wait_until(reason: 'output to start') { session('read', '--name=busy1').data[:output].include?('working') }
+
+      expect(session('read', '--name=busy1').data[:child_busy]).to be true
+
+      wait_until(reason: 'the child to finish') { session('read', '--name=busy1').data[:output].include?('DONE') }
+      sleep 1.2
+      expect(session('read', '--name=busy1').data[:child_busy]).to be false
+    end
+  end
+
   describe 'searching a transcript' do
     # `--since` and `--tail` do not help when what you want is in the middle. A
     # day's work with a driven agent reached 379KB, and pulling it into a

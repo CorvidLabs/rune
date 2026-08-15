@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 48,
-  "id": "CHG-0048-add-read-grep-for-searching-a-long-transcript-and-correct-what-the-docs-claim",
+  "sequence": 49,
+  "id": "CHG-0049-report-child-busy-and-idle-ms-on-read-and-document-that-exit-code-is-a-process",
   "acknowledged_collisions": []
 }

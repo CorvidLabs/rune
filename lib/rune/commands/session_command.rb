@@ -401,6 +401,21 @@ module Rune
         Result.success(read_payload(options, transcript, sliced, bounded, dropped).merge(extra))
       end
 
+      # Whether the child has produced output recently enough to call it busy,
+      # and how long since it last did. `list` already reported this; a caller
+      # deciding whether a turn is finished needs it on `read` too, and was
+      # otherwise grepping the callee's own rendered UI for a busy marker —
+      # presentation, not API, and it breaks when the wording changes.
+      #
+      # Derived from the transcript's own timestamps rather than asked of the
+      # supervisor, so it works identically for a stopped session.
+      def busy_fields(options)
+        idle = activity(store, options[:name])[:idle_ms]
+        return {} unless idle
+
+        { idle_ms: idle, child_busy: idle < Session::Supervisor::DEFAULT_SETTLE_MS }
+      end
+
       def read_payload(options, transcript, sliced, bounded, dropped)
         { action: 'read', name: options[:name], output: bounded,
           clean_output: Parsers::TextSanitizer.strip_ansi(bounded),
@@ -409,6 +424,7 @@ module Rune
           cursor: dropped + transcript.bytesize,
           prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }
           .merge(dropped.positive? ? { dropped_bytes: dropped } : {})
+          .merge(busy_fields(options))
           .merge(screen_field(transcript, options))
       end
 

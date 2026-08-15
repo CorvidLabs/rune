@@ -132,6 +132,11 @@ generous because agents are slow, so a mistaken call costs two minutes.
   the previous question.
 - `regex_timed_out: true` — the `--wait-for-regex` pattern exceeded its match budget and was
   abandoned. Almost always a catastrophically backtracking pattern; simplify it.
+- `child_busy` / `idle_ms` — whether the child has printed anything within the settle window, and
+  how long since it last did. This is the structured form of "is it still working": read it rather
+  than grepping the callee's own UI for a busy marker, which is presentation and changes without
+  notice. Note it says the child is *printing*, not that it is *working* — a child that backgrounded
+  a command and went quiet reports `child_busy: false`.
 - `dropped_bytes` — a count of earlier output rotated away before this read. It does **not**
   invalidate a `--since` cursor: cursors stay absolute, so one from before the rotation returns
   everything still held rather than an error.
