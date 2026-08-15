@@ -2,6 +2,75 @@
 
 ## [Unreleased]
 
+## [v0.5.0] - 2026-08-15
+
+Found by dogfooding: driving real agent CLIs through `rune session` and measuring what came back,
+rather than reading the code. Every fix below was reproduced against a live agent before it was
+written, and every regression test was checked against the unfixed code first.
+
+**Upgrade from 0.4.0 is strongly recommended** — 0.4.0 silently fails to deliver most prompts to
+Claude Code.
+
+### Fixed
+
+- **Prompts longer than about 64 characters were typed into an agent's composer and never sent**,
+  while `rune session send` reported a clean `settled: true`. An agent prompt is almost always
+  longer than that, so for the one thing this feature exists to do — an agent CLI driving another —
+  sends were silently not being delivered to Claude Code. A TUI treats a large chunk arriving in one
+  read as a paste, and a carriage return inside a paste is a newline in the composer rather than
+  Enter. The terminator is now written separately, after the text has drained. Measured against
+  Claude Code: before the fix only 61 characters submitted and 82 did not; after it, every length
+  tried up to 262 submits, and grok and agy are unaffected either way.
+- **A `--wait-for-regex` pattern could wedge the supervisor past its own timeout.** The match runs
+  on the supervisor's only thread, so a catastrophically backtracking pattern blocked the event loop
+  outright — it could not pump the pty, answer `stop`, or even check the send's own `--timeout-ms`,
+  because that check lives in the same loop. Reproduced with `(a+)+\1$`, where the send was still
+  blocked long after its 8s deadline. A match now gets a bounded budget where Ruby supports one, and
+  exceeding it abandons the pattern with `regex_timed_out: true`. Ruby memoizes most textbook
+  catastrophic patterns since 3.2, but not those using backreferences; **Ruby 3.0 and 3.1 have no
+  per-`Regexp` timeout and remain exposed**, which is now a stated limitation.
+- **A supervisor that died said nothing about why.** `meta.json` still read `state: running` with no
+  exit code, no exit event was logged, and `supervisor.log` was empty. The cause is now written to
+  the transcript as a `crash` event and to stderr, and the session is marked finished with exit code
+  70 whatever path teardown took.
+- **A bytes-vs-characters bug killed live agent sessions within a handful of turns.** Multibyte
+  output arriving inside the echo grace window asked for more characters than existed and raised,
+  taking the supervisor and the agent process with it — reproducible within 2–4 turns, and an agent
+  TUI paints spinners and box-drawing rules constantly. Echo tracking now counts characters
+  throughout, which also stops a non-ASCII prompt from eating the first characters of a reply.
+- Erasing to the start of a line now includes the cell under the cursor, per ECMA-48, so a repainted
+  line no longer keeps one character it should have lost.
+- The terminator delay now holds under backpressure. It is measured from the last text byte actually
+  going out rather than from when the send arrived, so a write delayed by a full pty buffer cannot
+  land in the child's next read alongside the text.
+
+### Added
+
+- **`--screen` on `rune session send` and `read`** returns the rendered terminal alongside the byte
+  stream. A full-screen agent interleaves its answer with its own repaints, so the byte stream holds
+  every frame while the screen holds only what is displayed: grok's 361KB transcript renders to
+  1.1KB, claude's 163KB to 2.4KB. Measured against grok, an answer the agent plainly displayed was
+  absent from the byte stream 3/3 turns and present in the rendered screen 3/3. Opt-in, and rendered
+  in the calling process so the supervisor's event loop is untouched. A cooked-mode shell barely
+  changes, because it does not repaint.
+- `Parsers::ScreenRenderer`, the terminal replay behind it. Deliberately not a full emulator: it
+  implements what decides where text lands — cursor motion, erasing, line discipline — and consumes
+  everything else, which by definition cannot change what is on screen.
+- `busy_at_send` on a settle reply, reporting that the child was still producing output when the
+  send landed.
+
+### Changed
+
+- **`--settle-ms` returns to a default of 800**, reverting the 0.4.0 change. That change was made on
+  a measurement that was wrong twice over, and both faults were in the measuring harness rather than
+  in settle: the claude figures used a prompt above the length that was never being submitted at
+  all, and the grok figures searched the byte stream for an answer that repaints had split.
+  Re-measured with both corrected and detection moved to the rendered screen, the reply was the
+  answer to the question actually asked in **27/27 claude turns and 18/18 grok turns, at every
+  window including 800ms** — with the longer window costing up to double the latency per call and
+  buying nothing. The "previous turn's answer" failure that 0.4.0 documented as settle's
+  characteristic weakness was an artifact and has not been observed since.
+
 ## [v0.4.0] - 2026-08-15
 
 ### Added
