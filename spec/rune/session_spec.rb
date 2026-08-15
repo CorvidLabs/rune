@@ -807,6 +807,63 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'read --screen' do
+    # A child shaped like a full-screen agent: it repaints a status line many
+    # times, then leaves an answer. The byte stream holds every frame; the
+    # screen holds what the terminal is actually showing.
+    def repainting_child
+      script = <<~CHILD
+        STDOUT.sync = true
+        while (line = STDIN.gets)
+          10.times { |i| print "\\rthinking \#{i}s   " }
+          print "\\r\\e[KANSWER:" + line.strip + "\\r\\n"
+        end
+      CHILD
+      ['ruby', '-e', script]
+    end
+
+    it 'returns the rendered terminal alongside the byte stream' do
+      start_session('scr1', repainting_child)
+      session('send', '--name=scr1', '--settle-ms=400', '--timeout-ms=15000', '--', 'ping')
+
+      result = session('read', '--name=scr1', '--screen')
+
+      expect(result).to be_success
+      expect(result.data[:screen]).to include('ANSWER:ping')
+      # Every repaint frame survives in the stripped byte stream; only the last
+      # one is on screen. That difference is the entire reason this exists.
+      expect(result.data[:clean_output].scan('thinking').length).to be > 5
+      expect(result.data[:screen].scan('thinking').length).to eq(0)
+    end
+
+    it 'omits the screen unless asked, so the default result shape is unchanged' do
+      start_session('scr2', repainting_child)
+
+      expect(session('read', '--name=scr2').data).not_to have_key(:screen)
+    end
+
+    # The primary case: one agent driving another wants the answer, and asking
+    # for it in the same call is the difference between the fix being usable and
+    # being a footnote.
+    it 'returns the settled screen from send itself' do
+      start_session('scr3', repainting_child)
+
+      result = session('send', '--name=scr3', '--screen', '--settle-ms=400',
+                       '--timeout-ms=15000', '--', 'pong')
+
+      expect(result.data[:screen]).to include('ANSWER:pong')
+      expect(result.data[:screen].scan('thinking').length).to eq(0)
+    end
+
+    it 'omits the screen from send unless asked' do
+      start_session('scr4', repainting_child)
+
+      result = session('send', '--name=scr4', '--settle-ms=400', '--timeout-ms=15000', '--', 'quiet')
+
+      expect(result.data).not_to have_key(:screen)
+    end
+  end
+
   describe 'a send that lands while the child is still talking' do
     # The characteristic failure measured against a real agent CLI is not a
     # truncated answer: it is the *previous* turn's answer, whole and
