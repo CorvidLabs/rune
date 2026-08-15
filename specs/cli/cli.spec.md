@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 16
+version: 17
 status: active
 files:
   - lib/rune.rb
@@ -181,3 +181,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-08-15 | CHG-0038-prep-0-5-0-release-bump-version-roll-up-changelog: Prep 0.5.0 release: bump version, roll up CHANGELOG |
 | 2026-08-15 | CHG-0040-extract-the-pending-send-settle-machine-out-of-the-supervisor-into-its-own-class: Extract the pending-send settle machine out of the supervisor into its own class, so the logic four review rounds kept finding bugs in is testable without an event loop |
 | 2026-08-15 | CHG-0043-pin-fledge-in-ci-to-a-release-asset-instead-of-resolving-latest-on-every-job: Pin fledge in CI to a release asset instead of resolving latest on every job |
+| 2026-08-15 | CHG-0047-prep-0-6-0-release-bump-version-roll-up-changelog: Prep 0.6.0 release: bump version, roll up CHANGELOG |

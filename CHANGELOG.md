@@ -2,6 +2,72 @@
 
 ## [Unreleased]
 
+## [v0.6.0] - 2026-08-15
+
+A fix release. Everything here was found by *running* rune — driving real agent CLIs and watching
+processes over time — rather than by reading it. Two of the bugs were in code added earlier in the
+same week, and one was reported from real use.
+
+### Fixed
+
+- **A session's memory and disk both grew without bound, for as long as the session ran.** A
+  persistent session is the whole feature, so this mattered most where it was least visible.
+  Resident memory tracked output one-for-one — 27MB to 69MB in eighty seconds at 500KB/s — because
+  the supervisor held every byte the child had ever produced. It now keeps a bounded window and
+  memory plateaus: over one 150-second run the last 60 seconds added 30MB of output and 0.16MB of
+  memory. The transcript **file** had the same problem and was worse, since memory is reclaimed when
+  a supervisor exits and a file is not: nothing pruned it, and `archive` moved it rather than
+  removing it, so a 150-second run left 80MB behind permanently. It now rotates, keeping the recent
+  tail. Cursors are unaffected — a `truncated` event records what was dropped, so a cursor still
+  names the same position in the stream and `read` reports `dropped_bytes` rather than quietly
+  returning less than was asked for.
+- **Rotation itself then cost more memory than the growth it prevented.** Caught by running two
+  sessions in conversation for 45 minutes and 4176 turns: memory sat at 145MB until the first
+  rotation and jumped to 374MB the instant it ran. Rotation now seeks to the cut point rather than
+  scanning what it drops, reads the byte count each event already records instead of parsing the
+  event, and copies with `IO.copy_stream`. One rotation went from **+229MB to +0.1MB**. Worth
+  recording that the obvious fix — streaming the lines but still parsing them — still cost 96MB and
+  would have shipped had it not been measured again.
+- **An attachment reported both that the session was still running and that it had ended, in the
+  same exit.** Reported from real use against a grok session. The note fired whenever an attachment
+  had been established rather than only when the human actually detached. A deliberate detach now
+  says so and exits 0; an attachment that ended because output stopped says that instead, exits 1,
+  and points at `rune session list` rather than asserting a cause it cannot know.
+- **Six defects found by a read-only council review** of 0.5.0 — grok on the renderer, kimi on the
+  send path, agy on teardown, one lens each. The renderer printed the byte after any escape it did
+  not recognise, so `ESC D` rendered a literal `D`; it discarded cursor save/restore under a comment
+  claiming the ignored sequences could not move the cursor; and it left the last-column cursor in a
+  state no terminal uses, so backspace, `CUB`, line feed and `EL` all read it wrong. `VPA`, the
+  insert/delete/erase-character family and line insert/delete/scroll are now implemented, and
+  vertical tab and form feed are motion rather than text. On the send path, an outstanding terminator
+  could be appended to still-queued text, putting both in one read — the exact coalescing the
+  terminator delay exists to prevent — and a send could be settled before its own input had been
+  submitted. On teardown, `stop` force-killed before the graceful path could run, so an in-flight
+  send's caller got a dropped connection instead of its output and the control socket was left on
+  disk; a killed session recorded `exit_code: 0` as though it had exited cleanly; and a
+  process-group kill was skipped whenever the group leader had already exited, orphaning exactly the
+  workers it was meant to reap.
+
+### Changed
+
+- `Session::PendingSend` now holds the settle decision, which the supervisor previously carried
+  inline. Four review rounds had found defects in that logic, and none of them needed a pty to
+  demonstrate yet none could be demonstrated without one; it is now testable on its own.
+- CI installs a pinned `fledge` release asset instead of resolving "latest" through the
+  unauthenticated GitHub API, which is rate-limited per IP and shared between runners. Four CI runs
+  had been lost to `could not determine latest version`, each looking like a real failure.
+
+### Documentation
+
+- `rune session` is in the README at last — a capability entry and a worked example of driving one
+  agent from another. Every command in that section was run before it was written.
+- `docs/sessions.md` covers `--screen`, the bounded transcript, and every flag a reply can carry,
+  with what each should make a caller do.
+- Both record what running many sessions at once costs: about 23MB and 27 descriptors each, flat at
+  24 and at 60 concurrent sessions. Concurrency itself held — 60 simultaneous starts, every send
+  reaching its own session, nothing left running afterwards, and 30 simultaneous unnamed starts
+  producing 30 distinct codenames.
+
 ## [v0.5.0] - 2026-08-15
 
 Found by dogfooding: driving real agent CLIs through `rune session` and measuring what came back,
