@@ -202,9 +202,29 @@ deciding who talks to whom stays the calling agent's job.
 | `kill_pid` | internal method | Force-kills a single pid, tolerating one already gone. |
 | `DEFAULT_SEND_TIMEOUT_MS` | constant | Mirrors the supervisor's send timeout so the caller's ceiling is never tighter. |
 | `CLIENT_TIMEOUT_MARGIN` | constant | Slack added to the caller's ceiling so it never pre-empts a legitimate wait. |
+| `lock_path` | instance method | Returns the per-session start lock path. |
+| `with_start_lock` | instance method | Serialises `start` for one session name under an exclusive lock. |
+| `enqueue` | internal method | Queues bytes for an IO and attempts an immediate non-blocking flush. |
+| `drain_outbox` | internal method | Flushes queued bytes to every IO the event loop reported writable. |
+| `flush_outbox` | internal method | Writes as much of one IO's queue as it will take without blocking. |
+| `drop_writer` | internal method | Handles an IO that failed to accept a write, distinguishing the pty from a terminal. |
+| `detach` | internal method | Removes an attached terminal and restores the headless size when it was the last. |
+| `reap_idle_clients` | internal method | Closes control connections that connected and never sent a request. |
+| `handle_resize` | internal method | Applies a resize request sent over its own control connection. |
+| `resize_child` | internal method | Sets the child's pty dimensions and signals SIGWINCH so it re-lays-out. |
+| `start_name` | internal method | The explicit `--name` or a generated codename for a new session. |
+| `start_rejection` | internal method | Returns the failure that blocks a start, or nil to proceed. |
+| `running_conflict` | internal method | Returns a failure when the name already has a live supervisor. |
+| `launch` | internal method | Creates session state, spawns the supervisor, and waits for readiness. |
+| `spawn_supervisor` | internal method | Re-invokes rune's executable as the detached supervisor for one session. |
+| `serialized_launch` | internal method | Runs the conflict check and launch together under the start lock. |
+| `terminal_size` | internal method | The local terminal's dimensions, when it has any. |
+| `forward_resize` | internal method | Sends the current terminal size to the session over a fresh connection. |
+| `forward_pending_resize` | internal method | Forwards a pending SIGWINCH from the poll loop rather than the trap. |
+| `with_resize_forwarding` | internal method | Installs and restores the SIGWINCH trap around an attachment. |
 
-> Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base`, `start_name`,
-> `start_rejection` and `socket_live?` are intentionally absent from the table above. They exist and are exercised by
+> Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base` and
+> `socket_live?` are intentionally absent from the table above. They exist and are exercised by
 > the suite, but SpecSync's Ruby extractor does not surface them from their position in the class
 > body (rune#20 / spec-sync#479), and documenting an export it cannot see fails the contract check.
 > This matches the existing convention in `pty_runner`'s spec for the same upstream bug.
