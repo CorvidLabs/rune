@@ -94,6 +94,13 @@ $ ruby bin/rune version | cat
 {"status":"ok","data":{"name":"rune","version":"0.2.1","ruby":"4.0.5","ruby_platform":"arm64-darwin25","fledge":true,"specsync":true}}
 ```
 
+> **`exit_code` is the wrapped process's exit status, not a verdict on the work.** It answers "did
+> the process end, and how", which for an agent CLI is almost always `0` — including runs whose
+> output was wrong. One caller had eight consecutive `rune run` dispatches return `0`, several of
+> which produced conclusions they later had to correct. If you need to know whether the *work*
+> succeeded, that has to come from the output, not from this field. `124` is the exception worth
+> knowing: it means rune killed the process on `--timeout`.
+
 Every JSON response has the same envelope: `{"status": "ok"|"error", "data": {...}}` (or
 `{"status": "error", "error": "..."}` on failure).
 

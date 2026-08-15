@@ -864,6 +864,32 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'telling working from finished' do
+    # A caller was grepping the callee's own rendered UI for a busy marker,
+    # which is presentation rather than API and changes without notice.
+    def printing_child
+      ['ruby', '-e', <<~CHILD]
+        STDOUT.sync = true
+        while (line = STDIN.gets)
+          12.times { print("working\r\n"); sleep 0.12 }
+          print("DONE\r\n")
+        end
+      CHILD
+    end
+
+    it 'reports the child as busy while it is printing, and idle once it stops' do
+      start_session('busy1', printing_child)
+      session('send', '--name=busy1', '--no-wait', '--', 'go')
+      wait_until(reason: 'output to start') { session('read', '--name=busy1').data[:output].include?('working') }
+
+      expect(session('read', '--name=busy1').data[:child_busy]).to be true
+
+      wait_until(reason: 'the child to finish') { session('read', '--name=busy1').data[:output].include?('DONE') }
+      sleep 1.2
+      expect(session('read', '--name=busy1').data[:child_busy]).to be false
+    end
+  end
+
   describe 'searching a transcript' do
     # `--since` and `--tail` do not help when what you want is in the middle. A
     # day's work with a driven agent reached 379KB, and pulling it into a
@@ -1181,9 +1207,28 @@ RSpec.describe Rune::Commands::SessionCommand do
     # The characteristic failure measured against a real agent CLI is not a
     # truncated answer: it is the *previous* turn's answer, whole and
     # well-formed, which the caller cannot distinguish from a correct reply.
+    # The child keeps printing for several seconds rather than replying once,
+    # so the second send lands mid-output however long this process takes to
+    # boot. The first version used a child that printed once and relied on the
+    # second send starting within the settle window of it — which held locally
+    # and failed on Ruby 3.0 in CI, where interpreter startup ate the window.
+    # A test whose result depends on how fast the runner starts Ruby is not
+    # testing the thing it names.
+    def chattering_child
+      ['ruby', '-e', <<~CHILD]
+        STDOUT.sync = true
+        while (line = STDIN.gets)
+          25.times { print('.'); sleep 0.1 }
+        end
+      CHILD
+    end
+
     it 'flags a send issued while the previous turn was still producing output' do
-      start_session('busy1', thinking_child(delay: 0.4))
+      start_session('busy1', chattering_child)
       session('send', '--name=busy1', '--no-wait', '--', 'first')
+      wait_until(reason: 'the child to start printing') do
+        session('read', '--name=busy1').data[:output].include?('.')
+      end
 
       result = session('send', '--name=busy1', '--settle-ms=1500', '--timeout-ms=15000', '--', 'second')
 
