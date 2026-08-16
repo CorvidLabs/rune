@@ -56,6 +56,29 @@ the way:
   is not, and that information is destroyed by the condensing the located-echo search depends on.
   A fix has to reconcile those two.
 
+  **An outside review (grok, asked through rune itself) called this unsolvable
+  by the current approach, and it is hard to argue.** Three rules, three
+  opposite failure modes, all measured: stripping every echo copy leaves the
+  child's prompt and starts too early; anchoring on the last copy scores 12/12
+  and then breaks any reply ending with the request; classifying repaint against
+  speech turns "answers too early" into "never answers at all". The condensing
+  that makes an echo findable is the same step that destroys the cursor motion
+  which would distinguish it from speech. That is a property of the approach,
+  not bad luck.
+
+  **The suggested alternative was to stop guessing and let the reply say how
+  much of itself was the caller's echo.** It was implemented and reverted the
+  same hour, because it fails on the case it exists for: `irb` reports 2
+  characters beyond the echo, correctly, but `python3 -q` reports 951 while the
+  answer is *absent*, because a per-keystroke repainter emits hundreds of
+  partial echo prefixes and only whole copies can be stripped. A field reading
+  951 for "nothing arrived" is the same silent lie wearing a new name.
+
+  So the honest position is: the classification is unsolved, and quantifying the
+  uncertainty is unsolved by the same mechanism. What is left is to stop making
+  quiet-settle the *default* path for children that repaint — the reply cannot
+  yet tell you, so the API should not imply that it can.
+
 - **Independent review.** Most of the sharpest bugs in this project were found by an agent other
   than the one that wrote the code: the ECMA-48 erase semantics, the `ESC D` that printed a literal
   `D`, every item in 0.7.0, and nine more in 0.8.0. That is evidence about method, not luck, and
