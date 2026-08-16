@@ -140,7 +140,41 @@ $ rune session send --name s --wait-for-regex '\$ $' "ls"
 >
 > The honest claim is *every echo shape we could capture from a real child is excluded*, not
 > *cannot happen*. If your pattern is a literal you also sent, a child that quotes your request back
-> verbatim can still satisfy it.
+> verbatim can still satisfy it. The veto also needs to *see* the copy: a repaint that a pty read
+> tore in half — the frame ends mid-redraw and the rest arrives in the next read — is not yet
+> recognisable as a copy, and a pattern that only appears inside your own input can be satisfied by
+> that half. Reproduced deterministically by splitting a frame immediately after the token. So a
+> pattern that also occurs in what you sent is still the shape to avoid.
+
+> **How much output the pattern is matched against: the most recent 256 KB past the echo, re-read
+> 32768 characters back on every read.** This is a deliberate bound with two consequences.
+>
+> - **A single match up to 32768 characters long is always found**, however large the turn grows,
+>   because each scan resumes that far behind where the last one stopped. Anything you would
+>   sensibly wait for — a marker, a prompt, a closing fence — is far inside that.
+> - **A single match that has to span more than 32768 characters is never found.**
+>   `OPEN[\s\S]*CLOSE` across half a megabyte used to match and now does not; the send runs on to
+>   `--settle-ms` or `--timeout-ms` instead. Wait for `CLOSE` on its own and use `read` if you need
+>   the span between them.
+>
+> `\A` still anchors to the start of the child's answer, not to the start of the window — an
+> anchored pattern cannot be satisfied by wherever the window happens to begin. `^`, `$` and `\z`
+> are unaffected. **The reply is not bounded by any of this:** `output` is still everything the
+> child produced for the turn.
+>
+> The bound is what makes a large answer reachable at all. The pattern used to be matched against
+> the whole turn on every 4 KB read, which is quadratic in the turn — and on the supervisor's only
+> thread, so it starved the pty drain as well. Measured against a child that emits N MB and then
+> prints a marker, with the same marker as the pattern:
+>
+> | output | before | after |
+> | --- | --- | --- |
+> | 4 MB | 11.85s, matched | 0.53s, matched |
+> | 12 MB | 90.51s, `timed_out: true`, 11.46 MB of 12.00 read | 0.98s, matched, 12.15 MB read |
+> | 48 MB | 112.43s, matched | 3.37s, matched |
+>
+> At 12 MB the send reported a timeout while holding 96% of an answer whose marker the child had
+> already printed.
 
 **`--timeout-ms N` (default 120000)** — a hard cap. On expiry you get what was captured plus
 `settled: false, timed_out: true` — a result, not a failure. Set this deliberately: the default is
@@ -312,6 +346,9 @@ longer held.
   `read`, or make the first `send` a `--wait-for-regex` — before driving a freshly started session.
 - **Settle is a heuristic.** A child that pauses mid-answer for longer than `--settle-ms` returns a
   truncated response. Raise it, or use `--wait-for-regex`.
+- **`--wait-for-regex` sees the most recent 256 KB, not the whole turn.** Any one match up to 32768
+  characters long is always found; a match that has to span more than that never is. Wait for a
+  marker, not for a pattern that brackets megabytes.
 - **A single line of 1024+ bytes vanishes into a cooked-mode child.** That is `MAX_CANON`, a
   terminal limit, not rune's: the line discipline cannot assemble a longer canonical line and drops
   it silently — 1023 bytes arrive, 1024 do not. Most agent CLIs run their terminal in raw mode and
