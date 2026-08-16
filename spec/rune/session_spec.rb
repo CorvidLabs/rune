@@ -783,6 +783,33 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # Every value flag has both an inline and a separate form. `--context` was
+  # missing from the alias table, so the separate form was unrecognised and
+  # silently swallowed — the exact invocation the guide shows — while
+  # `--context=3` worked. The same gap made errors name flags that do not
+  # exist, such as `Invalid --tail-lines value`.
+  describe 'value flags whose name is not their internal key' do
+    def parsed(*argv)
+      Rune::Commands::SessionCommand.new.send(:extract_options, argv)
+    end
+
+    it 'accepts the separate form of every aliased flag' do
+      inline, = parsed('--context=3', '--tail=5', '--max-output=9')
+      separate, separate_rest, = parsed('--context', '3', '--tail', '5', '--max-output', '9')
+
+      expect(separate).to eq(inline)
+      expect(separate_rest).to be_empty
+      expect(separate[:context_lines]).to eq(3)
+    end
+
+    it 'names the flag the caller typed when rejecting its value' do
+      _options, _rest, message = parsed('--tail=0')
+
+      expect(message).to include('--tail')
+      expect(message).not_to include('--tail-lines')
+    end
+  end
+
   describe 'echo tracking with multibyte output' do
     def pending(echo:, now: 0)
       Rune::Session::PendingSend.new(client: nil, cursor: 0, echo: echo, now: now,
@@ -795,6 +822,32 @@ RSpec.describe Rune::Commands::SessionCommand do
     # an edge case.
     it 'does not raise when the arriving slice is multibyte' do
       expect { pending(echo: 'run the command').beyond_echo('⣟', now: 0) }.not_to raise_error
+    end
+
+    # `observe` used to pass `now: nil`, and `beyond_echo`'s partial-echo guard
+    # reads `if now && ...` — so a nil clock skipped it and the half-arrived
+    # echo counted as a reply. @saw_output latches, so one such tick was enough:
+    # the send then settled on the caller's own words while the child was still
+    # thinking. A pty delivers a long line in several reads, so this fired for
+    # any input longer than one read.
+    it 'does not count a partly-arrived echo as the child having answered' do
+      send = pending(echo: 'sleep 3; printf DONE', now: 0)
+
+      send.observe('sleep 3; pri', now: 0.01)
+
+      expect(send.outcome('sleep 3; pri', now: 1.0, child_finished: false,
+                                          submitted: true, last_output_at: 0.01)).to be_nil
+    end
+
+    it 'still settles once something past the echo arrives' do
+      send = pending(echo: 'sleep 3; printf DONE', now: 0)
+
+      slice = 'sleep 3; printf DONE\r\nDONE'
+      send.observe(slice, now: 0.01)
+      outcome = send.outcome(slice, now: 1.0, child_finished: false,
+                                    submitted: true, last_output_at: 0.01)
+
+      expect(outcome).to eq({ settled: true })
     end
 
     it 'does not mistake a multibyte slice for a partly-arrived echo' do

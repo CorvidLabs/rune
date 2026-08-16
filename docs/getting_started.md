@@ -50,7 +50,7 @@ require parsing the human rendering:
 
 ```sh
 $ rune run --help --json | jq -c '.data.flags'
-[{"flag":"--timeout=SECONDS","description":"Kill the wrapped command after N seconds (default 30). Before `--` only."}]
+[{"flag":"--timeout=SECONDS","description":"Kill the wrapped command after N seconds (default 30). Before `--` only."},{"flag":"--max-output=BYTES","description":"Bound clean_output/raw_output to BYTES each, keeping head+tail. Mutually exclusive with --tail. Before `--` only."},{"flag":"--tail=N","description":"Keep only the last N lines of clean_output/raw_output. Mutually exclusive with --max-output. Before `--` only."},{"flag":"--separate-streams","description":"Adds clean_stdout/clean_stderr (stderr on a pipe, not the pty) alongside the merged view. Before `--` only."}]
 ```
 
 Help flags follow the same separator rule as everything else (below): `rune run -- mytool --help`
@@ -69,7 +69,10 @@ colorized, human-formatted output:
 
 ```sh
 $ rune version
-rune v0.2.1
+rune v0.7.0
+  Ruby 4.0.6 (arm64-darwin25)
+  fledge:    ✓ available
+  spec-sync: ✓ available
 ```
 
 ```sh
@@ -86,12 +89,12 @@ rendering to JSON automatically, no flag required:
 
 ```sh
 $ ruby bin/rune run --json -- echo "hello agent"
-{"status":"ok","data":{"command":"echo hello\\ agent","exit_code":0,"clean_output":"hello agent\n","raw_output":"hello agent\r\n","prompt_detected":false,"duration_ms":8.09}}
+{"status":"ok","data":{"command":"echo hello\\ agent","exit_code":0,"clean_output":"hello agent\n","raw_output":"hello agent\r\n","prompt_detected":false,"duration_ms":5.27}}
 ```
 
 ```sh
 $ ruby bin/rune version | cat
-{"status":"ok","data":{"name":"rune","version":"0.2.1","ruby":"4.0.5","ruby_platform":"arm64-darwin25","fledge":true,"specsync":true}}
+{"status":"ok","data":{"name":"rune","version":"0.7.0","ruby":"4.0.6","ruby_platform":"arm64-darwin25","fledge":true,"specsync":true}}
 ```
 
 > **`exit_code` is the wrapped process's exit status, not a verdict on the work.** It answers "did
@@ -153,6 +156,24 @@ $ ruby bin/rune run --json --timeout=1 -- sleep 3
 
 A timed-out command returns exit code `124` with a `[rune] Execution timed out after N seconds`
 message appended to the captured output — it's still a normal `Result`, not an exception.
+
+### Bounding the output, and splitting the streams
+
+Three more flags, all before the `--` separator, all changing the *shape* of the result:
+
+- **`--max-output=BYTES`** bounds `clean_output` and `raw_output` to BYTES each, keeping the head
+  and the tail, and adds `truncated: true` with `omitted_bytes`.
+- **`--tail=N`** keeps only the last N lines, adding `truncated: true` with `omitted_lines`.
+  Mutually exclusive with `--max-output`; passing both is an error rather than a silent precedence.
+- **`--separate-streams`** adds `clean_stdout` and `clean_stderr` alongside the merged
+  `clean_output`, rather than replacing it.
+
+`--separate-streams` has a real cost, which is why it is opt-in rather than the default: a pty has
+one stream, so separating them means giving stderr its own pipe. The child then no longer sees a
+single controlling terminal for both, and a program that checks `isatty(2)` will behave as though
+its errors are being redirected — which for many CLIs means dropping colour, or switching to a
+non-interactive mode entirely. Use it when you need the split more than you need the child to
+believe it is on a terminal.
 
 ## Watching a session live with `rune watch`
 
@@ -253,11 +274,11 @@ heuristic's known limitations before relying on `:auto` against unfamiliar outpu
   `rune watch` section above. [`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb),
   [`table_parser_example.rb`](../examples/agents/table_parser_example.rb), and
   [`script_automation_example.rb`](../examples/agents/script_automation_example.rb) are smaller,
-  single-concept scripts — each runnable directly (`ruby examples/<name>.rb`) with no setup beyond
+  single-concept scripts — each runnable directly (`ruby examples/agents/<name>.rb`) with no setup beyond
   `require_relative '../lib/rune'`.
 - [PTY Architecture Guide](pty_architecture.md) — how the PTY runner, stream reading, prompt
   detection, and `rune watch`'s live passthrough work internally.
 - [`specs/`](../specs/) — machine-checked module contracts (`spec-sync`) for `cli`, `parsers`,
-  `pty_runner`, and `watch`.
+  `pty_runner`, `session`, and `watch`.
 - [`AGENTS.md`](../AGENTS.md) — conventions for adding new commands and working with the trust
   toolchain.

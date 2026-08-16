@@ -74,6 +74,10 @@ module Rune
         context_lines: [/\A--context=(.*)\z/, :non_negative_int],
         max_output_bytes: [/\A--max-output=(.*)\z/, :positive_int]
       }.freeze
+      ALIASES = {
+        tail_lines: '--tail', max_output_bytes: '--max-output', context_lines: '--context'
+      }.freeze
+
       BOOLEAN_FLAGS = {
         '--no-wait' => :no_wait, '--no-newline' => :no_newline,
         '--all-projects' => :all_projects, '--archived' => :archived,
@@ -774,7 +778,7 @@ module Rune
           inline = arg.match(pattern)
           return assign(options, key, kind, inline[1], 1) if inline
           next unless separate_form?(arg, key)
-          return [2, "--#{dashed(key)} requires a value."] if head[index + 1].nil?
+          return [2, "#{flag_name(key)} requires a value."] if head[index + 1].nil?
 
           return assign(options, key, kind, head[index + 1], 2)
         end
@@ -787,19 +791,24 @@ module Rune
         [consumed, message]
       end
 
-      def separate_form?(arg, key) = arg == "--#{dashed(key)}" || arg == flag_alias(key)
+      def separate_form?(arg, key) = arg == flag_name(key) || arg == "--#{dashed(key)}"
 
       def dashed(key) = key.to_s.tr('_', '-')
 
-      # `tail_lines`/`max_output_bytes` are internal keys whose user-facing
-      # flags are `--tail`/`--max-output`, so the derived name does not match.
-      def flag_alias(key)
-        { tail_lines: '--tail', max_output_bytes: '--max-output' }[key]
-      end
+      # Internal keys whose user-facing flag is not their name with dashes.
+      # Every one of these has to be listed: a missing entry made the separate
+      # form of the flag unrecognised, so `--context 3` was silently swallowed
+      # and typed at nothing while `--context=3` worked — and it made error
+      # messages name flags that do not exist, such as
+      # `Invalid --tail-lines value`.
+      def flag_alias(key) = ALIASES[key]
+
+      # What to call a flag when speaking to the person who typed it.
+      def flag_name(key) = ALIASES[key] || "--#{dashed(key)}"
 
       def coerce(raw, kind, key)
         case kind
-        when :string then raw.empty? ? [nil, "--#{dashed(key)} requires a value."] : [raw, nil]
+        when :string then raw.empty? ? [nil, "#{flag_name(key)} requires a value."] : [raw, nil]
         when :positive_int then integer(raw, key, positive: true)
         else integer(raw, key, positive: false)
         end
@@ -808,7 +817,7 @@ module Rune
       def integer(raw, key, positive:)
         return [raw.to_i, nil] if raw.match?(/\A\d+\z/) && (!positive || raw.to_i.positive?)
 
-        [nil, "Invalid --#{dashed(key)} value: #{raw.inspect}. " \
+        [nil, "Invalid #{flag_name(key)} value: #{raw.inspect}. " \
               "Must be a #{positive ? 'positive' : 'non-negative'} integer."]
       end
 

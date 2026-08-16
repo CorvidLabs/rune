@@ -42,14 +42,21 @@ To eliminate deadlocks, `rune` reads chunks using `readpartial(4096)`:
 
 ```ruby
 loop do
+  # Bounded wait rather than a bare readpartial, so signals and the timeout
+  # are still serviced while the child is quiet.
+  next unless reader.wait_readable(0.2)
+
   chunk = reader.readpartial(4096)
   output_buffer << chunk
   on_output&.call(chunk) # Real-time streaming callback (NDJSON / TTY)
-  
-  # Check for prompts and process script automation steps immediately
-  chunk.split("\n").each { |line| prompt_found = true if detect_prompt?(line) }
   script_step_index = process_script_steps(script_step_index, output_buffer, writer) if script
 end
+
+# prompt_detected is computed once at the end, from the LAST non-blank line
+# only — not "did any line ever look like a prompt". A run that printed a
+# prompt and then kept going is not waiting for input, so the any-line form
+# answered a question nobody was asking.
+prompt_detected = detect_prompt?(output_buffer.lines.reverse.find { |line| !line.strip.empty? })
 ```
 
 When the child process exits, the slave PTY closes, and `readpartial` raises `Errno::EIO` or `EOFError`, which `rune` catches to finish cleanly.
@@ -76,11 +83,19 @@ clean_output = text.gsub(ANSI_REGEX, '')
 To tell whether a command finished or is sitting at an interactive prompt, `Parsers::PromptDetector` analyzes streaming line fragments:
 
 ### Supported Prompt Signatures:
-- Shell PS1 prompts: `user@host:~$ `, `bash-5.2# `, `(venv) λ `, `➜  rune git:(main)`
-- Menu & interactive choices: `Select an option: `, `[y/N]`, `(y/n)?`, `Password: `
+- Shell PS1 prompts: `user@host:~$ `, `bash-5.2# `, `➜  rune git:(main)`, `❯ `
+- Menu & interactive choices: `Select:`, `[y/N]`, `(y/n)?`, `Password: `
+
+Two signatures this list used to claim are **not** detected, and were removed rather than added,
+because the detector's conservatism is deliberate: `Select an option: ` (the question pattern is
+anchored, so it matches `Select:` but not a sentence ending in a colon) and `(venv) λ ` (`λ` is not
+in the prompt-glyph class, which is `➜ ❯ ›`).
 
 ### False-Positive Rejection:
-`PromptDetector` ignores lines containing code comparisons (`if x > 5`), markdown blockquotes (`> quote`), or shell variable assignments (`export PATH=$PATH`) to prevent false positives.
+`PromptDetector` ignores lines containing code comparisons (`if x > 5`) or shell variable
+assignments (`export PATH=$PATH`). A markdown blockquote such as `> quote` is also rejected, but by
+matching no positive pattern rather than by an exclusion — the blockquote exclusion only fires on a
+line that also contains angle-bracketed text.
 
 ---
 

@@ -48,6 +48,13 @@
       "timestamp": 1786846082,
       "digest": "8e589c85ba98598e7f4704201ddc70996ce2a2abe3d15707c848489393245c31",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1786853193,
+      "digest": "84377608e820428b1ac722c7c86fc0e4d5612e39d572c2a6946b9ceea09c8d6a",
+      "note": null
     }
   ],
   "reopenings": [
@@ -670,6 +677,130 @@
       },
       "stale_acceptance_input_digest": "80d29695f8dd46d0b5751366a116cab75cf631748558ebaf89c2e61716055878",
       "current_acceptance_input_digest": "a8a63087ff452a07a6c55f3233d2b956708581c497043befc055df3caaf0529f"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0048-add-read-grep-for-searching-a-long-transcript-and-correct-what-the-docs-claim",
+      "actor": "claude",
+      "reason": "the 0.8.0 review round (CHG-0054) touched shared files: README, CHANGELOG, the guides and session_command.rb; re-verifying against them as they now stand",
+      "timestamp": 1786853087,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1786846082,
+        "digest": "8e589c85ba98598e7f4704201ddc70996ce2a2abe3d15707c848489393245c31",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786846077,
+        "commit": "33094e86b6d510722a50554436053a29bbfeb998",
+        "contract_digest": "26857057fe32ae22f86bf604c2afb414688e847f5d61997d2026f4d1a9507ca6",
+        "workspace_digest": "7775b9a2df6f4fcf7b65f5a52d72534d57b2eaf32fde198e568b72a4f65e5fa0",
+        "acceptance_input_digest": "a8a63087ff452a07a6c55f3233d2b956708581c497043befc055df3caaf0529f",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "71a48ed35e9e2b9eeed3e9e89a53f3bc6337ab0f14b0db4717155f1b48f35b7a",
+              "entry_digest": "f3b10db12b0c7c231bbd25c4189e58a8772ac4cd52abeb0754b97b273944dcd3",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "README.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0eececb72cf7f117399fad48fb0727b32c27ec97ad00521d059babf305452334",
+              "entry_digest": "746ec7c2cbd67120437b0be0f92c8416ab7b74d26ca0be9e7db8673a8e6279e3",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/sessions.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1d31b7b16a5903529a3b7681d641d933c64d67be29fa33ba3421b48cc5b07009",
+              "entry_digest": "f51867db0ca42a72b15096998be08ac5a27f63d60ab7b3804dbfc03b01635abf",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/commands/session_command.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "dbf2a16eb3dd0ec69b8e26eb294e533977cf6899e14c1b9f2be25bf5da1ce6dd",
+              "entry_digest": "0e2f07f7154083de192581f79af8066cbe122b29ba3fe8c6b4e11c1ebfac9d22",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ce36d735cdda520dd26c54c3fd518fdc9688b5fca5ef9b0c5830feb3c65e7024",
+              "entry_digest": "cff1893ad3e1699ac0a197e8b85414dfdbbecb774e2d2f1ef7785f738c419aff",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "f4235f1e28cf73ad37f8d2a32e0d0bedad52916289439cc0d5fed70f9ec7b6b0",
+              "entry_digest": "da2146f1db53c1de9b1b0e4dfa126f3619973a7c94b60774c5812b47971d5e3b",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "a8a63087ff452a07a6c55f3233d2b956708581c497043befc055df3caaf0529f",
+      "current_acceptance_input_digest": "6727be0c0c71cadd9c18df3ba6f3785a62c03aab860e4e05019f78e9f3171db7"
     }
   ]
 }

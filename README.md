@@ -99,9 +99,24 @@ rune run --help --json | jq '.data | {usage, flags}'
 ```
 ```json
 {
-  "usage": "rune run [--timeout=SECONDS] [--] <command...>",
+  "usage": "rune run [--timeout=SECONDS] [--max-output=BYTES] [--tail=N] [--separate-streams] [--] <command...>",
   "flags": [
-    { "flag": "--timeout=SECONDS", "description": "Kill the wrapped command after N seconds (default 30). Before `--` only." }
+    {
+      "flag": "--timeout=SECONDS",
+      "description": "Kill the wrapped command after N seconds (default 30). Before `--` only."
+    },
+    {
+      "flag": "--max-output=BYTES",
+      "description": "Bound clean_output/raw_output to BYTES each, keeping head+tail. Mutually exclusive with --tail. Before `--` only."
+    },
+    {
+      "flag": "--tail=N",
+      "description": "Keep only the last N lines of clean_output/raw_output. Mutually exclusive with --max-output. Before `--` only."
+    },
+    {
+      "flag": "--separate-streams",
+      "description": "Adds clean_stdout/clean_stderr (stderr on a pipe, not the pty) alongside the merged view. Before `--` only."
+    }
   ]
 }
 ```
@@ -244,7 +259,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 
 - **[fledge](https://github.com/CorvidLabs/fledge)** — Task runner & project lifecycle. `rune` is a native `fledge` plugin defined via `plugin.toml`. Install directly via:
   ```sh
-  fledge plugins install rune
+  fledge plugins install CorvidLabs/rune
   fledge rune run --json -- git status
   ```
 - **[spec-sync](https://github.com/CorvidLabs/spec-sync)** — Contract enforcement (`specs/`)
@@ -265,7 +280,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ## Development & Verification
 
 ```sh
-fledge run test         # Run RSpec test suite (179 examples, 98%+ line coverage)
+fledge run test         # Run RSpec test suite (411 examples, 87% line coverage)
 fledge run lint         # Run RuboCop linter (0 offenses)
 fledge lanes run verify # Full CI gate (lint + tests + strict 100%-coverage spec-sync)
 fledge lanes run release # Verify, smoke-test, and build the release gem

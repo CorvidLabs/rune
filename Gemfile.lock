@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    rune (0.7.0)
+    rune (0.8.0)
 
 GEM
   remote: https://rubygems.org/

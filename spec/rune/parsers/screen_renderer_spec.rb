@@ -165,6 +165,102 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
     end
   end
 
+  # Found by a review round that diffed rune against two independent emulators
+  # (pyte and xterm.js headless) across streams captured from real agent CLIs.
+  describe 'sequences that used to be printed as text' do
+    # Anything the parser does not consume is left for PRINTABLE to match and
+    # written onto the screen. This is the `ESC D` bug — fixed for three
+    # escapes, still present for the rest.
+    {
+      "\e[2 q$ ready" => '$ ready',                       # DECSCUSR: intermediate byte
+      "\e[38:2::255:0:0mERROR" => 'ERROR',                # SGR in ITU-T T.416 colon form
+      "\e[0\"qb" => 'b',                                  # DECSCA
+      "stale\ecfresh" => 'stalefresh',                    # RIS
+      "col\eHumn" => 'column',                            # HTS
+      "a\eNb\eOc" => 'abc',                               # SS2 / SS3
+      "a\e*Bb\e+Bc" => 'abc',                             # G2 / G3 designation
+      "a\e%Gb" => 'ab',                                   # select UTF-8
+      "a\e(1b" => 'ab'                                    # G0 designation, final outside [AB0K]
+    }.each do |raw, expected|
+      it "consumes #{raw.inspect} rather than printing its body" do
+        expect(described_class.render(raw, rows: 6, columns: 60)).to eq(expected)
+      end
+    end
+
+    # A live session's transcript ends wherever the last read landed, so a
+    # stream cut mid-sequence is the normal case, not an edge one.
+    it 'consumes a sequence the stream ended in the middle of' do
+      expect(described_class.render("answer: 42\e[38;2;10", rows: 6, columns: 60)).to eq('answer: 42')
+      expect(described_class.render("answer: 42\e]0;a title", rows: 6, columns: 60)).to eq('answer: 42')
+    end
+  end
+
+  # DECSTBM. Every pager, editor and full-screen agent sets a region and then
+  # relies on a line feed at its bottom to scroll. Replaying two real captured
+  # transcripts, 8 of 40 rows differed from a reference emulator before this.
+  describe 'scroll regions' do
+    it 'scrolls at the region bottom rather than walking down the page' do
+      raw = "\e[1;3r\e[1;1HA\r\nB\r\nC\r\nD\r\nE"
+
+      expect(described_class.render(raw, rows: 10, columns: 40)).to eq("C\nD\nE")
+    end
+
+    # Confirmed against pyte rather than hand-derived: reverse index at the
+    # region top scrolls the region, leaving the cursor on its top row, so `Z`
+    # lands beside `X` rather than above it.
+    it 'scrolls the region down on reverse index at its top' do
+      raw = "\e[2;4r\e[2;1HX\r\nY\eMZ"
+
+      expect(described_class.render(raw, rows: 10, columns: 40)).to eq("\nXZ\nY")
+    end
+
+    it 'confines insert and delete line to the region' do
+      raw = "\e[1;4rA\r\nB\r\nC\r\nD\e[2;1H\e[M"
+
+      expect(described_class.render(raw, rows: 10, columns: 40)).to eq("A\nC\nD")
+    end
+
+    it 'ignores a region whose bounds are inverted or out of range' do
+      raw = "\e[5;2rA\r\nB\r\nC\r\nD"
+
+      expect(described_class.render(raw, rows: 3, columns: 40)).to eq("B\nC\nD")
+    end
+  end
+
+  # This renders untrusted child output, so an unclamped count is a denial of
+  # service rather than a cosmetic bug: these raised RangeError out of .render,
+  # allocated 2.9GB, or never returned.
+  describe 'hostile parameter values' do
+    [
+      "ok\e[99999999999999999999@x",
+      "ok\e[99999999999999999999Xx",
+      "AB\e[999999999@C",
+      "a\e[1000000L",
+      "AB\e[99999999999999999999L",
+      "AB\e[99999999999999999999S",
+      "AB\e[9999999T"
+    ].each do |raw|
+      it "clamps #{raw.inspect} instead of crashing, hanging or exhausting memory" do
+        expect { described_class.render(raw, rows: 40, columns: 120) }.not_to raise_error
+      end
+    end
+  end
+
+  describe 'erase parameters that are not defined' do
+    # Both erase families used `else` as "erase everything", so an undefined
+    # parameter destroyed content a real terminal leaves alone.
+    it 'treats an unknown erase parameter as a no-op' do
+      expect(described_class.render("KEEP THIS\e[1;1H\e[9K", rows: 6, columns: 40)).to eq('KEEP THIS')
+      expect(described_class.render("KEEP THIS\e[9J", rows: 6, columns: 40)).to eq('KEEP THIS')
+    end
+
+    # CSI 3 J is "erase saved lines" — the scrollback, which this renderer does
+    # not keep. `clear` emits it, and it was wiping the visible screen.
+    it 'leaves the display alone on erase-saved-lines' do
+      expect(described_class.render("first\r\nsecond\e[3J", rows: 6, columns: 40)).to eq("first\nsecond")
+    end
+  end
+
   describe 'bounds' do
     it 'renders only the tail of a long transcript' do
       raw = "#{'early' * 100}\e[2J\e[Hlate"
