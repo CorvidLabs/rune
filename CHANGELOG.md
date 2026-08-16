@@ -2,6 +2,72 @@
 
 ## [Unreleased]
 
+## [v0.7.0] - 2026-08-15
+
+Everything here comes from one day of field use: an agent drove grok through rune to do real work on
+another repository — eight one-shot dispatches and a live session — and reported back with
+measurements rather than opinions. Two of its five findings turned out to be right about the symptom
+and wrong about the cause, which is why one of them appears below as a documentation fix rather than
+a code change, and why the most important one is deliberately still open.
+
+### Added
+
+- **`read --grep=RE --context=N`.** Finding one line in a 379KB transcript otherwise means pulling
+  most of it into the caller's context, and neither `--since` nor `--tail` helps when what you want
+  is in the middle. It matches the **cleaned** text rather than the raw stream, because a
+  full-screen agent's repaint frames split words across escape sequences — a pattern plainly visible
+  on screen does not match the bytes, which would make the feature look broken exactly where it is
+  needed. `grep_matches` comes back in the reply; an unparseable pattern returns `grep_error`
+  instead of raising, since a caller's typo is not a reason to fail a read.
+- **`child_busy` and `idle_ms` on `read`.** The reporter had no structured way to ask whether the
+  child was still working, so was grepping the callee's own rendered UI for `command still running`.
+  That is presentation, not API, and it breaks the first time the wording changes. Both fields are
+  derived from the transcript's own event timestamps rather than asked of the supervisor — the same
+  source `list` already uses, so they work identically once a session has stopped. Measured:
+  `child_busy=true, idle_ms=61` while printing; `child_busy=false, idle_ms=3268` after finishing.
+  The field is named for what it observes, and the case it cannot see — a child that backgrounds a
+  command and goes quiet reports `child_busy: false` while still working — is stated next to it
+  rather than left to be discovered.
+
+### Documentation
+
+- **`prompt_detected` was described as usually false for agent CLIs.** It is not, and a caller had
+  already built on the claim, which is worse than no documentation at all. Measured: `plain output`
+  false, `$ ` false, `Do you want to proceed? ` **false**, `❯ ` **true**. So the report of "true 8
+  times out of 8" was correct for that callee, and the conclusion that the field discriminates
+  nothing was not — it discriminates, but answers "does the last line look like a prompt", and
+  answers it backwards for the permission dialog, which is the case worth catching. Documented with
+  that table.
+- **`settled` has three causes of quiet, not two.** The turn finished, the child is waiting on a
+  human, or the child backgrounded a long command and stopped printing. The third was missing and it
+  is the one that produced a false "finished" 260 seconds early in real use. The rule is now stated:
+  if you are deciding on the *absence* of something, `settled` is not sufficient evidence.
+- **`exit_code` answers whether the process ended, not whether the work succeeded.** All eight
+  one-shot dispatches returned 0, including runs whose conclusions the caller later had to correct.
+  The field was behaving correctly and the documentation never said what it meant. Renaming it would
+  convey the same information at the cost of breaking every existing caller.
+
+### Not fixed, deliberately
+
+- **Polling `--screen` can return a half-painted frame.** The most important finding in the report,
+  and it ships unaddressed. Two hypotheses were tested and discarded: comparing consecutive renders
+  measured *worse* than the status quo — 13 torn frames out of 20 against 11 — because a cyclic
+  painter rarely renders the same frame twice, so it times out and returns the torn frame anyway;
+  and the renderer's tail window cannot drop a screen clear, because a cut that removes the clear
+  removes everything before it too. Redefining it on quiescence could not reproduce the tear at all,
+  the identical child giving 11/20 once and 0/20 twice, which means the harness is not measuring
+  what it appears to. A fix that fails silently toward "looks done" would be worse than a documented
+  limitation. A reproducer has been requested.
+
+### Internal
+
+- `Session::Transcript` extracted from `SessionCommand`, which had reached 930 lines with a third of
+  it on one subject: reading the durable NDJSON log, cursor arithmetic across rotation, search and
+  screen rendering. Keeping the dropped-byte count on the object rather than threading it through
+  every call is what makes the cursor arithmetic hard to get wrong — four methods each took it as an
+  argument and each had to remember what it meant. No behaviour change; `session_command.rb` 930 →
+  853.
+
 ## [v0.6.0] - 2026-08-15
 
 A fix release. Everything here was found by *running* rune — driving real agent CLIs and watching
