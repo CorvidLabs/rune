@@ -8,11 +8,13 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Leif"]
   spec.email         = ["leif@corvidlabs.xyz"]
 
-  spec.summary       = "A human & agent first-class CLI tool"
-  spec.description   = "rune — a Ruby CLI designed equally for humans and AI agents. " \
-                        "Every command produces beautiful terminal output for humans and " \
-                        "structured JSON for agents. Optionally integrates with the " \
-                        "CorvidLabs trust toolchain (fledge, spec-sync, augur, attest)."
+  spec.summary       = "Run, watch, and drive terminal programs from a human shell or an AI agent"
+  spec.description   = "rune wraps any CLI or full-screen TUI in a pseudo-terminal and returns " \
+                        "structured results. Three execution models: `run` for one bounded " \
+                        "command, `watch` for live bidirectional passthrough, and `session` for " \
+                        "named PTY sessions that outlive the invocation, so one agent CLI can " \
+                        "drive another conversationally. Every command renders for a terminal " \
+                        "and emits JSON for an agent. Zero runtime dependencies."
   spec.homepage      = "https://github.com/CorvidLabs/rune"
   spec.license       = "MIT"
 
