@@ -279,6 +279,14 @@ module Rune
         return unless client_gone?(client)
 
         @pending = nil
+        # Defensive, and honestly labelled as such. A review claimed bytes
+        # stranded here are handed to the next send; three attempts to
+        # reproduce that failed, with and without the clear, so it is kept as
+        # an invariant rather than as a fix for a demonstrated bug: @fresh is
+        # meaningless once @pending is gone, and clearing it costs nothing.
+        # Cleared in `begin_pending` too, so no future `@pending = nil` has to
+        # remember.
+        @fresh = +''
         safe_close(client)
       end
 
@@ -646,6 +654,7 @@ module Rune
       # what this send produced. Without it a banner or a previous command's
       # trailing output would be misattributed to this request.
       def begin_pending(request, client, echo)
+        @fresh = +''
         settle_ms = positive_int(request[:settle_ms], DEFAULT_SETTLE_MS)
         @pending = PendingSend.new(
           client: client, cursor: transcript_bytes, echo: echo, now: monotonic,

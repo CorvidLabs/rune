@@ -5,6 +5,10 @@ AllCops:
   Exclude:
     - "vendor/**/*"
     - "*.gemspec"
+    # Captured measurement harnesses, kept as evidence rather than maintained.
+    # Reformatting them to project style would edit the thing that produced the
+    # numbers in the changelog.
+    - "harnesses/**/*"
 
 Style/Documentation:
   Enabled: false

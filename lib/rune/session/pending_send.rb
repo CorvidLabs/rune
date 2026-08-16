@@ -311,6 +311,14 @@ module Rune
         return { settled: true, matched: true } if matched
         return { settled: false, timed_out: true } if now >= @deadline
         return { settled: true, child_exited: true } if child_finished
+        # Quiet does not answer a send that is waiting for a pattern. It used
+        # to, so `--wait-for-regex DONE --settle-ms 800` returned `settled:
+        # true, matched: nil` at 800ms on a child that prints DONE five seconds
+        # later — 3/3 — and the documented workaround for the settle bug did not
+        # work at the default settle window. A regex send now answers on a
+        # match, on the child exiting, or on `--timeout-ms`, and reports
+        # `matched:` either way so the caller can tell the difference.
+        return nil if @regex
         return { settled: true } if quiet_enough?(now: now, last_output_at: last_output_at)
 
         nil

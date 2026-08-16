@@ -982,6 +982,23 @@ RSpec.describe Rune::Commands::SessionCommand do
 
       send.absorb("done\n", now: 3.0)
 
+      # A pattern that has not matched is not answered by quiet — the send runs
+      # on to its timeout. That is the rule that makes --wait-for-regex usable
+      # at the default settle window; before it, this same shape returned
+      # `settled: true, matched: nil` while the child was still working.
+      expect(send.outcome(now: 4.0, child_finished: false, submitted: true, last_output_at: 3.0)).to be_nil
+      expect(send.outcome(now: 31.0, child_finished: false, submitted: true, last_output_at: 3.0))
+        .to eq({ settled: false, timed_out: true })
+    end
+
+    # The same scenario without a pattern still settles on quiet, which is what
+    # keeps the change scoped to the regex path.
+    it 'settles on quiet when no pattern was given' do
+      send = waiting(echo: 'please ANSWER now', regex: nil, settle_ms: 800)
+
+      send.absorb("please ANSWER now\n", now: 1.6)
+      send.absorb("done\n", now: 3.0)
+
       expect(send.outcome(now: 4.0, child_finished: false, submitted: true, last_output_at: 3.0))
         .to eq({ settled: true })
     end
