@@ -109,12 +109,6 @@ from ECMA-48 or xterm's source before changing anything.
 - **The `command` field in a reply is a display reconstruction**, shell-escaped for humans. It is
   not what the child received. Do not diagnose quoting from it.
 
-## Provenance
-
-`.trust.toml` records `provenance.mode = "off"` with the reason. **Do not run `attest sign` or add a
-provenance gate** — the managed block below predates that decision and its Attest line no longer
-applies. Everything else in it stands.
-
 <!-- CorvidLabs trust toolchain: BEGIN (managed, do not edit inside) -->
 ## CorvidLabs trust toolchain
 
@@ -123,7 +117,10 @@ This repository uses one trust gate. Every session must use it and must not bypa
 - Run `fledge trust verify` before calling a change complete.
 - Keep module specs synchronized with implementation changes.
 - Treat an Augur block verdict as a hard stop that must be surfaced and de-risked.
-- Record and verify provenance with Attest after the repository's verification lane passes.
+- **Provenance is off**, deliberately: `.trust.toml` sets `provenance.mode = "off"` and records why.
+  Do not run `attest sign` and do not add a provenance gate. The generated text of this line asks
+  for the opposite; it is a fixed template that `fledge trust adopt --no-attest` does not rewrite,
+  which is why this one line is edited by hand.
 - Keep generated trust configuration and this managed block in place.
 
 <!-- CorvidLabs trust toolchain: END -->
