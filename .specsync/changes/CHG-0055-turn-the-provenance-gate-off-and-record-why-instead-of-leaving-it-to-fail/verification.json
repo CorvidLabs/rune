@@ -1,18 +1,38 @@
 {
-  "timestamp": 1786856905,
+  "timestamp": 1786856439,
   "commit": "bc30c64da1284057e09a48320ba99cac1b33d737",
-  "contract_digest": "b839987db408d50b0b6155b010bf9e5b47559ddcfcc17400f1e41eba084cdb66",
-  "workspace_digest": "ef1679fcb8df0a4047fd7369a247822ef166f261b12181f4f83179fd9f217068",
-  "acceptance_input_digest": "ad8c51182d07442d0bbec8f3382057c68f971417c68c91ccd23f1fb8f8cbca9c",
+  "contract_digest": "d1f6e1a9606442189ce41991fb80fc5867f47ecf4fd4ad860f2bbf78cb6e71b7",
+  "workspace_digest": "bb449bf1b62bc23643da901135abcccf88b66023e7e303634fd25179bb9ab31f",
+  "acceptance_input_digest": "658a68668ae65800b033c15b45b5b8809ab40f05dfb44bc13133d3b99622d620",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
       {
+        "path": ".github/workflows/publish-package.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9481f6884a72747960b0d9582f9420c71068d81450049af93fcf505619e076fa",
+        "entry_digest": "9283fec246cbba0c50acbeb713ac9b1d64444addf88a08384136bf3f42ce1b32",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "d20619fc224e1c0715ade238b9a5c87c80d58b342f3703f3e9c47dd0c7130c9c",
-        "entry_digest": "98bb554b5b53997ebb0f1ee5d74edfebb7d5ebbc44623b75073dbb73d0dae930",
+        "payload_digest": "bd8f524ff7e38fa674cb9b733502dea5726caa23b90be9e22cb68be423a15df9",
+        "entry_digest": "49741e1b959bed497cfdc8694a75881ec58d86acd2e0f4b7313836dba1d1444f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".trust.toml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "273f3fbaeacff3ba7516bda40b220c1009f8c1b0d2f80112b62074510c238f22",
+        "entry_digest": "e946351019a8abbf7c6c136c47f36306852f2662d487805d01485b8fadea466a",
         "owners": [
           "@exact:delivery"
         ]

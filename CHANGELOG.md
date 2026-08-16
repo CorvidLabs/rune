@@ -64,7 +64,7 @@ would have built on:
 - **The architecture guide described the *old* `prompt_detected` semantics**, replaced deliberately
   in 0.3.0, and listed two prompt signatures that are not detected. The claims were removed rather
   than the patterns added: the detector's conservatism is deliberate.
-- The README's test numbers (`179 examples, 98%+`) against an actual 411 and 87%, an install command
+- The README's test numbers (`179 examples, 98%+`) against an actual 405 and 87%, an install command
   that is not a valid `fledge plugins install` source, `session start` examples matching neither
   output mode, and the `MAX_CANON` guidance, which claimed a shell-like child never sees a long line
   — `bash --norc -i` uses readline, so it takes a 1995-character line byte-perfect.
@@ -76,6 +76,17 @@ Newly documented because testing found them undocumented: `--no-wait` returns a 
 
 `ROADMAP.md` was three releases out of date, still tracking 0.2.0. It now records where rune is,
 what 1.0 needs, and every finding from this round that is not yet fixed.
+
+### Changed
+
+- **The provenance gate is off**, and `.trust.toml` records `provenance.mode = "off"` with the
+  reason rather than leaving a check to keep failing. It required signing every commit by hand
+  before a release; that step was skipped for v0.4.0, v0.5.0 and v0.6.0 and nobody noticed for three
+  releases, because the only thing gated on it was a GitHub Packages gem that nothing installs — the
+  Homebrew formula builds from the tag tarball and the rubygems.org job is disabled. Moving the same
+  check earlier, into the release lane, only converted a silent failure into a blocked release: the
+  gate was either skipped without consequence or stopped the work, and never in between. The
+  tag-and-version validation that actually prevents a wrong release is untouched.
 
 ### Known and not fixed
 

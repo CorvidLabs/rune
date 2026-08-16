@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786852844,
-  "commit": "8856cdf9a4030ba3898c6dc88299e97721cbb187",
+  "timestamp": 1786857054,
+  "commit": "bc30c64da1284057e09a48320ba99cac1b33d737",
   "contract_digest": "bb70788e1b87d70308e73a4b85f51d9365afb0d00d7e1a3aef475467fd9b43b6",
-  "workspace_digest": "b06ae8d9e8365870eeae75e22d26d42fa37edc0b0a481d785bca4b9a6ae1c339",
-  "acceptance_input_digest": "3780724158d82e9795694b6e640fb3eccc15327e6591cc559055980ed3b62d23",
+  "workspace_digest": "ef1679fcb8df0a4047fd7369a247822ef166f261b12181f4f83179fd9f217068",
+  "acceptance_input_digest": "a36258e4caec4430956bbdeba2ea287cdc4048daa18d88b7b6e3a9f01243b0de",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": "CHANGELOG.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "cabc64ecca4ee6dd808f576442e97cac811b05dbe02ad2721beda3deb0bea560",
-        "entry_digest": "cc741e27b82eb4ef5cb940c93d1d738f1b8fe933ef8c29396d558390d891ad83",
+        "payload_digest": "2fc1b74a57558e1b09e55d01e77526efa5666efc2f9f61dfefbadec9d0d80419",
+        "entry_digest": "39e7eb08fbbcc960a15e075fecaff42cc8094c4c9c1ee352074cf6d1723419ed",
         "owners": [
           "@exact:delivery"
         ]
@@ -41,8 +41,8 @@
         "path": "README.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "200096cb4ce75669dfcc718774d3d13c32ab0f6a9c670e568875ec1a1fc34a6b",
-        "entry_digest": "74a2df3c06f25235b9944bc7c8f54df950aad2b8cb3f5b64e78640f7ae12fc63",
+        "payload_digest": "d07d1cce66ef175549895a49896cf7432a58cd3d07db6cb225f592314a23e30c",
+        "entry_digest": "a44e78e6b5132636b463a3d7c7bf96125592874fd626aeaafaada0914f355730",
         "owners": [
           "@exact:delivery"
         ]
@@ -171,8 +171,8 @@
         "path": "specs/cli/cli.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "198b2f61f50d8543816d213d4568c8932e335fa21a6101ba8293f43740955ad7",
-        "entry_digest": "6b124fa414b95b7bb0b953feffba71fd1bbabcef5b7c30bec5c9caa9c8f7b666",
+        "payload_digest": "7ba5b2ead97f8e55be4f42ce3b65f4bf9fd3caffd121900adcb88050ed928ed4",
+        "entry_digest": "5fbdabc27bcd22ee4e49c92ef07e3ee20e2ab9f92d905c9255b6a7e22014af0f",
         "owners": [
           "cli"
         ]

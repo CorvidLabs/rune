@@ -98,13 +98,13 @@ RSpec.describe 'release version check' do
     expect(publish_workflow.scan(mainline_check).length).to eq(2)
   end
 
-  it 'restricts both provenance ranges to exact semantic release tags' do
-    strict_tag_filter = "grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+$'"
-    restricted_describe = 'git describe --tags "${release_tag_args[@]}" --abbrev=0 "${RELEASE_TAG}^"'
-
-    expect(publish_workflow.scan(strict_tag_filter).length).to eq(2)
-    expect(publish_workflow.scan(restricted_describe).length).to eq(2)
-    expect(publish_workflow).not_to include('git describe --tags --abbrev=0')
+  # The provenance gate is off (`.trust.toml` records why), so the range
+  # resolution that fed it is gone with it. What must not go is the tag/version
+  # validation, which is the part that actually stops a wrong release.
+  it 'no longer gates publication on provenance' do
+    expect(publish_workflow).not_to include('CorvidLabs/attest')
+    expect(publish_workflow).not_to include('refs/notes/attest')
+    expect(File.read(File.expand_path('../.trust.toml', __dir__))).to include('mode = "off"')
   end
 
   it 'keeps SpecSync policy files meaningful while ignoring generated state' do
@@ -113,19 +113,14 @@ RSpec.describe 'release version check' do
     expect(sdd_policy.fetch('ignored_paths')).to include('.specsync/changes/', '.specsync/hashes.json')
   end
 
-  # CI no longer gates on Augur/Attest, so the release guide records provenance
-  # by hand and the release lane verifies it. The ordering is the whole point:
-  # a squash merge produces a commit that has never been attested, so signing
-  # has to come before the lane rather than after it. The guide used to say the
-  # opposite, which would fail `provenance-check` on the first step.
-  it 'documents recording merge-commit attestation before running the lane that verifies it' do
+  # The guide has twice drifted from what the tooling actually does — first
+  # describing a CI gate that had been removed, then an ordering that the
+  # release lane would have failed on. Pin the shape rather than the prose.
+  it 'documents running the release lane before tagging, and no signing step' do
     post_merge_steps = release_docs.split('## Tag and publish after merge').last
-    sign_position = post_merge_steps.index('fledge attest sign')
-    push_position = post_merge_steps.index('git push origin refs/notes/attest')
-    lane_position = post_merge_steps.index('fledge lanes run release')
 
-    expect(sign_position).to be < push_position
-    expect(push_position).to be < lane_position
+    expect(post_merge_steps).not_to include('attest')
+    expect(post_merge_steps.index('fledge lanes run release')).to be < post_merge_steps.index('fledge release')
   end
 
   def write_setter_fixture(root, rune_version:, plugin_version:, later_version: nil)
