@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0053-fail-the-release-before-the-tag-when-provenance-is-missing-not-after-it",
+  "slug": "fail-the-release-before-the-tag-when-provenance-is-missing-not-after-it",
+  "title": "Fail the release before the tag when provenance is missing, not after it",
+  "description": "Fail the release before the tag when provenance is missing, not after it",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "33094e86b6d510722a50554436053a29bbfeb998",
+  "created_at": 1786845563,
+  "updated_at": 1786845782,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "scripts/check_provenance.rb",
+    "spec/provenance_check_spec.rb",
+    "spec/release_version_check_spec.rb",
+    "fledge.toml",
+    "docs/releasing.md",
+    "README.md",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "fledge lanes run release fails when any commit since the previous release tag lacks an attestation, and the failure names the command that fixes it. The check fails rather than passes when attest is not installed or when no previous release tag exists. docs/releasing.md orders signing before the lane, since a squash merge produces an unattested commit and the old ordering would fail the first step."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "no_spec_change": "yes",
+    "no_spec_change_rationale": "Release tooling and its documentation only. No change to the rune CLI, its library surface, or any canonical contract.",
+    "public_contract": "no"
+  }
+}

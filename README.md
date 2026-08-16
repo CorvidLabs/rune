@@ -249,7 +249,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
   ```
 - **[spec-sync](https://github.com/CorvidLabs/spec-sync)** — Contract enforcement (`specs/`)
 - **[augur](https://github.com/CorvidLabs/augur)** — Change risk scoring
-- **[attest](https://github.com/CorvidLabs/attest)** — Commit provenance
+- **[attest](https://github.com/CorvidLabs/attest)** — Commit provenance, gated by the release lane
 
 ---
 

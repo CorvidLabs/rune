@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 19
+version: 20
 status: active
 files:
   - lib/rune.rb
@@ -184,3 +184,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-08-15 | CHG-0047-prep-0-6-0-release-bump-version-roll-up-changelog: Prep 0.6.0 release: bump version, roll up CHANGELOG |
 | 2026-08-15 | CHG-0050-extract-the-transcript-out-of-sessioncommand-reconstruction-cursors-search-an: Extract the transcript out of SessionCommand: reconstruction, cursors, search and rendering are one subject |
 | 2026-08-16 | CHG-0051-prep-0-7-0-release-bump-version-roll-up-changelog: Prep 0.7.0 release: bump version, roll up CHANGELOG |
+| 2026-08-16 | CHG-0053-fail-the-release-before-the-tag-when-provenance-is-missing-not-after-it: Fail the release before the tag when provenance is missing, not after it |
