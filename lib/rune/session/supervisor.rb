@@ -53,6 +53,26 @@ module Rune
       CHILD_ENV = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }.freeze
       DEFAULT_ROWS = 40
       DEFAULT_COLUMNS = 120
+      # Ceiling on a winsize arriving over the control socket. A pty's winsize
+      # fields are 16-bit, so `{"op":"resize","rows":65535,"cols":65535}` is
+      # accepted by the kernel — and once that size is recorded in meta, every
+      # later `read --screen` allocates and drives a grid that big for the rest
+      # of the session's life. CHG-0056 clamped the renderer against a single
+      # hostile escape sequence in child output; leaving the recorded geometry
+      # unbounded would reinstate the same denial of service one layer up, with
+      # the amplification persisted to disk. Measured, one `read --screen` over
+      # a 683KB `\e[999L` transcript: 0.76s at 40x120, 3.41s at this ceiling,
+      # 17.72s at the 1000x2000 the renderer would clamp 65535 to.
+      #
+      # Well past any real terminal — a 6K panel at the smallest legible font is
+      # roughly 240 rows by 600 columns — so nothing a human can actually resize
+      # to is clamped, and a client that asks for more gets the largest size the
+      # renderer can be trusted to draw rather than a refusal. The residual cost
+      # at the ceiling is not eliminated, only bounded: line-insert and scroll
+      # cost the renderer per row, so a genuinely 300-row terminal pays the same
+      # 3.41s for the same hostile bytes.
+      MAX_ROWS = 300
+      MAX_COLUMNS = 1000
       # How much of the existing transcript an attaching terminal is replayed,
       # so it lands on a populated screen rather than a blank one.
       ATTACH_BACKLOG_BYTES = 64 * 1024
@@ -141,6 +161,10 @@ module Rune
         @submit_at = nil
         @exit_code = nil
         @finished = false
+        # Last winsize written to meta, so a repeated resize to the same shape
+        # costs nothing.
+        @rows = nil
+        @cols = nil
       end
 
       def run
@@ -214,6 +238,14 @@ module Rune
       # agent, whose entire first output was terminal setup and no UI.
       # PTYWatcher copies the human's real size; here a sane fixed default is
       # the closest equivalent.
+      #
+      # Deliberately does *not* record the size it applies. Recording it would
+      # write meta a second time immediately after `record_running`, widening a
+      # read-modify-write window against the parent's own `update_meta` during
+      # launch, and it buys nothing: an absent size renders at exactly these
+      # dimensions, so `read --screen` is already right for a session nobody has
+      # attached to. What it costs is the ability to tell "not recorded" from
+      # "recorded as 40x120", which `screen_size_recorded` reports.
       def apply_window_size(writer)
         writer.winsize = [DEFAULT_ROWS, DEFAULT_COLUMNS]
       rescue IOError, SystemCallError, NoMethodError
@@ -458,14 +490,44 @@ module Rune
         cols = Integer(cols)
         return unless rows.positive? && cols.positive?
 
+        # Clamped here, at the point the size becomes a fact, rather than where
+        # it is rendered: the pty, the child's own idea of its geometry and the
+        # value written to meta then all agree, and no later reader has to
+        # decide what a 65535-row session means.
+        rows = [rows, MAX_ROWS].min
+        cols = [cols, MAX_COLUMNS].min
         writer.winsize = [rows, cols]
         # SIGWINCH is what tells a TUI to re-lay-out; setting the size alone
         # leaves it drawing at the old geometry until something else repaints.
         # Skipped once the child is known gone: the pid may since belong to
         # something else entirely.
         Process.kill('WINCH', @child_pid) if @child_pid && !@child_finished
+        record_window_size(rows, cols)
       rescue TypeError, ArgumentError, IOError, SystemCallError, NoMethodError
         nil
+      end
+
+      # The geometry `read --screen` and `send --screen` must render at.
+      #
+      # Recorded in meta because those render in the *caller's* process, from
+      # the transcript file, with no access to this pty — and the transcript
+      # itself does not carry the size. Without this they rendered at a fixed
+      # 40x120 for the whole time a human was attached from a terminal of any
+      # other shape: measured through a real 30x100 attach, against the bytes
+      # that terminal itself received, 29 of 30 rendered rows differed from what
+      # the human was looking at, and 0 of 30 differ now.
+      #
+      # Written only when the size actually changes, and only cached once the
+      # write succeeded. A human dragging a window edge emits a SIGWINCH per
+      # frame, and each one would otherwise rewrite meta.json — a
+      # read-modify-write of the whole file, on the thread that also has to keep
+      # pumping the pty.
+      def record_window_size(rows, cols)
+        return if @rows == rows && @cols == cols
+        return unless @store.update_meta(@name, rows: rows, cols: cols)
+
+        @rows = rows
+        @cols = cols
       end
 
       # Total bytes the child has ever produced. Cursors are offsets into that,

@@ -1,6 +1,6 @@
 ---
 module: session
-version: 22
+version: 23
 status: active
 files:
   - lib/rune/session/store.rb
@@ -55,7 +55,7 @@ deciding who talks to whom stays the calling agent's job.
 | `dropped` | reader | Bytes of earlier output that rotation discarded. |
 | `cursor` | instance method | Total bytes the child has produced, including what rotation discarded. |
 | `from` | instance method | Everything from an absolute cursor onwards, as far as the retained text reaches. |
-| `screen` | instance method | What a terminal would be showing. |
+| `screen` | instance method | What a terminal of a given size would be showing. |
 | `grep` | instance method | Lines matching a pattern with surrounding context, and how many matched. |
 | `filter` | internal method | Applies `--grep` to a read, or fails the filter closed and reports why. |
 | `Echo` | class | The pty's echo of one send, and where it ends in what has arrived back. |
@@ -109,7 +109,8 @@ deciding who talks to whom stays the calling agent's job.
 | `names` | instance method | Lists known session names in sorted order. |
 | `create` | instance method | Creates a session directory and forces owner-only permissions. |
 | `remove` | instance method | Deletes a session directory and its contents. |
-| `write_meta` | instance method | Writes `meta.json` with owner-only permissions. |
+| `write_meta` | instance method | Replaces `meta.json` atomically, with owner-only permissions. |
+| `write_atomic` | internal method | Writes a whole file to a private temp path and renames it over the target. |
 | `read_meta` | instance method | Reads `meta.json`, returning nil when absent or unparseable. |
 | `update_meta` | instance method | Merges fields into existing metadata, or nil when the session is unknown. |
 | `open_output` | instance method | Opens the append-only transcript for the supervisor's lifetime, owner-only and unbuffered. |
@@ -275,6 +276,9 @@ deciding who talks to whom stays the calling agent's job.
 | `reap_idle_clients` | internal method | Closes control connections that connected and never sent a request. |
 | `handle_resize` | internal method | Applies a resize request sent over its own control connection. |
 | `resize_child` | internal method | Sets the child's pty dimensions and signals SIGWINCH so it re-lays-out. |
+| `record_window_size` | internal method | Records the child's current winsize in meta, so `--screen` can render at it. |
+| `MAX_ROWS` | constant | Ceiling on a row count arriving over the control socket, applied to the pty and the record. |
+| `MAX_COLUMNS` | constant | Ceiling on a column count arriving over the control socket, for the same reason. |
 | `MAX_OUTBOX_BYTES` | constant | Ceiling on undrained output for one attached terminal before it is dropped. |
 | `DEFAULT_SETTLE_MS` | constant | How long the child must be quiet before a send is considered answered. |
 | `EXIT_SUPERVISOR_CRASHED` | constant | Exit code recorded when the supervisor itself died rather than the child. |
@@ -282,6 +286,8 @@ deciding who talks to whom stays the calling agent's job.
 | `child_still_talking?` | internal predicate | True when the child produced output within the settle window at send time. |
 | `serialized_launch` | internal method | Runs the conflict check and launch for one name under the start lock. |
 | `screen_after` | internal method | Renders the settled screen for `send --screen`, client-side. |
+| `screen_fields` | internal method | The rendered screen and the size it was rendered at, for `--screen` on either command. |
+| `window_size` | internal method | The child's last recorded winsize, resolved to a usable one. |
 | `busy_fields` | internal method | Whether the child printed within the settle window, and how long since. |
 | `read_payload` | internal method | Builds the result body for a transcript read. |
 | `ALIASES` | constant | Internal option keys whose user-facing flag is not their name with dashes. |
@@ -351,7 +357,13 @@ deciding who talks to whom stays the calling agent's job.
    escape hatch.
 10. The child's pty is given an explicit window size. A detached session has no controlling terminal
     to copy dimensions from and an unset pty defaults to 0x0, which leaves a full-screen TUI agent
-    rendering into nothing.
+    rendering into nothing. Every size the supervisor *changes* the child to is recorded in
+    `meta.json`, so a process that is not the supervisor can render the transcript at it. The
+    starting default is deliberately not recorded: an absent size renders at exactly those
+    dimensions anyway, and writing it would put a second meta write immediately after
+    `record_running`, against the parent's own update during launch. Only a size that actually
+    changed is written: a human dragging a window edge emits a SIGWINCH per frame, and each one
+    would otherwise rewrite the whole file on the thread that must keep pumping the pty.
 11. Output is decoded incrementally as UTF-8 via `UTF8StreamDecoder`, same as `PTYRunner`/
     `PTYWatcher`: incomplete multi-byte suffixes are retained across reads.
 12. The transcript is an append-only NDJSON log using the **same event vocabulary `PTYWatcher`
@@ -452,6 +464,19 @@ deciding who talks to whom stays the calling agent's job.
     and a full disk while logging does not end the session.
 40. Every directory rune creates under `RUNE_HOME` is owner-only, not just the leaf session
     directory, so the set of tools being driven and their session names is not world-readable.
+40a. `meta.json` is replaced, never truncated in place: the JSON is serialised first, written whole
+    to a private per-pid temp path, and renamed over the target, the same shape `rotate_output`
+    already uses. Every other rune process answers "does this session exist, and is it alive?" out of
+    this file with no lock to take, so an instant where it is short or empty is an instant where
+    `send` says "No such session", `list` reports `state: dead`, and `read --screen` loses the
+    recorded geometry. That was rare while meta was written a handful of times per session and stops
+    being rare once the winsize is recorded — a human dragging a window edge emits a SIGWINCH per
+    frame. Measured through a real attach dragged across 250 window shapes in 7.5 seconds while
+    another process did exactly what `alive_session` does: 90 of 294,728 reads came back unreadable
+    with the truncating write and 0 of 312,582 with the rename. The temp path carries the
+    writer's pid because two processes write this file — the CLI records `state`/`supervisor_pid`
+    while the supervisor records `state`/`child_pid` and the winsize — and a shared temp path would
+    let them interleave into one corrupt file that then got renamed into place.
 41. Nothing on the event-loop thread blocks on a write — including control replies and the attach
     acknowledgement, which are queued like everything else and whose client is closed only once the
     reply has actually drained. Output to the child and to attached terminals is queued and drained
@@ -591,6 +616,52 @@ deciding who talks to whom stays the calling agent's job.
     a latency regression. `read --screen` renders the whole transcript rather than a `--since`
     slice, because a screen is the product of every escape sequence before it and replaying from a
     mid-stream cursor would show a screen the child never displayed.
+41s. `--screen` renders at the size the child's pty is actually set to, and reports it as
+    `screen_rows`/`screen_cols`. The size is not a constant — the child starts at
+    `DEFAULT_ROWS`x`DEFAULT_COLUMNS`, `attach` resizes it to the terminal that took it over, and
+    `detach` restores the default — so the supervisor records the current winsize in `meta.json`
+    whenever it changes it and the caller's process reads it back. Rendering at a fixed default
+    while a human was attached from any other shape produced a screen nobody ever saw: measured
+    against a child that lays out against its winsize, resized over the control socket to 30x100,
+    with pyte 0.8.2 and GNU screen 4.00.03 replaying the same transcript bytes as independent
+    oracles that agreed with each other exactly, **36 of 37 rows differed before and 0 of 31 after**.
+    Repeated at 24x80 (30/31 before, 0/25 after), 12x40 (18/19, 0/13) and 50x200 (50/51, 0/51); at
+    40x120, where the two sizes coincide, 0 wrong both ways. Repeated again through a real
+    `rune session attach` in a real 30x100 pty, comparing against the bytes that terminal itself
+    received: 29 of 30 rows differed before, 0 of 30 after.
+    A size that was never recorded or that is not a usable terminal (hand-edited meta, a pty whose
+    size was never set) falls back to `DEFAULT_ROWS`x`DEFAULT_COLUMNS`, which is exactly the previous
+    behaviour and is also the size `apply_window_size` gives a child nobody has attached to.
+41t. A caller can tell a recorded size from the fallback, and `screen_rows`/`screen_cols` are not how.
+    A session attached from a 40-row terminal records exactly the fallback numbers, so the pair
+    cannot carry the distinction; `screen_size_recorded` is the field that does. It is true only when
+    the resolved size is what `meta.json` actually held — a value that was clamped, discarded or
+    absent reports false, because what is being reported then is a default and not a fact about the
+    child.
+41u. A winsize arriving over the control socket is clamped where it is recorded, not where it is
+    rendered. A pty's winsize fields are 16-bit, so `{"op":"resize","rows":65535,"cols":65535}` is
+    accepted by the kernel; recording it unbounded would make every later `--screen` drive a grid
+    that size for the rest of the session's life, reinstating one layer up the denial of service
+    behavioural point 12 of `parsers` clamps at the renderer. Measured on a 683KB `\e[999L`
+    transcript, one `read --screen`: **0.76s at 40x120, 17.72s at the 1000x2000 the renderer would
+    have clamped 65535 to, and 3.41s at the `MAX_ROWS`x`MAX_COLUMNS` ceiling** that is now the most
+    a client can ask for. The pty is clamped too, so the child, the record and the render agree —
+    recording a size the child never had is the bug this whole point exists to fix. The residual
+    cost at the ceiling is the renderer's per-row cost for line-insert and scroll operations, which
+    a genuinely 300-row terminal pays identically; it is bounded, not eliminated.
+41v. The whole retained transcript is rendered at the *current* size, including output painted before
+    a resize. That is what an attaching terminal itself shows, because the supervisor replays the
+    backlog into it at its size — verified through a real attach at 0 of 30 rows wrong even for a
+    child that ignores SIGWINCH entirely. The unresolved case is a child that never repaints *and*
+    whose pty is resized under an already-attached terminal, where that terminal is reflowing glyphs
+    it has already drawn. There is no reference answer to match: fed the bytes that terminal
+    received and shrunk mid-stream from 40x120 to 24x80, GNU screen 4.00.03 kept only the cursor row
+    and pyte 0.8.2 kept nothing at all, and the two disagreed with each other on one row of the
+    little they retained. Rune keeps the content and re-flows it, which differs from both (24/24
+    against pyte, 24/25 against GNU screen) where the old fixed 40x120 render differed in 15 — but
+    that score is an artifact of a mostly blank screen coincidentally matching mostly blank oracles,
+    not evidence that the fixed size was closer to what anyone saw. Documented rather than tuned to
+    whichever emulator was measured last.
 41k. An attachment reports the way it ended, and never both ways at once. The note that the session
     is still running is printed only when the human actually detached; when the attachment ended
     because output stopped, the failure says so and points at `rune session list` rather than

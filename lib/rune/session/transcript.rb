@@ -65,7 +65,15 @@ module Rune
       # What a terminal would be showing. A full-screen agent interleaves its
       # answer with its own repaints, so the byte stream holds every frame while
       # this holds only what is displayed.
-      def screen = Parsers::ScreenRenderer.render(@text)
+      #
+      # The size is the caller's to supply, because it is not in the transcript:
+      # the child's pty is resized by whatever terminal attaches, and rendering
+      # at a fixed default while the child laid its output out for a different
+      # geometry produces a screen nobody ever saw. `ScreenRenderer` decides what
+      # an absent or nonsensical size falls back to.
+      def screen(rows: nil, columns: nil)
+        Parsers::ScreenRenderer.render(@text, rows: rows, columns: columns)
+      end
 
       # Lines matching `pattern`, with `context` lines either side.
       #

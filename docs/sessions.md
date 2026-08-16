@@ -213,6 +213,9 @@ line in pieces or driving a TUI that reads keystrokes.
 - `dropped_bytes` — a count of earlier output rotated away before this read. It does **not**
   invalidate a `--since` cursor: cursors stay absolute, so one from before the rotation returns
   everything still held rather than an error.
+- `screen_rows`, `screen_cols`, `screen_size_recorded` — only with `--screen`: the geometry the
+  screen was rendered at, and whether that geometry is the child's recorded winsize or the fallback.
+  See [It renders at the size the child is actually running at](#it-renders-at-the-size-the-child-is-actually-running-at).
 
 ### `child_busy` and `idle_ms` are on `read`, not on `send`
 
@@ -323,6 +326,64 @@ Two things it is not. It is the *end state*, so anything scrolled away is gone �
 remains the record of what happened. And it is opt-in because it is only meaningful for a child that
 paints a screen: for a cooked-mode shell the byte stream already is the answer.
 
+### It renders at the size the child is actually running at
+
+A session's child starts at 40x120, and `attach` resizes it to whatever terminal took it over — so
+the size is not a constant, and rendering at a fixed one produces a screen nobody ever saw. The
+supervisor records the child's current winsize in `meta.json` whenever it changes it, and `--screen`
+renders at that size and reports it back:
+
+```console
+$ rune session read --name grok --screen --json | jq '{screen_rows, screen_cols, screen_size_recorded}'
+{ "screen_rows": 30, "screen_cols": 100, "screen_size_recorded": true }
+```
+
+Measured end to end, with pyte 0.8.2 and GNU screen 4.00.03 replaying the same bytes as independent
+oracles (they agreed with each other exactly at every shape):
+
+| what was driven | rows wrong before | rows wrong after |
+|---|---|---|
+| control-socket resize to 30x100, child repaints on WINCH | 36/37 | **0/31** |
+| the same at 24x80 | 30/31 | **0/25** |
+| the same at 12x40 | 18/19 | **0/13** |
+| the same at 50x200 | 50/51 | **0/51** |
+| the same at 40x120 (the sizes coincide) | 0/41 | 0/41 |
+| a real `rune session attach` from a 30x100 pty, child ignores WINCH | 29/30 | **0/30** |
+
+In the attach row the oracles were fed the bytes that terminal itself received, so "0 of 30" means
+rune's rendered screen matched, row for row, what the human was looking at.
+
+**`screen_size_recorded` is how you tell a real geometry from the fallback — not the numbers.** A
+session attached from a 40-row terminal records exactly the same 40x120 the fallback uses, so the
+pair alone cannot carry the distinction. `screen_size_recorded` is true only when the reported size
+is what `meta.json` actually held. It is false in three cases, all of which report 40x120:
+
+- a session nobody has resized. The supervisor sets the pty to 40x120 and does not record it, so the
+  fallback here is not a guess — it is the size the child is genuinely running at.
+- a session directory written before rune recorded a size at all.
+- a recorded size that is not a usable terminal, which is discarded or clamped rather than allocated:
+  `meta.json` is a file on disk and the grid is built eagerly.
+
+A resize arriving over the control socket is clamped to 300x1000 — past any real terminal — and the
+clamp is applied to the pty as well as to the record, so the child, the record and the render always
+agree. A pty's winsize fields are 16-bit, and a recorded 65535x65535 would have made every later
+`--screen` drive a grid that size: on a deliberately hostile 683KB transcript, one `read --screen`
+costs 0.76s at 40x120, 3.41s at the ceiling, and 17.72s without the clamp.
+
+**One resize case is unresolved.** The whole retained transcript is rendered at the child's *current*
+size, so if the geometry changed partway through, output painted before the change is re-flowed at
+the new one. For a full-screen agent this is right, and provably so: a TUI repaints on SIGWINCH, and
+on attach the supervisor replays its backlog into the terminal at the terminal's size, which is
+exactly what rendering the whole transcript at that size reproduces — the 0-of-30 attach row above
+holds even for a child that ignores SIGWINCH entirely. It is unresolved for a child that paints once
+and never repaints *and* whose pty is then resized under an already-attached terminal, because that
+terminal is reflowing glyphs it has already drawn and there is no reference answer to match. Shrunk
+mid-stream from 40x120 to 24x80 on such a stream, GNU screen kept only the cursor row, pyte kept
+nothing at all, and the two disagreed with each other on one row of the little they retained. rune
+keeps the content and re-flows it, so it differs from both. Rendering at the old fixed size scored
+better on raw row counts there (15 wrong against 24), but only because a mostly blank screen
+coincidentally matches a mostly blank oracle — not because it showed anyone anything truer.
+
 **It is rendered from the last 256KB, and for some agents that has a visible cost.** A census of
 grok's output over 4.5MB found 109,364 absolute cursor moves, 31,798 synchronised-update brackets,
 and **zero** erases of any kind — no `\e[K`, no `\e[2K`, no `\e[2J`, no scroll regions. An agent
@@ -387,7 +448,10 @@ longer held.
 - Enter is sent as a carriage return, which is what a real terminal sends, so raw-mode TUIs receive
   it. Cooked-mode shells are unaffected.
 - The child's pty gets an explicit window size, because a detached session has no terminal to copy
-  one from and an unset pty is 0x0 — which leaves full-screen agents rendering into nothing.
+  one from and an unset pty is 0x0 — which leaves full-screen agents rendering into nothing. It
+  starts at 40x120, follows an attached terminal for as long as one is attached (up to a 300x1000
+  ceiling), and returns to 40x120 when the last one leaves. `--screen` renders at whichever of those
+  is current.
 
 ## Where state lives
 
@@ -396,7 +460,7 @@ longer held.
 ```
 $RUNE_HOME/projects/<project>/
   sessions/<name>/
-    meta.json        0600   pid, supervisor pid, command, state
+    meta.json        0600   pid, supervisor pid, command, state, child terminal size
     output.ndjson    0600   full transcript
     supervisor.log   0600   supervisor stderr, for when something goes wrong
     control.sock     0600   the supervisor's control socket
@@ -404,6 +468,14 @@ $RUNE_HOME/projects/<project>/
 ```
 
 Set `RUNE_HOME` to keep sessions isolated (tests, sandboxes, parallel work).
+
+`meta.json` is replaced by rename, never truncated in place, because every other rune process reads
+it to answer "does this session exist, and is it alive?" with no lock to take. A window where it was
+short was a window where `send` answered "No such session" and `list` reported `state: dead`;
+recording the child's winsize made it a per-resize write, and a human dragging a window edge emits
+one per frame. Measured through a real attach dragged across 250 window shapes in 7.5 seconds, with
+another process reading meta in a tight loop: 90 of 294,728 reads came back unreadable before, 0 of
+312,582 after.
 
 ## What running many at once costs
 
