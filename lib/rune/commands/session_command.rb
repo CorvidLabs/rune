@@ -36,9 +36,13 @@ module Rune
       flag '--tail=N', 'read: keep only the last N lines.'
       flag '--grep=RE',
            'read: keep only lines matching RE, from the rendered text rather than the repaint ' \
-           'stream. Use with --context=N for surrounding lines.'
+           'stream. Use with --context=N for surrounding lines. A pattern that will not compile ' \
+           'selects nothing and is reported as grep_error.'
       flag '--context=N', 'read: lines of context to keep either side of a --grep match (default 0).'
-      flag '--max-output=BYTES', 'read: bound the returned text to BYTES, keeping head and tail.'
+      flag '--max-output=BYTES',
+           'read: bound the returned text to BYTES of transcript, keeping head and tail. The join ' \
+           'is marked in the text with a `[rune] ==== N bytes omitted by --max-output ====` line, ' \
+           'which is rune\'s annotation rather than transcript and is not charged to BYTES.'
       flag '--all-projects', 'list: include sessions from every project, not just this one.'
       flag '--archived', 'list: show archived sessions instead of live ones.'
 
@@ -84,6 +88,14 @@ module Rune
         '--screen' => :screen
       }.freeze
 
+      # Every long flag this command answers to, for the "did you mean" in `unknown_flag_error`.
+      # Built from the same three tables the parser uses, and carrying both spellings
+      # `separate_form?` accepts, so a flag cannot be added without appearing here.
+      KNOWN_FLAGS = (
+        BOOLEAN_FLAGS.keys +
+        VALUE_FLAGS.keys.flat_map { |key| [ALIASES[key], "--#{key.to_s.tr('_', '-')}"] }
+      ).compact.uniq.freeze
+
       # `_supervise` is deliberately absent from SUBCOMMANDS: it is how `start`
       # re-invokes rune as the detached supervisor, so it must dispatch but must
       # never appear in help or in an error's list of valid subcommands.
@@ -104,11 +116,20 @@ module Rune
       def human_render(data, io)
         case data[:action]
         when 'list' then render_list(data, io)
-        # A human reading a driven TUI agent wants the stripped text, not its
-        # repaint traffic; agent mode still gets both fields in the envelope.
-        when 'send', 'read' then io.puts(data[:clean_output] || data[:output])
+        when 'send', 'read' then render_output(data, io)
         else io.puts(JSON.generate(data.except(:action)))
         end
+      end
+
+      # A human reading a driven TUI agent wants the stripped text, not its
+      # repaint traffic; agent mode still gets both fields in the envelope.
+      #
+      # `grep_error` is printed first because the text below it is empty when a
+      # pattern would not compile: a bare blank line with no reason for it is a
+      # worse answer than the whole transcript this used to print.
+      def render_output(data, io)
+        io.puts("\e[31m✗ #{data[:grep_error]}\e[0m") if data[:grep_error]
+        io.puts(data[:clean_output] || data[:output])
       end
 
       private
@@ -453,17 +474,49 @@ module Rune
       def filter(text, options, transcript)
         return [text, {}] unless options[:grep] && transcript
 
-        pattern = compile_grep(options[:grep])
-        return [text, { grep_error: "invalid --grep pattern: #{options[:grep]}" }] unless pattern
+        pattern, reason = compile_grep(options[:grep])
+        return [+'', grep_failure(options[:grep], reason)] unless pattern
 
         filtered, matches = transcript.grep(pattern, context: options[:context_lines].to_i)
         [filtered, { grep: options[:grep], grep_matches: matches }]
       end
 
+      # A filter that will not compile selected nothing, so nothing is what the
+      # read returns.
+      #
+      # It used to return the *entire* transcript: `--grep='[unclosed'` came back
+      # `status: ok` carrying every byte — the exact opposite of the same read
+      # with a valid pattern that matches nothing, which returns zero. A caller
+      # that did not read `grep_error` therefore saw every line as though it had
+      # matched, at the maximum possible cost. A filter that cannot run should
+      # fail closed.
+      #
+      # The read itself still succeeds, which is deliberate and is the whole
+      # reason `grep_error` exists: `read` also carries `cursor`, `dropped_bytes`,
+      # `prompt_detected`, `idle_ms`/`child_busy` and optionally `screen`, none of
+      # which the pattern has any bearing on, and a `Result.failure` would throw
+      # all of it away — including the cursor the caller needs to make progress —
+      # and would leave `grep_error` with no envelope to travel in. (`send`
+      # rejects a bad `--wait-for-regex` outright, and should: there the pattern
+      # decides *when to return*, so proceeding would mean writing the input and
+      # then waiting out the full timeout.)
+      #
+      # `grep_matches` is deliberately absent rather than `0`: nothing was
+      # searched, and a caller must be able to tell that from a search that found
+      # nothing.
+      def grep_failure(source, reason)
+        { grep: source, grep_error: "invalid --grep pattern: #{reason}; returned no output" }
+      end
+
+      # Returns `[pattern, nil]`, or `[nil, reason]` for a pattern that will not
+      # compile. The reason is Ruby's own message, which both quotes the pattern
+      # and says what is wrong with it (`premature end of char-class: /[unclosed/`);
+      # the old message named the pattern and stopped there, so a caller was told
+      # its filter was bad but not why.
       def compile_grep(source)
-        Regexp.new(source)
-      rescue RegexpError
-        nil
+        [Regexp.new(source), nil]
+      rescue RegexpError => e
+        [nil, e.message.lines.first.to_s.strip]
       end
 
       def bound_size(text, options)
@@ -747,6 +800,11 @@ module Rune
         head = separator_index ? args[0...separator_index] : args
         tail = separator_index ? args[separator_index..] : []
 
+        options, rest, error = scan_flags(head)
+        [options, rest + tail, error]
+      end
+
+      def scan_flags(head)
         options = {}
         error = nil
         rest = []
@@ -754,11 +812,48 @@ module Rune
         while index < head.length
           consumed, message = consume_flag(head, index, options)
           error ||= message
-          rest << head[index] if consumed.zero?
+          if consumed.zero?
+            error ||= unknown_flag_error(head[index]) if rest.empty?
+            rest << head[index]
+          end
           index += consumed.zero? ? 1 : consumed
         end
 
-        [options, rest + tail, error]
+        [options, rest, error]
+      end
+
+      # `rune session frobnicate` has always been rejected, but a mistyped
+      # *flag* was not: `send --settle_ms 500 'echo HELLO'` (underscore for dash)
+      # matched nothing, so the flag, its value and the input were joined with
+      # spaces and typed at the child, which answered `status: ok`. Against
+      # `cat` that echoes back nonsense; against an agent CLI it is a garbage
+      # prompt to a paid model, and against a confirmation dialog it is an
+      # answer nobody meant to give.
+      #
+      # Two limits keep this from rejecting anything that works today. Nothing
+      # after the first `--` is examined, so the documented passthrough is
+      # untouched: `send --name=NAME -- --settle_ms` still types `--settle_ms`
+      # at the child, and that is what the error points at. And nothing after
+      # the first operand is examined either, which is the getopt convention and
+      # is what `rune session start --name=x claude --resume` needs — past the
+      # program name every `--flag` belongs to the child, not to rune. The same
+      # rule keeps `send --name=x git log --oneline` typing what it says.
+      def unknown_flag_error(token)
+        return nil unless self.class.flag_shaped?(token)
+
+        name = token.split('=', 2).first
+        "Unknown option: #{name}.#{suggestion(name)} " \
+          'Flags are recognized only before a `--` separator; to send it to the child as literal ' \
+          "input, put it after one: rune session <subcommand> --name=NAME -- #{name}"
+      end
+
+      # Only the dash-for-underscore confusion, which is the mistake actually
+      # observed and the one an exact-match check can call with certainty. A
+      # fuzzy matcher would start guessing, and a wrong guess in an error message
+      # is worse than none.
+      def suggestion(name)
+        candidate = name.tr('_', '-')
+        KNOWN_FLAGS.include?(candidate) && candidate != name ? " Did you mean #{candidate}?" : ''
       end
 
       # Returns [tokens_consumed, error]. Zero means "not one of our flags".

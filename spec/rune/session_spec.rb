@@ -1007,6 +1007,110 @@ RSpec.describe Rune::Commands::SessionCommand do
       expect(result).to be_success
       expect(result.data[:grep_error]).to include('invalid --grep pattern')
     end
+
+    # It used to return the whole transcript under `status: ok` — the exact
+    # opposite of what the same read does for a valid pattern that matches
+    # nothing. A caller that did not read `grep_error` saw every line as though
+    # it had matched, at the maximum possible cost.
+    it 'returns no output at all for a pattern that will not compile' do
+      seeded('gr5', turns: 1)
+
+      broken = session('read', '--name=gr5', '--grep=[unclosed')
+      unmatched = session('read', '--name=gr5', '--grep=NOTHING-MATCHES-THIS')
+
+      expect(broken.data[:output]).to eq('')
+      expect(broken.data[:clean_output]).to eq('')
+      expect(broken.data[:output]).to eq(unmatched.data[:output])
+    end
+
+    # `grep_matches: 0` would claim a search happened. Absent says it did not.
+    it 'omits grep_matches when the pattern never compiled, and says why' do
+      seeded('gr6', turns: 1)
+
+      result = session('read', '--name=gr6', '--grep=[unclosed')
+
+      expect(result.data).not_to have_key(:grep_matches)
+      expect(result.data[:grep]).to eq('[unclosed')
+      expect(result.data[:grep_error]).to include('premature end of char-class')
+      expect(result.data[:grep_error]).to include('returned no output')
+    end
+
+    # The read still succeeds, which is the whole reason grep_error exists: the
+    # cursor and the liveness fields have nothing to do with the pattern, and a
+    # failure would take them down with it.
+    it 'still reports the cursor and liveness fields when the pattern is broken' do
+      seeded('gr7', turns: 1)
+
+      result = session('read', '--name=gr7', '--grep=[unclosed')
+
+      expect(result).to be_success
+      expect(result.data[:cursor]).to be > 0
+      expect(result.data).to have_key(:child_busy)
+    end
+
+    # In a terminal the reply renders as its text, which is now empty. A blank
+    # line with no reason for it would be a worse answer than the transcript
+    # this used to print.
+    it 'shows the reason in human mode, where the text alone would be a blank line' do
+      rendered = StringIO.new
+      Rune::Commands::SessionCommand.new.human_render(
+        { action: 'read', clean_output: '',
+          grep_error: 'invalid --grep pattern: premature end of char-class' }, rendered
+      )
+
+      expect(rendered.string).to include('invalid --grep pattern')
+    end
+  end
+
+  # `rune session frobnicate` has always been rejected; a mistyped *flag* was
+  # not. `send --name=x --settle_ms 500 'echo HELLO'` joined the flag, its value
+  # and the input with spaces and typed the lot at the child, answering
+  # `status: ok`.
+  describe 'a mistyped flag before the first operand' do
+    def parsed(*argv)
+      Rune::Commands::SessionCommand.new.send(:extract_options, argv)
+    end
+
+    it 'refuses the underscored spelling and names the flag that was meant' do
+      _options, _rest, message = parsed('--name=x', '--settle_ms', '500', 'echo HELLO')
+
+      expect(message).to include('Unknown option: --settle_ms')
+      expect(message).to include('Did you mean --settle-ms?')
+    end
+
+    it 'refuses a flag it has no suggestion for, and says how to send it as input' do
+      _options, _rest, message = parsed('--name=x', '--frobnicate', 'hi')
+
+      expect(message).to include('Unknown option: --frobnicate')
+      expect(message).not_to include('Did you mean')
+      expect(message).to include('-- --frobnicate')
+    end
+
+    it 'still passes a flag-shaped token through untouched after a separator' do
+      _options, rest, message = parsed('--name=x', '--', '--settle_ms')
+
+      expect(message).to be_nil
+      expect(rest).to eq(['--', '--settle_ms'])
+    end
+
+    it 'does not mistake --- section --- for a flag, quoted or not' do
+      _options, rest, message = parsed('--name=x', '---', 'section', '---')
+      _options2, _rest2, quoted = parsed('--name=x', '--- section ---')
+
+      expect(message).to be_nil
+      expect(quoted).to be_nil
+      expect(rest).to eq(['---', 'section', '---'])
+    end
+
+    # Past the first operand every `--flag` belongs to the child, not to rune:
+    # `session start --name=x claude --resume` has to keep working, and so does
+    # sending `git log --oneline` as literal input.
+    it 'leaves flag-shaped tokens after the first operand alone' do
+      _options, rest, message = parsed('--name=x', 'git', 'log', '--oneline')
+
+      expect(message).to be_nil
+      expect(rest).to eq(%w[git log --oneline])
+    end
   end
 
   describe 'how an attachment reports the way it ended' do

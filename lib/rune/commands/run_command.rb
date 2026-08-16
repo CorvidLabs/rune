@@ -10,7 +10,8 @@ module Rune
       usage 'rune run [--timeout=SECONDS] [--max-output=BYTES] [--tail=N] [--separate-streams] [--] <command...>'
       flag '--timeout=SECONDS', 'Kill the wrapped command after N seconds (default 30). Before `--` only.'
       flag '--max-output=BYTES',
-           'Bound clean_output/raw_output to BYTES each, keeping head+tail. ' \
+           'Bound clean_output/raw_output to BYTES each, keeping head+tail and marking the join ' \
+           'with a `[rune] ==== N bytes omitted by --max-output ====` line. ' \
            'Mutually exclusive with --tail. Before `--` only.'
       flag '--tail=N',
            'Keep only the last N lines of clean_output/raw_output. ' \
@@ -73,9 +74,17 @@ module Rune
         head = separator_index ? args[0...separator_index] : args
         tail = separator_index ? args[separator_index..] : []
 
+        leftovers, raw_values, separate_streams = scan_head(head)
+        flags, error = parse_flags(raw_values)
+        flags[:separate_streams] = true if separate_streams
+        [flags, leftovers + tail, error || unknown_flag_error(leftovers)]
+      end
+
+      # Returns [tokens rune did not claim, raw flag values, whether --separate-streams was given].
+      def scan_head(head)
         raw_values = {}
         separate_streams = false
-        head = head.select do |arg|
+        leftovers = head.select do |arg|
           if arg == '--separate-streams'
             separate_streams = true
             next false
@@ -85,10 +94,26 @@ module Rune
           raw_values[key] = match[1] if key
           key.nil?
         end
+        [leftovers, raw_values, separate_streams]
+      end
 
-        flags, error = parse_flags(raw_values)
-        flags[:separate_streams] = true if separate_streams
-        [flags, head + tail, error]
+      # A mistyped flag used to become the program name: `rune run --tiemout=5 -- echo hi` matched
+      # no pattern, stayed in the argv, and was execed, giving `status: ok` with `exit_code: 127`
+      # and `Command not found: --tiemout\=5 -- echo hi`. An `ok` envelope carrying a shell's
+      # 127 is a hard failure to notice from a script.
+      #
+      # Only the tokens *before the first operand* are examined, which is the getopt convention and
+      # is what keeps `rune run cargo --version` and `rune run npm test --watch` working: once a
+      # program name has been seen, every later `--flag` belongs to it. `rune run -- --version`
+      # passes through untouched because the separator empties this list entirely.
+      def unknown_flag_error(leftovers)
+        unknown = leftovers.take_while { |token| self.class.flag_shaped?(token) }.first
+        return nil unless unknown
+
+        name = unknown.split('=', 2).first
+        "Unknown option: #{name}. rune's own flags are recognized only before the wrapped " \
+          'command; to pass this one to that command instead, put the command first or use a ' \
+          "separator: rune run -- <command> #{name}"
       end
 
       def matching_flag(arg)

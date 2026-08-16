@@ -275,15 +275,19 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data).not_to have_key(:omitted_lines)
     end
 
-    it 'bounds clean_output/raw_output to max_output_bytes, keeping head and tail' do
+    it 'bounds clean_output/raw_output to max_output_bytes, keeping head and tail and marking the join' do
       runner = described_class.new(['ruby', '-e', 'print "a" * 5000'], max_output_bytes: 200)
       result = runner.run
+      marker = Rune::OutputLimiter.elision_marker(result.data[:omitted_bytes])
 
       expect(result).to be_success
-      expect(result.data[:clean_output].bytesize).to be <= 200
-      expect(result.data[:raw_output].bytesize).to be <= 200
+      # 200 bytes of the child's output, plus rune's own annotation of the cut —
+      # which is not the child's output and so is not charged to the budget.
+      expect(result.data[:clean_output].sub(marker, '').bytesize).to eq(200)
+      expect(result.data[:raw_output].sub(marker, '').bytesize).to eq(200)
+      expect(result.data[:clean_output]).to match(Rune::OutputLimiter::ELISION_PATTERN)
       expect(result.data[:truncated]).to be true
-      expect(result.data[:omitted_bytes]).to be > 0
+      expect(result.data[:omitted_bytes]).to eq(4800)
     end
 
     it 'leaves output untouched when max_output_bytes is larger than the actual output' do

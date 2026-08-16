@@ -2,6 +2,52 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`--max-output` returned text the child never printed.** The head and tail were spliced with
+  nothing between them, so the join reads as continuous output. Measured, a 201-byte transcript at
+  `--max-output=200` dropped exactly the byte that turned `chsh -s /bin/zsh` into
+  `chsh -s bin/zsh` — a different and still-plausible path — under `status: ok`. The metadata was
+  honest throughout; the text was a fabrication, and a caller reading only `clean_output` had no
+  in-band signal at all. The join now carries a
+  `[rune] ==== N bytes omitted by --max-output ====` line. It is rune's annotation rather than the
+  child's output, so it is not charged against BYTES and a reply can exceed the budget by its
+  length — which is not a new kind of overshoot: `scrub` has returned 62 bytes for a budget of 60
+  since the flag shipped, whenever both cuts split a multi-byte character. `truncated` and
+  `omitted_bytes` stay authoritative, because a child can print any string, this one included.
+
+- **Both `--max-output` cut boundaries could land inside an escape sequence.** A head that kept an
+  OSC introducer and lost its terminator makes `strip_ansi` swallow the marker *and* the start of
+  the tail; a tail that begins mid-CSI prints its remainder as text. Both are now pulled to a
+  sequence boundary — the head back to the ESC that opened the one it split, the tail forward past
+  that sequence's final byte — and the bytes that costs are counted in `omitted_bytes`. Censused
+  over all 14,029 cut points of a real vim transcript: 2,306 head cuts and 4,399 tail cuts fell
+  inside a sequence and every one emitted the orphaned remainder; now none do, and the marker
+  survives `strip_ansi` at all 14,029 (previously 0). Confirmed on two independent oracles: GNU
+  screen and pyte both display `A31mBBB` for the remainder of a sliced `\e[1;31m`, and both
+  swallow everything after an OSC introducer that never terminates.
+
+- **An unparseable `--grep` returned the entire transcript under `status: ok`.** The exact opposite
+  of the same read with a valid pattern that matches nothing, which returns zero — so a caller that
+  did not read `grep_error` saw every line as though it had matched, at the maximum possible cost.
+  A filter that cannot run now fails closed: no output, `grep_matches` absent rather than `0`
+  (nothing was searched), and `grep_error` carrying Ruby's own reason instead of just echoing the
+  pattern. The read itself still succeeds, because `cursor`, `dropped_bytes`, `prompt_detected`,
+  `idle_ms`/`child_busy` and `screen` have no bearing on the pattern, and human mode now prints the
+  reason above what would otherwise be a bare blank line.
+
+- **A mistyped flag was typed at the child, or exec'd as a program.**
+  `session send --name=x --settle_ms 500 'echo HELLO'` (underscore for dash) matched nothing, so
+  the flag, its value and the input were joined with spaces and written to the child, answering
+  `status: ok`; against an agent CLI that is a garbage prompt to a paid model. `rune run
+  --tiemout=5 -- echo hi` gave `status: ok` with `exit_code: 127` and
+  `Command not found: --tiemout\=5 -- echo hi`. Both now refuse a flag-shaped token that matches no
+  rune flag, with a dash-for-underscore suggestion where one applies exactly. Two limits keep the
+  refusal from catching anything that works today: nothing after the first `--` is examined, and
+  nothing after the first operand is examined — so `session start --name=x claude --resume`,
+  `run cargo clippy --tests`, `send --name=x -- --settle_ms` and `--- section ---` are all
+  untouched.
+
 ## [v0.8.0] - 2026-08-16
 
 Four independent agents reviewed rune before this release, each on a different lens: renderer

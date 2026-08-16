@@ -107,7 +107,7 @@ rune run --help --json | jq '.data | {usage, flags}'
     },
     {
       "flag": "--max-output=BYTES",
-      "description": "Bound clean_output/raw_output to BYTES each, keeping head+tail. Mutually exclusive with --tail. Before `--` only."
+      "description": "Bound clean_output/raw_output to BYTES each, keeping head+tail and marking the join with a `[rune] ==== N bytes omitted by --max-output ====` line. Mutually exclusive with --tail. Before `--` only."
     },
     {
       "flag": "--tail=N",

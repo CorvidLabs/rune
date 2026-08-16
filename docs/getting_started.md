@@ -50,7 +50,7 @@ require parsing the human rendering:
 
 ```sh
 $ rune run --help --json | jq -c '.data.flags'
-[{"flag":"--timeout=SECONDS","description":"Kill the wrapped command after N seconds (default 30). Before `--` only."},{"flag":"--max-output=BYTES","description":"Bound clean_output/raw_output to BYTES each, keeping head+tail. Mutually exclusive with --tail. Before `--` only."},{"flag":"--tail=N","description":"Keep only the last N lines of clean_output/raw_output. Mutually exclusive with --max-output. Before `--` only."},{"flag":"--separate-streams","description":"Adds clean_stdout/clean_stderr (stderr on a pipe, not the pty) alongside the merged view. Before `--` only."}]
+[{"flag":"--timeout=SECONDS","description":"Kill the wrapped command after N seconds (default 30). Before `--` only."},{"flag":"--max-output=BYTES","description":"Bound clean_output/raw_output to BYTES each, keeping head+tail and marking the join with a `[rune] ==== N bytes omitted by --max-output ====` line. Mutually exclusive with --tail. Before `--` only."},{"flag":"--tail=N","description":"Keep only the last N lines of clean_output/raw_output. Mutually exclusive with --max-output. Before `--` only."},{"flag":"--separate-streams","description":"Adds clean_stdout/clean_stderr (stderr on a pipe, not the pty) alongside the merged view. Before `--` only."}]
 ```
 
 Help flags follow the same separator rule as everything else (below): `rune run -- mytool --help`
@@ -115,6 +115,12 @@ that must not corrupt structured stdout.
 Global output flags are recognized only before the first `--` separator. Tokens after it belong to
 the wrapped command and are preserved, so `rune run -- tool --json` passes `--json` to `tool`.
 
+A `--flag` rune does not know, in the position where rune's own flags go, is an error rather than
+something silently passed on: `rune run --tiemout=5 -- echo hi` used to try to *execute* the
+misspelled flag and answer `status: ok` with `exit_code: 127`. Only the tokens before the wrapped
+command are checked, so `rune run cargo clippy --tests` and `rune run -- mytool --tiemout=5` are
+untouched — once the command name has been seen, every later `--flag` belongs to it.
+
 ### 3. Agent NDJSON envelope mode (`--ndjson`)
 
 `--ndjson` wraps the same result in an `{"event": "result"|"error", ...}` envelope instead of the
@@ -162,7 +168,12 @@ message appended to the captured output — it's still a normal `Result`, not an
 Three more flags, all before the `--` separator, all changing the *shape* of the result:
 
 - **`--max-output=BYTES`** bounds `clean_output` and `raw_output` to BYTES each, keeping the head
-  and the tail, and adds `truncated: true` with `omitted_bytes`.
+  and the tail, and adds `truncated: true` with `omitted_bytes`. The two halves are joined by a
+  `[rune] ==== N bytes omitted by --max-output ====` line rather than spliced, so the returned text
+  never reads as something the command printed: without it, a 201-byte transcript at
+  `--max-output=200` dropped exactly the byte that turned `chsh -s /bin/zsh` into
+  `chsh -s bin/zsh`. That marker is rune's annotation rather than the command's output, so it is
+  not charged against BYTES and a reply can run a little over the budget.
 - **`--tail=N`** keeps only the last N lines, adding `truncated: true` with `omitted_lines`.
   Mutually exclusive with `--max-output`; passing both is an error rather than a silent precedence.
 - **`--separate-streams`** adds `clean_stdout` and `clean_stderr` alongside the merged

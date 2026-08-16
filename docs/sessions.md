@@ -50,6 +50,13 @@ $ rune session send --name grok --settle-ms 2500 "reply with exactly the word PO
 `send` writes the prompt, waits for grok to stop producing output for 2.5s, and returns **only what
 that send produced**. State persists between calls, because it is the same child every time:
 
+A misspelled flag is refused rather than typed at the child. `send --name grok --settle_ms 500
+'echo HELLO'` (underscore, not dash) used to match no flag, so the flag, its value and the prompt
+were joined into one line and written to the agent — `status: ok`, and a paid model answering
+`--settle_ms 500 echo HELLO`. The check only looks at tokens before the first operand and before
+any `--`, so `start --name x claude --resume` still starts an agent with its own flags, and
+`send --name x -- --settle_ms` still types `--settle_ms` as literal input.
+
 ```console
 $ rune session send --name s --settle-ms 300 "MEMORY=persisted"
 $ rune session send --name s --settle-ms 300 'echo "value=$MEMORY"'
@@ -205,8 +212,14 @@ $ rune session read --name grok --grep 'THE BOARD' --context 2
 
 It matches the *cleaned* text rather than the raw stream, because a full-screen agent's repaint
 frames split words across escape sequences — a pattern you can plainly see on screen will not match
-the bytes. The reply carries `grep_matches`, and an unparseable pattern comes back as `grep_error`
-rather than an exception.
+the bytes. The reply carries `grep_matches`.
+
+A pattern that will not compile comes back as `grep_error` rather than an exception, and **selects
+nothing**: `output` and `clean_output` are empty and `grep_matches` is absent, which is how you tell
+"the filter never ran" from "the filter found nothing". The read itself still succeeds, so `cursor`,
+`prompt_detected` and `child_busy` are all still there — none of them depend on the pattern, and you
+need the cursor to make progress. (`send --wait-for-regex` is different: there the pattern decides
+when to return, so a bad one is refused outright.)
 
 ### `prompt_detected` is advisory only
 
@@ -242,6 +255,21 @@ $ tail -f ~/.rune/projects/<project>/sessions/grok/output.ndjson
 
 Full-screen TUI agents generate a lot of ANSI repaint traffic, so prefer `--tail`/`--max-output`
 over reading a whole transcript.
+
+`--max-output=BYTES` keeps a head and a tail and marks the join in the text itself:
+
+```
+...the last line before the cut
+[rune] ==== 41233 bytes omitted by --max-output ====
+the first line after it...
+```
+
+Without that line the reply reads as continuous output the child never printed — measured, a
+201-byte transcript at `--max-output=200` dropped the one byte that turned `chsh -s /bin/zsh` into
+`chsh -s bin/zsh`, a different and still-plausible path. The marker is rune's annotation rather than
+transcript, so it is not charged against BYTES and a reply can run a little over the budget;
+`truncated` and `omitted_bytes` remain the authoritative answer, since a child can print anything,
+including a line that looks like the marker.
 
 ### `--screen`: what the terminal shows, not what arrived
 

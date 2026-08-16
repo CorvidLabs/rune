@@ -22,7 +22,9 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | Name | Type | Description |
 |------|------|-------------|
 | `CLI` | class | CLI router. Class methods: `run(argv)`, `register(command_class)`, `commands`. Instance: `run(argv)`. |
-| `Command` | class | Base class for commands. DSL: `name(n)`, `summary(s)`, `usage(text)`, `flag(spec, description)`. Override: `call(args, options)`, `human_render(data, io)`. |
+| `Command` | class | Base class for commands. DSL: `name(n)`, `summary(s)`, `usage(text)`, `flag(spec, description)`. Override: `call(args, options)`, `human_render(data, io)`. Shared: `flag_shaped?(token)`. |
+| `FLAG_SHAPED` | constant | Matches a token shaped like one of rune's own long flags — `--`, a letter, flag characters, optional `=value`. Deliberately narrow: the same argv position also carries input text and wrapped-command argv, so `---`, `--- section ---` and any token with a space are not flags. |
+| `flag_shaped?` | class method | Whether a token looks like a long flag rune could have meant to own. Commands use it to tell a mistyped flag from their own operands, so an unrecognized `--flag` is refused rather than exec'd or typed at a child. |
 | `Result` | class | Structured result. Class methods: `.success(data, exit_code: nil)`, `.failure(error, data: nil, exit_code: nil)`. Instance: `#success?`, `#failure?`, `#to_h`, `#exit_code`. |
 | `Renderer` | class | Output formatter. `#agent_mode?`, `#render(result, human_block:)`. Supports JSON and NDJSON modes. |
 | `Error` | class | Base exception reserved for rune-specific library errors. |

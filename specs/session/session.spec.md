@@ -57,7 +57,7 @@ deciding who talks to whom stays the calling agent's job.
 | `from` | instance method | Everything from an absolute cursor onwards, as far as the retained text reaches. |
 | `screen` | instance method | What a terminal would be showing. |
 | `grep` | instance method | Lines matching a pattern with surrounding context, and how many matched. |
-| `filter` | internal method | Applies `--grep` to a read, or reports an unparseable pattern. |
+| `filter` | internal method | Applies `--grep` to a read, or fails the filter closed and reports why. |
 | `Echo` | class | The pty's echo of one send, and where it ends in what has arrived back. |
 | `ESCAPE_SEQUENCE` | constant | Escape forms removed when condensing text for echo location. |
 | `PRINTED` | constant | A run of characters that survives condensing. |
@@ -172,7 +172,9 @@ deciding who talks to whom stays the calling agent's job.
 | `alive_session` | internal method | Returns a failure result unless the named session's supervisor is alive. |
 | `read_transcript` | internal method | Serves transcript output with cursor, tail, and byte bounds. |
 | `slice_from` | internal method | Returns transcript bytes at or after a cursor. |
-| `compile_grep` | internal method | Compiles a `--grep` pattern, returning nil when it is unparseable. |
+| `compile_grep` | internal method | Compiles a `--grep` pattern, returning `[pattern, nil]` or `[nil, Ruby's own reason]`. |
+| `grep_failure` | internal method | Builds the `grep`/`grep_error` fields for a pattern that would not compile; no `grep_matches`, because nothing was searched. |
+| `render_output` | internal method | Renders a `send`/`read` reply for a terminal: `grep_error` first, then the stripped text. |
 | `bound_size` | internal method | Applies `--max-output` or `--tail` to already-filtered text. |
 | `bound_output` | internal method | Applies `--tail`/`--max-output` and reports what was omitted. |
 | `list` | internal method | Describes every known session. |
@@ -181,6 +183,10 @@ deciding who talks to whom stays the calling agent's job.
 | `graceful_stop` | internal method | Asks the supervisor to stop over its control socket, tolerating an unreachable one. |
 | `kill_remaining` | internal method | Force-kills any surviving child and supervisor, tolerating already-dead pids. |
 | `extract_options` | internal method | Extracts session flags before the first `--`, leaving the wrapped command untouched. |
+| `scan_flags` | internal method | Walks the pre-separator tokens, consuming flags and rejecting a mistyped one that precedes the first operand. |
+| `unknown_flag_error` | internal method | Rejects a flag-shaped token that matches no session flag, instead of letting it be typed at the child. |
+| `suggestion` | internal method | Offers the dash-for-underscore correction when that exact spelling is a real flag, and nothing otherwise. |
+| `KNOWN_FLAGS` | constant | Every long flag `session` answers to, both spellings `separate_form?` accepts, derived from the parser's own tables. |
 | `consume_flag` | internal method | Consumes one boolean or value flag at an argv position. |
 | `consume_value_flag` | internal method | Consumes a value flag in either `--flag=value` or `--flag value` form. |
 | `assign` | internal method | Coerces and stores one flag value, reporting a message on failure. |
@@ -499,6 +505,23 @@ deciding who talks to whom stays the calling agent's job.
     work for a stopped session too. Without them a caller had to grep the callee's rendered UI for a
     busy marker, which is presentation rather than API. The flag says the child is *printing*, not
     that it is *working*: a child that backgrounded a command and went quiet reports false.
+41r. A mistyped flag is refused, not typed at the child. `send --name=x --settle_ms 500 'echo
+    HELLO'` matched no flag, so the flag, its value and the input were joined with spaces and
+    written to the child, which answered `status: ok`. Two limits keep the refusal from catching
+    anything that works: nothing after the first `--` is examined, so `send --name=x -- --settle_ms`
+    still types `--settle_ms`; and nothing after the first operand is examined, so
+    `start --name=x claude --resume` and `send --name=x git log --oneline` are untouched. `---` and
+    `--- section ---` are not flag-shaped and are sent as typed.
+
+41q. A `--grep` pattern that will not compile selects nothing, and the read returns nothing. It used
+    to return the entire transcript under `status: ok` — the exact opposite of the same read with a
+    valid pattern that matches nothing, so a caller that did not read `grep_error` saw every line as
+    though it had matched, at the maximum possible cost. `grep_matches` is absent rather than `0`,
+    because no search happened. The read still succeeds: `cursor`, `dropped_bytes`,
+    `prompt_detected`, `idle_ms`/`child_busy` and `screen` have no bearing on the pattern, and a
+    failure would take the cursor the caller needs down with them. `send` still rejects a bad
+    `--wait-for-regex` outright, because there the pattern decides when to return.
+
 41o. `read --grep` filters the *cleaned* text, not the repaint stream. A full-screen agent's frames
     split words across escape sequences, so a pattern plainly visible on screen does not match the
     bytes. The reply carries `grep_matches`; an unparseable pattern is reported as `grep_error`
@@ -598,6 +621,8 @@ deciding who talks to whom stays the calling agent's job.
 | `pty` stdlib unavailable | `Result.failure`, same check and message class as `PTYRunner.pty_available?` |
 | `--settle-ms`/`--timeout-ms`/`--tail`/`--max-output` not a positive integer | `Result.failure` before spawning anything |
 | `--wait-for-regex` is not a valid regular expression | `Result.failure` before sending anything |
+| `--grep` is not a valid regular expression | Succeeds with empty `output`/`clean_output`, `grep_error` carrying Ruby's own reason, and no `grep_matches` |
+| A flag-shaped token before the first operand matches no session flag | `Result.failure("Unknown option: ...")` before anything is sent, with the dash-for-underscore suggestion when one applies |
 | `--timeout-ms` elapses before settling | Succeeds with the captured output, `settled: false`, `timed_out: true` |
 | Wrapped command missing/non-executable | Session records exit code 127/126, same convention as `rune run` |
 | `attach` with a non-TTY stdin | `Result.failure` pointing at `send`/`read` for non-interactive access |
@@ -667,6 +692,12 @@ deciding who talks to whom stays the calling agent's job.
   sequences and carriage returns with very few newlines — `--tail 6` against a real agent returned
   effectively the entire 338KB transcript. This is inherent to line-counting, not a bug in the
   bound.
+- **`--max-output=BYTES` bounds the transcript, not the reply.** The head and tail are joined by a
+  `[rune] ==== N bytes omitted by --max-output ====` line, and pulling either cut back to an escape
+  sequence boundary can drop a few more bytes; neither is charged against `BYTES`, so a reply can
+  exceed it by roughly the marker's length. A caller sizing a buffer should allow for that. The
+  budget has never been an exact ceiling in any case — `scrub` overshoots it whenever a cut splits a
+  multi-byte character.
 - **`clean_output` strips terminal control sequences but not terminal *semantics*.** With
   `TextSanitizer` widened (see the `parsers` change log) the escape codes are gone, but a
   full-screen agent's output is still a stream of repaints: the same line reappears many times and

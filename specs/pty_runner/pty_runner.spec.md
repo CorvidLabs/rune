@@ -49,14 +49,22 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `timeout_seconds` | reader | Maximum execution duration. |
 | `max_output_bytes` | reader | `--max-output` byte budget, or `nil` if unset. |
 | `on_output` | reader | Optional decoded-output callback. |
-| `OutputLimiter` | class | Bounds captured text without corrupting UTF-8 at the cut boundary. Stateless; both methods are class methods. |
-| `truncate_middle` | class method | `(text, max_bytes)` returns `[bounded_text, omitted_bytes]`; keeps head and tail, omits the middle, byte-exact. |
+| `OutputLimiter` | class | Bounds captured text without corrupting UTF-8 or splicing a half-escape-sequence at the cut boundary. Stateless; all entry points are class methods. |
+| `truncate_middle` | class method | `(text, max_bytes)` returns `[bounded_text, omitted_bytes]`; keeps `max_bytes` of the original as a head and a tail, omits the middle, and joins them with `elision_marker`. Both cut boundaries are pulled to an escape-sequence boundary first: the head back to the ESC of a sequence it split, the tail forward past the final byte of one. `omitted_bytes` counts every original byte not in the result, marker excluded. |
+| `elision_marker` | class method | `(omitted)` returns the newline-delimited `[rune] ==== N bytes omitted by --max-output ====` line spliced between head and tail. Not charged against `max_bytes`: it is rune's annotation of the cut, not the child's output. |
+| `ELISION_PATTERN` | constant | Matches an elision marker line and captures its byte count, for callers that need to find or verify the join. |
+| `DANGLING_ESCAPE` | constant | Matches an escape sequence left without its terminator, anchored at the last ESC before a cut. |
+| `COMPLETE_ESCAPE` | constant | Matches the same shapes complete, used to find where the remainder of a split sequence ends inside the tail. |
+| `STRING_BODY` | constant | The body of an OSC/DCS control string: any byte but BEL, ESC, CR or LF. Excluding CR and LF is what stops a stray introducer from making a multi-line run of plain text look like one unterminated string. |
+| `RESYNC_WINDOW_BYTES` | constant | How far either side of a cut is examined for the sequence that straddles it, and therefore the most either boundary adjustment can remove (512). |
 | `tail_lines` | class method | `(text, n)` returns `[bounded_text, omitted_lines]`; keeps only the last `n` lines. Also the name of the matching `PTYRunner` reader holding the `--tail` line budget, or `nil` if unset. |
 | `Commands` | module | Namespace containing concrete CLI command implementations. |
 | `call` | instance method | Validates CLI arguments and delegates to `PTYRunner`. |
 | `human_render` | instance method | Prints a concise command summary and captured clean output. |
 | `FLAG_PATTERNS` | constant | Maps each `PTYRunner` value-taking keyword option (`--timeout`, `--max-output`, `--tail`) to its argv pattern, flag name, and error-message value description. `--separate-streams` takes no value, so it is matched separately rather than via this table. |
 | `matching_flag` | internal method | Matches one argv token against `FLAG_PATTERNS`, returning the matched option key and `MatchData`, or `[nil, nil]`. |
+| `scan_head` | internal method | Splits the pre-separator argv into the tokens rune did not claim, the raw flag values it did, and whether `--separate-streams` was present. |
+| `unknown_flag_error` | internal method | Rejects a flag-shaped token that appears before the first operand and matches no rune flag, instead of letting it be exec'd as the program name. Examines nothing after the first operand, so a wrapped command's own long flags pass through. |
 | `parse_flags` | internal method | Parses every raw `--timeout`/`--max-output`/`--tail` value, stopping at the first invalid one, then checks mutual exclusion. |
 | `both_output_limits?` | internal predicate | True when both `--max-output` and `--tail` were given. |
 | `parse_positive_int` | internal method | Accepts a positive integer value for `--timeout`/`--max-output`/`--tail` and rejects every other value. |
@@ -107,6 +115,23 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 - `rune run --json --timeout=5 --max-output=65536 -- yes` returns a `clean_output`/`raw_output`
   bounded to 65536 bytes each (head+tail) instead of the multi-megabyte unbounded payload the same
   command produces without the flag, with `truncated: true` and the exact `omitted_bytes` count.
+- The head and tail are joined by a `[rune] ==== N bytes omitted by --max-output ====` line rather
+  than spliced. Without it the returned text is a fabrication: a 201-byte transcript at
+  `--max-output=200` dropped exactly the byte that turned `chsh -s /bin/zsh` into
+  `chsh -s bin/zsh`, a different and still-plausible path, under `status: ok`. The marker is not
+  charged against `BYTES`, so a result may exceed the budget by its length — the budget bounds the
+  child's output, and `scrub` has overshot it the same way since the flag shipped, whenever both
+  cuts split a multi-byte character.
+- Neither cut boundary lands inside an escape sequence. Censused over all 14,029 cut points of a
+  real vim transcript, 2,306 head cuts and 4,399 tail cuts fell inside one, and every one of them
+  emitted the orphaned remainder; after the boundary adjustment none do. A head that kept an OSC
+  introducer without its terminator makes `strip_ansi` swallow the marker and the start of the
+  tail; a tail that begins mid-CSI prints its remainder as text (`\e[1;31m` cut after `\e[` shows
+  `31m`, confirmed on both GNU screen and pyte).
+- `rune run --tiemout=5 -- echo hi` is rejected with `Unknown option: --tiemout` rather than
+  exec'd, which used to give `status: ok` with `exit_code: 127`. Only tokens before the first
+  operand are examined, so `rune run cargo clippy --tests` and `rune run -- mytool --tiemout=5`
+  both pass their own flags through untouched.
 - `rune run --json --tail=20 -- some_verbose_build` returns only the last 20 lines of
   `clean_output`/`raw_output`, with `truncated: true` and `omitted_lines` set to however many lines
   were dropped.
@@ -140,6 +165,9 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | Wrapped command emits bytes that are not valid UTF-8 | Bytes are force-encoded + scrubbed; `Result` still succeeds, no `Encoding::CompatibilityError` |
 | A valid UTF-8 character is split across reads | The incomplete suffix is buffered and combined with the following chunk without replacement corruption |
 | A `--max-output` cut lands inside a multi-byte UTF-8 character | The truncated head/tail is scrubbed rather than raising or leaving an invalid byte sequence |
+| A `--max-output` cut lands inside an escape sequence | The head is pulled back to the sequence's ESC and the tail forward past its final byte; both adjustments are counted in `omitted_bytes` and bounded by `RESYNC_WINDOW_BYTES` |
+| A `--max-output` cut lands inside a sequence longer than `RESYNC_WINDOW_BYTES` | The boundary is left where it was — the pre-existing behaviour — rather than a guess being made |
+| A rune flag is mistyped before the wrapped command (`--tiemout=5`) | Returns `Result.failure("Unknown option: --tiemout...")` before spawning anything |
 | `separate_streams: true` combined with `script:` | Returns `Result.failure(...)` before spawning anything |
 
 ## Dependencies
