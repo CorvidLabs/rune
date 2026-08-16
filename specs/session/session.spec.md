@@ -66,18 +66,23 @@ deciding who talks to whom stays the calling agent's job.
 | `REPAINT_MARGIN_FLOOR` | constant | Smallest window the repaint veto will consider, for a short echo. |
 | `condense` | class method | Drops escapes and whitespace, so a transformed echo still matches what was sent. |
 | `empty?` | instance predicate | Whether anything was sent to echo back. |
-| `beyond` | instance method | The text past the located echo, or nil while it is unlocated. |
+| `ends_at` | instance method | The character offset just past the echo, or nil while it is unlocated. |
 | `repaint?` | instance method | Whether a repainted copy of the input covers a candidate match. |
 | `PendingSend` | class | One in-flight `send` and the decision of when it has been answered. |
-| `observe` | instance method | Records that something other than the pty's echo has arrived. |
+| `absorb` | instance method | Folds the bytes that arrived since the last tick into everything the send decides on. |
 | `outcome` | instance method | The outcome for this tick, or nil to keep waiting. |
-| `beyond_echo` | instance method | Returns the portion of a response past the pty's echo of the input. |
+| `matchable` | instance method | The bounded text a `--wait-for-regex` pattern is matched against this tick. |
 | `busy_at_send` | reader | Whether the child was still producing output when this send landed. |
 | `client` | reader | The control connection waiting on this send. |
 | `cursor` | reader | Transcript offset taken when the send was written, so the reply holds only its own output. |
 | `compile_regex` | class method | Compiles `--wait-for-regex` with a bounded match budget, returning nil when absent or invalid. |
 | `supports_regex_timeout?` | class predicate | Whether this Ruby can bound a single regex match. |
 | `ECHO_GRACE_SECONDS` | constant | How long a prefix of the input may still be assumed to be the pty's echo. |
+| `MATCH_WINDOW_BYTES` | constant | How much recent post-echo output a `--wait-for-regex` pattern is matched against. |
+| `MATCH_WINDOW_SLACK` | constant | How far past that window output may accumulate before it is trimmed back. |
+| `MATCH_SPAN` | constant | How far each scan resumes behind the last, and so the longest match always found. |
+| `BLANK_CHARACTER` | constant | The first character that counts as the child having produced output of its own. |
+| `UTF8_CONTINUATION` | constant | Bytes a window trim must not cut on, so the window stays valid UTF-8. |
 | `REGEX_MATCH_TIMEOUT` | constant | How long one `--wait-for-regex` match may run before the pattern is abandoned. |
 | `REGEX_TIMEOUT_ERROR` | constant | The regex-timeout error class, or an unraised stand-in on Ruby without one. |
 | `DEFAULT_TIMEOUT_MS` | constant | Hard cap on a whole send when the caller does not set one. |
@@ -134,7 +139,6 @@ deciding who talks to whom stays the calling agent's job.
 | `SUBMIT_DELAY` | constant | How long after a send's text the terminating carriage return is written. |
 | `begin_pending` | internal method | Records the send cursor, settle window, regex, deadline, and echo for an in-flight send. |
 | `resolve_pending` | internal method | Re-evaluates an in-flight send against new output once per loop tick. |
-| `beyond_echo` | internal method | Returns the portion of a response past the pty's echo of the input, handling a partially-arrived echo. |
 | `settle_pending` | internal method | Replies to an in-flight send and clears the pending state. |
 | `handle_stop` | internal method | Acknowledges a stop request and ends the event loop. |
 | `status_payload` | internal method | Builds the reply for a `status` request. |
@@ -413,11 +417,17 @@ deciding who talks to whom stays the calling agent's job.
     the raw slice. Matching the raw slice meant waiting for a marker you had just asked the agent to
     print returned the caller's own echoed words immediately — and since that is the normal way the
     flag is used, the documented deterministic escape hatch was the least reliable path available.
-34. Echo suppression locates the echo within the slice rather than requiring it at the cursor. The
-    cursor is taken the instant input is written, so bytes the child was already emitting (the tail
-    of a previous prompt, a redraw) can arrive first. A partially-arrived echo is recognised by its
-    *trailing* bytes matching the start of the echo, so a child that was mid-output when the send
-    landed cannot turn a half-arrived echo into a reply.
+34. Echo suppression locates the echo within what has arrived rather than requiring it at the
+    cursor. The cursor is taken the instant input is written, so bytes the child was already
+    emitting (the tail of a previous prompt, a redraw) can arrive first. Until a copy of the input
+    is found, nothing is offered to the pattern for `ECHO_GRACE_SECONDS`; past that window what has
+    arrived is offered *provisionally*, because a child that never echoes at all would otherwise
+    hang every send to it. Provisional means the search continues: a child whose echo lands a
+    second late is not a child that did not echo, and when its copy turns up the offer is withdrawn
+    and the boundary set behind it. Output offered provisionally is therefore never latched as "the
+    child has spoken" — abandoning the search at the grace window instead was measured to settle
+    such a send on the echo alone, 0.8s after it arrived and a second before the child had said
+    anything of its own.
 35. An in-flight send whose caller goes away is released as soon as its socket reports EOF, rather
     than held until `--timeout-ms`. Otherwise one cancelled call locked the session for the whole
     timeout — two minutes at the default — refusing every later send.
@@ -524,6 +534,27 @@ deciding who talks to whom stays the calling agent's job.
     tracked output one-for-one — 27MB to 69MB in eighty seconds at 500KB/s — and never came down.
     After it, resident memory plateaus: over one 150-second run the last 60 seconds added 30MB of
     output and 0.16MB of memory.
+41q. Resolving an in-flight send costs the bytes that just arrived, never everything the turn has
+    produced. Both halves of that were quadratic and both starved the pty drain, because the same
+    thread does the copying and the pumping. The pattern was matched against the whole accumulated
+    slice on every 4 KB read — 66.69s inside the echo search and 17.65s inside the match, for a
+    12 MB turn that then reported `settled: false, timed_out: true` at 90.51s while holding 11.46 MB
+    of a 12.00 MB answer whose completion marker the child had already printed. Underneath it, the
+    supervisor built that slice with `byteslice`, which marks a mutable String *shared*, so the very
+    next `<<` copied the whole transcript to make it independent again: one copy of the turn per
+    read, 85% of a sampled 24 MB profile, and the reason a plain `send` with no pattern at all was
+    superlinear too (48 MB in 118.87s). The send is now fed what `append` just received and holds
+    bounded state; the full slice is built once, on the tick that answers it. Measured after: 12 MB
+    settles `matched: true` in 0.98s with all 12.15 MB read, and 48 MB in 3.37s.
+41r. A `--wait-for-regex` pattern is matched against the most recent `MATCH_WINDOW_BYTES` of
+    post-echo output, with each scan resuming `MATCH_SPAN` characters behind where the last one
+    stopped. That resumption is the guarantee worth stating: any single match up to `MATCH_SPAN`
+    characters long is always found, because on the tick that completes it the scan still begins
+    behind where it started. A single match that must span more than that is never found — the
+    deliberate cost of the bound, documented in `docs/sessions.md`. The scan is resumed by position
+    rather than against a substring so that `\A` keeps meaning the start of the child's answer and
+    cannot be satisfied by wherever the window happens to begin. None of this bounds the reply:
+    `output` remains everything the child produced for the turn.
 41i. A `--wait-for-regex` match is bounded, and a pattern that exceeds its budget is abandoned with
     `regex_timed_out: true` rather than retried. Matching runs on the only thread, so a pattern that
     backtracks catastrophically blocks the loop: it cannot pump the pty, answer `stop`, or even
@@ -612,6 +643,22 @@ deciding who talks to whom stays the calling agent's job.
   CLIs) are unaffected: 300KB arrives byte-perfect. This matters because an agent prompt easily
   exceeds 1KB and nothing reports the loss. Send such input to a cooked-mode child in chunks, or
   drive a raw-mode target.
+- **A `--wait-for-regex` pattern that must span more than `MATCH_SPAN` characters is never
+  found.** The pattern is matched against the most recent `MATCH_WINDOW_BYTES` of post-echo output;
+  anything shorter than the re-read span is always found, whatever the turn grows to, but
+  `OPEN[\s\S]*CLOSE` bracketing half a megabyte matched before this bound and does not now — such a
+  send runs on to `--settle-ms` or `--timeout-ms` instead. Verified end to end at both sizes: 8 KB
+  between the brackets matches, 512 KB does not. Wait for a marker, and use `read` for the span
+  between two of them.
+- **The repaint veto needs to see a whole copy of the input, and a pty read can tear one in half.**
+  `Echo#repaint?` rejects a match that a redrawn copy of the input covers, but it looks a bounded
+  distance *after* the match as well as before, and that trailing half may not have arrived yet.
+  Reproduced deterministically by splitting a repaint frame immediately after the token: whole
+  frames are vetoed, the torn frame is not, and a pattern that appears only inside the caller's own
+  input is answered `matched: true` by it. Pre-existing and unchanged by the match-window work;
+  it is why a pattern that also occurs in what you sent remains the shape to avoid. Deferring such
+  a match until its trailing context arrives is not obviously safe — an answer that is the last
+  thing the child ever prints has no trailing context — so this is recorded rather than patched.
 - **On Ruby 3.0 and 3.1 a `--wait-for-regex` pattern can still wedge a session.** Per-`Regexp`
   timeouts arrived in 3.2; below that there is no way to bound a single match, so a catastrophically
   backtracking pattern blocks the supervisor's only thread with no recovery but `stop`. Ruby 3.2 and

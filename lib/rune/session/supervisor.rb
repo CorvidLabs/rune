@@ -113,6 +113,17 @@ module Rune
         # down. A persistent session is the entire feature, so unbounded growth
         # in the process that provides it is not a theoretical problem.
         @transcript = +''
+        # What the child has produced since the in-flight send was last given a
+        # tick. Accumulated as it arrives rather than sliced back out of the
+        # transcript, because `byteslice` on a mutable String marks that String
+        # *shared* — so the very next `<<` has to copy the whole buffer to make
+        # it independent again. One copy of the entire turn, per 4 KB read.
+        # Measured on a growing buffer: 16 MB costs 0.002s appended alone and
+        # 4.46s when each append is followed by a byteslice of it, and a sampled
+        # profile of a 24 MB turn put 85% of the supervisor inside that memmove.
+        # It is also why the drain starved — 11.46 MB of a 12.00 MB answer read
+        # in 90s — because the copy runs on the thread that pumps the pty.
+        @fresh = +''
         @window_start = 0
         @decoder = UTF8StreamDecoder.new
         @pending = nil
@@ -387,6 +398,10 @@ module Rune
         return if text.nil? || text.empty?
 
         @transcript << text
+        # Only while a send is waiting, so nothing accumulates between turns:
+        # `resolve_pending` empties this on the same tick, and appends stop
+        # feeding it the moment that send is answered.
+        @fresh << text if @pending
         trim_transcript
         @last_output_at = monotonic
         log_event('output', bytes: text.bytesize, text: text)
@@ -640,15 +655,24 @@ module Rune
         )
       end
 
+      # The send is fed what is *new* each tick, never everything it has
+      # produced — that was quadratic twice over, once in the copy that built
+      # the slice and once in `PendingSend` re-reading it. The full slice is
+      # still what settles the send; it is built once, here, on the tick that
+      # answers it.
+      #
+      # Fed even when nothing arrived: the echo grace window expiring is a
+      # decision in its own right, and a child that falls silent mid-echo has to
+      # reach it without waiting for a byte that is not coming.
       def resolve_pending
         return unless @pending
 
-        slice = slice_from(@pending.cursor)
         now = monotonic
-        @pending.observe(slice, now: now)
-        outcome = @pending.outcome(slice, now: now, child_finished: @child_finished,
-                                          submitted: @submit_at.nil?, last_output_at: @last_output_at)
-        settle_pending(slice, **outcome) if outcome
+        @pending.absorb(@fresh, now: now)
+        @fresh = +''
+        outcome = @pending.outcome(now: now, child_finished: @child_finished,
+                                   submitted: @submit_at.nil?, last_output_at: @last_output_at)
+        settle_pending(slice_from(@pending.cursor), **outcome) if outcome
       end
 
       # True when the child produced output within the settle window that is

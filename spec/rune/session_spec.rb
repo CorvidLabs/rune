@@ -816,36 +816,42 @@ RSpec.describe Rune::Commands::SessionCommand do
                                      settle_ms: 800, timeout_ms: 15_000)
     end
 
+    # `absorb` takes what is *new*, so what a pattern would see is the window it
+    # has built up rather than a function of the slice handed in.
+    def beyond(send, *arrivals, now: 0)
+      arrivals.each { |text| send.absorb(text, now: now) }
+      send.matchable
+    end
+
     # Found by driving agy: the supervisor died reproducibly within a few turns,
     # taking the agent with it. An agent TUI paints spinners and box-drawing
     # rules, so multibyte output inside the echo grace window is the norm, not
     # an edge case.
     it 'does not raise when the arriving slice is multibyte' do
-      expect { pending(echo: 'run the command').beyond_echo('⣟', now: 0) }.not_to raise_error
+      expect { beyond(pending(echo: 'run the command'), '⣟') }.not_to raise_error
     end
 
-    # `observe` used to pass `now: nil`, and `beyond_echo`'s partial-echo guard
-    # reads `if now && ...` — so a nil clock skipped it and the half-arrived
-    # echo counted as a reply. @saw_output latches, so one such tick was enough:
-    # the send then settled on the caller's own words while the child was still
-    # thinking. A pty delivers a long line in several reads, so this fired for
-    # any input longer than one read.
+    # `observe` used to pass `now: nil`, and the partial-echo guard read `if now
+    # && ...` — so a nil clock skipped it and the half-arrived echo counted as a
+    # reply. @saw_output latches, so one such tick was enough: the send then
+    # settled on the caller's own words while the child was still thinking. A
+    # pty delivers a long line in several reads, so this fired for any input
+    # longer than one read.
     it 'does not count a partly-arrived echo as the child having answered' do
       send = pending(echo: 'sleep 3; printf DONE', now: 0)
 
-      send.observe('sleep 3; pri', now: 0.01)
+      send.absorb('sleep 3; pri', now: 0.01)
 
-      expect(send.outcome('sleep 3; pri', now: 1.0, child_finished: false,
-                                          submitted: true, last_output_at: 0.01)).to be_nil
+      expect(send.outcome(now: 1.0, child_finished: false,
+                          submitted: true, last_output_at: 0.01)).to be_nil
     end
 
     it 'still settles once something past the echo arrives' do
       send = pending(echo: 'sleep 3; printf DONE', now: 0)
 
-      slice = 'sleep 3; printf DONE\r\nDONE'
-      send.observe(slice, now: 0.01)
-      outcome = send.outcome(slice, now: 1.0, child_finished: false,
-                                    submitted: true, last_output_at: 0.01)
+      send.absorb('sleep 3; printf DONE\r\nDONE', now: 0.01)
+      outcome = send.outcome(now: 1.0, child_finished: false,
+                             submitted: true, last_output_at: 0.01)
 
       expect(outcome).to eq({ settled: true })
     end
@@ -854,18 +860,217 @@ RSpec.describe Rune::Commands::SessionCommand do
     # be arriving, because a child drawing the input into a bordered composer
     # defeats the search and trips no partial test either — handing back the
     # whole slice there gave the pattern a screenful of the caller's own words.
-    # Past the window the slice is returned as before.
+    # Past the window it becomes ordinary output, which is why a tick with
+    # nothing new in it is still a tick the send has to be given.
     it 'does not mistake a multibyte slice for a partly-arrived echo' do
       send = pending(echo: 'hello')
 
-      expect(send.beyond_echo('⣟⣯⣷', now: 0)).to eq('')
-      expect(send.beyond_echo('⣟⣯⣷', now: 1.0)).to eq('⣟⣯⣷')
+      expect(beyond(send, '⣟⣯⣷', now: 0)).to eq('')
+      expect(beyond(send, '', now: 1.0)).to eq('⣟⣯⣷')
     end
 
     # Advancing past the echo by its byte length overshoots for non-ASCII, which
     # silently ate the first characters of the reply.
     it 'strips exactly the echo when the sent text was not ASCII' do
-      expect(pending(echo: 'héllo').beyond_echo('hélloANSWER', now: 0)).to eq('ANSWER')
+      expect(beyond(pending(echo: 'héllo'), 'hélloANSWER')).to eq('ANSWER')
+    end
+
+    # The echo does not arrive in one read either. Locating it against the
+    # accumulated arrivals rather than against each read is what keeps a prompt
+    # longer than one 4KB pty read from being handed to the pattern in pieces.
+    it 'locates an echo that arrived across several reads' do
+      send = pending(echo: 'run the long command')
+
+      expect(beyond(send, 'run the ', 'long com', 'mand>> ANSWER')).to eq('>> ANSWER')
+    end
+  end
+
+  # `--wait-for-regex` is only worth anything if the pattern cannot be satisfied
+  # by the caller's own input coming back. Locating the echo by substring is
+  # enough for a child that echoes verbatim and nothing else; every shape below
+  # is one a real child produced, and every one of them defeats it.
+  describe 'a pattern is never satisfied by the echo of the input' do
+    def waiting(echo:, regex:, settle_ms: 30_000)
+      Rune::Session::PendingSend.new(client: nil, cursor: 0, echo: echo, now: 0, settle_ms: settle_ms,
+                                     timeout_ms: 30_000,
+                                     regex: Rune::Session::PendingSend.compile_regex(regex))
+    end
+
+    # One tick per arrival, the way the supervisor drives it: absorb what came
+    # in, then ask. Stops at the first answer, because a settled send is not
+    # given any more.
+    def resolve(send, *arrivals, now: 1.0)
+      arrivals.each do |text|
+        send.absorb(text, now: now)
+        outcome = send.outcome(now: now, child_finished: false, submitted: true, last_output_at: now)
+        return outcome if outcome
+      end
+      nil
+    end
+
+    # python3 -q, captured verbatim: the REPL redraws the line on every
+    # keystroke and colours each token separately, so the input is on the wire
+    # dozens of times over and not once as the run of bytes being looked for.
+    it 'ignores a REPL that repaints the line on every keystroke' do
+      echo = "print('PYDONE')"
+      repaint = "\e[?25l\e[18D\e[1;35m>>> \e[0m\e[36mprint\e[0m\e[0m(\e[0m" \
+                "\e[32m'PYDONE'\e[0m\e[0m)\e[0m\e[19D\e[?12l\e[?25h\e[19C"
+
+      expect(repaint).not_to include(echo)
+      expect(resolve(waiting(echo: echo, regex: 'PYDONE'), repaint)).to be_nil
+      expect(resolve(waiting(echo: echo, regex: 'PYDONE'), "#{repaint}\e[19D\n\e[?2004l\e>PYDONE\n"))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # bash, captured at 120 columns: readline writes a space and a carriage
+    # return where the line wraps, which lands inside the echo. Measured
+    # boundary: 110 characters echo as one run, 111 do not.
+    it 'ignores an echo that readline split at the wrap' do
+      echo = "sleep 3; echo WRAPOK ##{'x' * 89}"
+      wrapped = "#{echo[0, 110]} \r#{echo[110..]}"
+
+      expect(resolve(waiting(echo: echo, regex: 'WRAPOK'), wrapped)).to be_nil
+      expect(resolve(waiting(echo: echo, regex: 'WRAPOK'), "#{wrapped}\r\nWRAPOK\r\nbash-3.2$ "))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # A full-screen agent puts the prompt in its transcript and then repaints
+    # the whole frame while it thinks, so the input reappears after wherever its
+    # first copy ended — which is why the boundary alone cannot be the whole
+    # answer, and why the last match is a candidate as well as the next one.
+    it 'ignores the input being repainted after the echo has been located' do
+      echo = 'handle the BOXDONE case'
+      frame = "\e[H\e[2J\e[1;36magent\e[0m\n  \e[35m>\e[0m #{echo}\n\e[90m+------+\e[0m"
+      thinking = frame * 12
+
+      expect(resolve(waiting(echo: echo, regex: 'BOXDONE'), thinking)).to be_nil
+      expect(resolve(waiting(echo: echo, regex: 'BOXDONE'), "#{thinking}#{frame}\n  reply: BOXDONE\n"))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # The other half of the same rule: a child that quotes the request back
+    # after answering must not push the answer out of reach, which is exactly
+    # what taking the *last* copy of the echo as the boundary would do.
+    it 'still matches an answer a child follows with a quote of the request' do
+      echo = 'summarise the log'
+
+      expect(resolve(waiting(echo: echo, regex: 'QUOTEOK'), "#{echo}\r\nQUOTEOK: finished\r\n(you asked: #{echo})\r\n"))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # A child with ECHO off puts nothing of the input on the wire at all, so
+    # nothing can be located — and refusing to match until something is would
+    # hang every send to one of them.
+    it 'still matches when the child never echoes anything' do
+      expect(resolve(waiting(echo: 'SECRET', regex: 'TERCES'), "answer: TERCES\r\n"))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # An echo a second late is not an echo that never came. Giving up on the
+    # search when the grace window closes — rather than merely starting to offer
+    # what has arrived — was measured end to end to settle this send 0.8s after
+    # the echo landed and a second before the child said anything of its own,
+    # handing back a reply consisting entirely of the caller's words.
+    it 'still recognises an echo that arrived after the grace window closed' do
+      send = waiting(echo: 'please ANSWER now', regex: 'NOTHINGMATCHES', settle_ms: 800)
+
+      send.absorb('', now: 0.8)
+      send.absorb("please ANSWER now\n", now: 1.6)
+
+      expect(send.matchable).to eq("\n")
+      expect(send.outcome(now: 2.6, child_finished: false, submitted: true, last_output_at: 1.6)).to be_nil
+
+      send.absorb("done\n", now: 3.0)
+
+      expect(send.outcome(now: 4.0, child_finished: false, submitted: true, last_output_at: 3.0))
+        .to eq({ settled: true })
+    end
+  end
+
+  # What a `--wait-for-regex` pattern is matched against, and what that bound
+  # costs. Matching the whole turn every tick is quadratic in the turn: a 12 MB
+  # answer timed out at 90.51s holding 11.46 MB of itself, where the same turn
+  # with no pattern settled in 7.38s.
+  describe 'how much output a --wait-for-regex pattern is matched against' do
+    def waiting(regex)
+      Rune::Session::PendingSend.new(client: nil, cursor: 0, echo: 'go', now: 0, settle_ms: 30_000,
+                                     timeout_ms: 30_000,
+                                     regex: Rune::Session::PendingSend.compile_regex(regex))
+    end
+
+    def feed(send, *arrivals, now: 1.0)
+      arrivals.each do |text|
+        send.absorb(text, now: now)
+        outcome = send.outcome(now: now, child_finished: false, submitted: true, last_output_at: now)
+        return outcome if outcome
+      end
+      nil
+    end
+
+    def filler(char = 'y') = "#{char * 4095}\n"
+
+    # The scan resumes where the last one stopped, so a marker is matched on the
+    # tick it arrives however much the child goes on to print afterwards.
+    it 'matches a marker as it arrives rather than waiting for the turn to end' do
+      send = waiting('MARKER')
+
+      expect(feed(send, "go\n", *Array.new(3) { filler })).to be_nil
+      expect(feed(send, "MARKER\n")).to eq({ settled: true, matched: true })
+    end
+
+    # ...and resumes far enough back that a match completed by this read is
+    # still seen whole, rather than only from wherever the read began.
+    it 'finds a match that straddles several reads' do
+      send = waiting('BEGIN[\s\S]*END')
+
+      expect(feed(send, "go\n", *Array.new(30) { filler })).to be_nil
+      expect(feed(send, "BEGIN#{'y' * 4090}\n", filler, filler)).to be_nil
+      expect(feed(send, "#{'y' * 4092}END\n")).to eq({ settled: true, matched: true })
+    end
+
+    # The bound, stated as the thing a caller loses: one match longer than
+    # MATCH_SPAN cannot be seen whole by any single scan, so it is never found.
+    # Everything shorter always is, whatever the turn grows to.
+    it 'does not find a single match longer than the span it re-reads' do
+      send = waiting('BEGIN[\s\S]*END')
+      chunks = (Rune::Session::PendingSend::MATCH_SPAN / 4096) + 4
+
+      expect(feed(send, "go\n", "BEGIN\n", *Array.new(chunks) { filler })).to be_nil
+      expect(feed(send, "END\n")).to be_nil
+    end
+
+    # `\A` means the start of the child's answer, not the start of whatever the
+    # window happens to hold — which is why the scan is resumed with a position
+    # rather than run against a substring. Ruby refuses `\A` at any position
+    # past zero, and that is the whole guarantee.
+    it 'does not let an anchored pattern match wherever the window now begins' do
+      send = waiting('\Ayyy')
+      chunks = ((Rune::Session::PendingSend::MATCH_WINDOW_BYTES +
+                 Rune::Session::PendingSend::MATCH_WINDOW_SLACK) / 4096) + 20
+
+      expect(feed(send, "go\n", *Array.new(chunks) { filler })).to be_nil
+    end
+
+    it 'keeps what it matches against bounded however much the child prints' do
+      send = waiting('NEVERMATCHES')
+
+      feed(send, "go\n", *Array.new(400) { filler })
+
+      expect(send.matchable.bytesize)
+        .to be <= (Rune::Session::PendingSend::MATCH_WINDOW_BYTES +
+                   Rune::Session::PendingSend::MATCH_WINDOW_SLACK)
+    end
+
+    # The window is trimmed by bytes on text that is UTF-8 by construction, so
+    # the cut has to be moved off a continuation byte — otherwise a sliding
+    # window would hand the pattern half a character.
+    it 'never cuts a character in half when the window slides' do
+      send = waiting('NEVERMATCHES')
+
+      feed(send, "go\n", *Array.new(200) { "#{'⣿' * 1365}\n" })
+
+      expect(send.matchable).to be_valid_encoding
+      expect(send.matchable).not_to include('�')
     end
   end
 
