@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'strscan'
+
 module Rune
   module Session
     # One in-flight `send` and the decision of when it has been answered.
@@ -24,6 +26,35 @@ module Rune
       # Ruby 3.0 and 3.1 have no Regexp::TimeoutError; a class that is never
       # raised keeps the rescue clause valid there without widening it.
       REGEX_TIMEOUT_ERROR = defined?(Regexp::TimeoutError) ? Regexp::TimeoutError : Class.new(StandardError)
+      # Everything a terminal consumes without printing: the full CSI grammar
+      # (parameters, intermediates, final byte), the string sequences, charset
+      # selection, and the single-byte escapes. The trailing catch-all matters
+      # as much as the specific forms — an escape left behind here would be
+      # counted as text by one half of the search and dropped by the other.
+      ESCAPE_SEQUENCE = %r{
+        \e\[ [0-9:;<>=?]* [ -/]* [@-~]
+        | \e\] [^\a\e]* (?: \a | \e\\ )
+        | \e [PX^_] [^\e]* \e\\
+        | \e [()*+] [A-Za-z0-9<>%"&./:?-]
+        | \e [%\#] [@A-Za-z0-9]
+        | \e .?
+      }x
+      # Anything that is neither an escape nor whitespace, i.e. the characters
+      # a condensed comparison keeps.
+      PRINTED = /[^\s\e]+/
+      # How much output is scanned for a transformed echo before the search is
+      # abandoned. A repaint of one line of input costs at most a few tens of
+      # KB even when the child redraws on every keystroke; past this the echo
+      # is not going to be found and the scan is only costing the event loop.
+      ECHO_SEARCH_LIMIT = 256 * 1024
+      # How far either side of a candidate match to look for the input being
+      # repainted around it, as a multiple of the input's own length. A repaint
+      # carries colour and cursor sequences between the characters, so the copy
+      # on the wire is several times the text it draws.
+      ECHO_COPY_MARGIN = 8
+      # ...and a floor under that window, so a one-word input still looks far
+      # enough either side to see the copy it sits in.
+      REPAINT_MARGIN_FLOOR = 256
 
       attr_reader :client, :cursor, :busy_at_send
 
@@ -60,7 +91,7 @@ module Rune
         # rubocop:enable Metrics/ParameterLists
         @client = client
         @cursor = cursor
-        @echo = echo.to_s
+        @echo = Echo.new(echo)
         @settle_ms = settle_ms
         @regex = regex
         @deadline = now + (timeout_ms / 1000.0)
@@ -123,20 +154,26 @@ module Rune
       # of the reply.
       def beyond_echo(slice, now:)
         normalized = slice.delete("\r")
-        echo = @echo.delete("\r")
-        return normalized if echo.empty?
+        return normalized if @echo.empty?
 
-        # Located, not prefix-matched. The cursor is taken the instant we write,
-        # so bytes the child was already emitting (the tail of its previous
-        # prompt, a redraw) can land *before* the echo — which made a prefix
-        # check fail and hand the whole slice back as if it were a reply.
-        index = normalized.index(echo)
-        return normalized[(index + echo.length)..].to_s if index
-        # Not all there yet: treat a trailing partial echo as "still arriving",
-        # but only inside the grace window, so a genuine reply that happens to
-        # be a prefix of the input cannot stall the send indefinitely.
-        return '' if now && within_echo_grace?(now) && echo_still_arriving?(normalized, echo)
+        beyond = @echo.beyond(normalized)
+        return beyond if beyond
+        # Not found yet, so nothing is offered while it might still be arriving.
+        # The rule this replaces asked whether the *tail* of the slice was a
+        # prefix of the input, which recognises only an echo that is verbatim
+        # and unfinished. A child drawing the input into a bordered composer is
+        # neither: it defeated the search above and tripped no partial test
+        # either, so the whole slice — a screenful of the caller's own words —
+        # went to the pattern. Reproduced end to end at 0.19s against a
+        # 78-character prompt, decided purely by whether the tick landed before
+        # the child's next frame.
+        return '' if now && within_echo_grace?(now)
 
+        # Past the window with nothing located, this is a child that does not
+        # echo at all: ECHO is off, or it is reading raw keystrokes and drawing
+        # nothing. There is no echo for the pattern to match, so withholding
+        # further would only hang every send to one of them — measured: a
+        # strict version of this rule failed the no-echo case outright.
         normalized
       end
 
@@ -175,28 +212,29 @@ module Rune
       def regex_matched?(slice, now:)
         return false unless @regex
 
-        @regex.match?(beyond_echo(slice, now: now))
+        text = beyond_echo(slice, now: now)
+        candidate_matches(text).any? { |match| !@echo.repaint?(text, match) }
       rescue REGEX_TIMEOUT_ERROR
         nil
       end
 
-      # True when the tail of what has arrived is the beginning of the echo,
-      # i.e. the echo is mid-flight. Comparing the *whole* slice was wrong: a
-      # child still printing something else when the send landed pushes the
-      # partial echo off the front, so the prefix test failed and a half-arrived
-      # echo counted as a reply.
+      # The first and last places the pattern matches, or none.
       #
-      # Characters, not bytes. `normalized[-length, length]` counts characters
-      # while the bound was counted in bytes, so any multibyte output inside the
-      # grace window — a spinner glyph, a box-drawing rule, which is most of
-      # what an agent TUI paints — asked for more characters than existed and
-      # got nil, and `start_with?(nil)` raised. That killed the whole supervisor
-      # and took the agent CLI with it, reproducibly, within a handful of turns.
-      def echo_still_arriving?(normalized, echo)
-        return true if normalized.strip.empty?
+      # Both, because they answer different failure modes. A line-oriented child
+      # says its answer once and the first match is it. A full-screen child
+      # redraws the whole frame — input included — many times a second, so the
+      # frames after the located echo contain the input again and the *first*
+      # match is a repaint; the answer, when it comes, is at the end. Taking
+      # only one of the two loses one of those cases, and taking every match
+      # would mean allocating one MatchData per repaint per tick.
+      def candidate_matches(text)
+        first = @regex.match(text)
+        return [] unless first
 
-        limit = [normalized.length, echo.length].min
-        (1..limit).any? { |length| echo.start_with?(normalized[-length, length]) }
+        last = text.rindex(@regex)
+        return [first] if last.nil? || last <= first.begin(0)
+
+        [@regex.match(text, last), first].compact
       end
 
       def within_echo_grace?(now) = (now - @sent_at) < ECHO_GRACE_SECONDS
@@ -206,6 +244,146 @@ module Rune
         return false if last_output_at.nil?
 
         (now - last_output_at) >= (@settle_ms / 1000.0)
+      end
+
+      # Where the pty's echo of one send's input sits in what came back.
+      #
+      # Its own class because "find the input in the output" turned out to be
+      # the hard half of deciding when a send is answered, and because it is
+      # pure text: given the same bytes it gives the same answer, with no clock,
+      # no socket and no pty in the way.
+      #
+      # The rule it exists to enforce is that a pattern must never be satisfied
+      # by the caller's own input. Everything below is one of the ways a child
+      # can put that input back on the wire in a shape `index` cannot find.
+      class Echo
+        def initialize(text)
+          @text = text.to_s.delete("\r")
+          # Where the echo was found to end, once it has been found. The slice
+          # only ever grows at the end, so the offset stays valid for the life
+          # of the send — and every later tick is a slice rather than a scan.
+          @ends_at = nil
+          @condensed = nil
+        end
+
+        def empty? = @text.empty?
+
+        # Everything past the echo, or nil when the echo has not been found.
+        def beyond(normalized)
+          return normalized[@ends_at..].to_s if @ends_at
+
+          # Located, not prefix-matched. The cursor is taken the instant we
+          # write, so bytes the child was already emitting (the tail of its
+          # previous prompt, a redraw) can land *before* the echo — which made a
+          # prefix check fail and hand the whole slice back as if it were a
+          # reply.
+          verbatim = normalized.index(@text)
+          return normalized[(@ends_at = verbatim + @text.length)..].to_s if verbatim
+
+          # Verbatim is the exception, not the rule. A child that *transforms*
+          # the echo produces no such substring at all: python's REPL redraws
+          # the line in colour on every keystroke, and readline splits the echo
+          # with a space and a carriage return where it wraps the terminal
+          # (measured at 120 columns: 110 characters echo as one run, 111 do
+          # not). Neither is exotic, both defeated the check above, and the
+          # whole slice — echo included — was then handed to the pattern, which
+          # answered `matched` before the child had run a line of the input.
+          transformed = locate(normalized)
+          transformed && normalized[(@ends_at = transformed)..].to_s
+        end
+
+        # True when the pattern matched inside a copy of the input rather than
+        # inside anything the child produced.
+        #
+        # The residue of the echo problem that no boundary can solve: an agent
+        # TUI paints the prompt into its transcript and then repaints the whole
+        # frame on every spinner tick, so the input keeps reappearing *after*
+        # wherever its first copy ended. Moving the boundary to the last copy
+        # instead would discard any answer printed before the next repaint —
+        # measured: it fixes the two TUI cases and breaks a child that quotes
+        # the request back after answering. So this asks the narrower question
+        # of whether this particular match is covered by a copy of the input
+        # drawn around it, and leaves the boundary where it is.
+        def repaint?(text, match)
+          inside = self.class.condense(match[0])
+          return false if empty? || inside.empty?
+
+          before, after = surroundings(text, match)
+          covered?(before + inside + after, before.length, before.length + inside.length)
+        end
+
+        # The text with escapes and whitespace removed. Those two are exactly
+        # the difference between the input and every transformed echo measured:
+        # colour and cursor sequences around the characters, and a wrap or a
+        # line break inserted between them.
+        def self.condense(text) = text.gsub(ESCAPE_SEQUENCE, '').gsub(/\s+/, '')
+
+        private
+
+        # As much either side of the match as a copy of the echo could occupy,
+        # condensed. Bounded so this costs the same whatever the slice has grown
+        # to: it is only ever asked about one match at a time.
+        def surroundings(text, match)
+          margin = (@text.length * ECHO_COPY_MARGIN) + REPAINT_MARGIN_FLOOR
+          [self.class.condense(text[[match.begin(0) - margin, 0].max...match.begin(0)].to_s),
+           self.class.condense(text[match.end(0), margin].to_s)]
+        end
+
+        # Whether some copy of the echo covers [from, to) in `haystack`. Only
+        # the last copy starting at or before `from` needs checking: every copy
+        # is the same length, so an earlier one ends earlier.
+        def covered?(haystack, from, to)
+          at = haystack.rindex(condensed, from)
+          !at.nil? && (at + condensed.length) >= to
+        end
+
+        # Bounded, and searched only until it is found. This runs on the
+        # supervisor's only thread every tick, and condensing is linear in the
+        # whole accumulated slice: measured at 8ms for 256KB and 124ms for 4MB,
+        # so an unbounded version repeated twenty times a second would cost more
+        # than the bug it fixes. Once found, the offset is kept and no further
+        # scanning happens at all.
+        def locate(text)
+          return nil if text.bytesize > ECHO_SEARCH_LIMIT || condensed.empty?
+
+          at = self.class.condense(text).index(condensed)
+          at && printed_offset(text, at + condensed.length)
+        end
+
+        def condensed = @condensed ||= self.class.condense(@text)
+
+        # The index in `text` just past its `count`-th condensed character, or
+        # nil. Walks in runs rather than characters so it costs the same order
+        # as condensing itself, and consumes exactly what `condense` drops so
+        # the two cannot disagree about where a character sits.
+        #
+        # Counted in characters, like every other offset here.
+        # `StringScanner#pos` is a byte offset, and using it would put the
+        # boundary mid-character for any prompt carrying an emoji or a curly
+        # quote — the same defect the byte/character comment above records.
+        def printed_offset(text, count)
+          scanner = StringScanner.new(text)
+          seen = 0
+          index = 0
+          until scanner.eos?
+            dropped = scanner.scan(ESCAPE_SEQUENCE) || scanner.scan(/\s+/)
+            if dropped
+              index += dropped.length
+              next
+            end
+
+            run = scanner.scan(PRINTED)
+            if run.nil?
+              index += scanner.getch.length
+              next
+            end
+            return index + (count - seen) if (seen + run.length) >= count
+
+            seen += run.length
+            index += run.length
+          end
+          nil
+        end
       end
     end
   end

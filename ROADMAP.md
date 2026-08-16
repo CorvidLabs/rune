@@ -35,13 +35,26 @@ the way:
   needs the reporter's full transcript, to replay the whole stream against the truncated window and
   see which one produces the tear.
 
-- **`--wait-for-regex` can match the pty's echo of your own input.** Found by dogfooding in the
-  0.8.0 review and documented in [`docs/sessions.md`](docs/sessions.md) with a workaround. rune
-  locates the echo by exact substring, which fails whenever the child *transforms* it — a REPL
-  repainting per keystroke, or readline wrapping past the terminal width. The likely fix is to
-  locate the echo in rendered text rather than raw bytes, and it needs measuring rather than
-  guessing: this is the same shape as the settle bug, where the first plausible fix was worse than
-  the status quo.
+  Note the roadmap previously named "locate the echo in rendered text" as the likely fix for the
+  related `--wait-for-regex` bug. That was measured and **rejected** — it scored worse than the
+  baseline and was the most expensive option tried. Condensed-text location is what worked.
+
+- **The settle path can return your own input as the answer, when the child redraws it.** This is
+  the sharpest defect in rune. `--settle-ms` waits for output that is not the echo; a line editor
+  that repaints the line on submit sends the input a *second* time, and that copy counts as the
+  child having spoken. Measured: `irb` and `python3 -q` settle in about a second with only the echo,
+  3/3 each, while the answer arrives seconds later and lands in the next call. `bash -i` is
+  unaffected, wrapped inputs included.
+
+  **A rule was tried and disproved, which is worth recording so it is not tried again.** Anchoring
+  on the *last* copy of the condensed echo — treat the send as unanswered when nothing follows it —
+  fixes irb, python3 and wrapped bash 12/12. It also breaks any child whose reply *ends with* the
+  request: the existing test child answers `REPLY:ping` to `ping`, the anchor lands inside the
+  answer, and the send waits out its timeout. Removing every copy instead leaves irb's `>>` prompt
+  behind, which is real output and not an answer, so coverage-based rules cannot separate the two
+  either. The distinguishing signal is that a repaint is *preceded by cursor motion* while an answer
+  is not, and that information is destroyed by the condensing the located-echo search depends on.
+  A fix has to reconcile those two.
 
 - **Independent review.** Most of the sharpest bugs in this project were found by an agent other
   than the one that wrote the code: the ECMA-48 erase semantics, the `ESC D` that printed a literal

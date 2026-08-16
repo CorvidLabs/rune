@@ -38,7 +38,13 @@ module Rune
       # Everything that is not a control this renderer acts on. Vertical tab and
       # form feed are line-feed class motion, not text, and were previously
       # written into the screen as characters.
-      PRINTABLE = /[^\e\r\n\x08\x0b\x0c\t]+/
+      # Bytes excluded here fall through `control_byte`'s case, which has no
+      # branch for BEL/NUL/SO/SI/DEL, so they are consumed and dropped. A
+      # non-graphic character occupies no cell in any terminal, and writing one
+      # shifted the rest of the line: `TERM=screen tput sgr0` is `\e[m\x0f\x0f`,
+      # so ncurses under tmux injected two literal cells on every attribute
+      # reset. Verified against GNU screen and pyte, which agree on all five.
+      PRINTABLE = /[^\e\r\n\x08\x0b\x0c\t\a\x00\x0e\x0f\x7f]+/
       # The ECMA-48 CSI grammar: parameter bytes 0x30-0x3F, then intermediate
       # bytes 0x20-0x2F, then one final byte 0x40-0x7E.
       #
@@ -55,7 +61,7 @@ module Rune
         /[PX^_][^\e]*\e\\/,               # DCS, SOS, PM, APC
         %r{[()*+][A-Za-z0-9<>%"&./:?-]},   # charset designation into G0-G3
         /[%#][@A-Za-z0-9]/,                # UTF-8 select, DEC screen alignment
-        /[=><cHNOZlmno|}~]/,               # keypad mode, RIS, HTS, SS2/SS3, ...
+        /[=><HNOZlmno|}~]/,                # keypad mode, HTS, SS2/SS3, ...
         / [FGLMN]/                         # ANSI conformance level
       ].freeze
       # A sequence the buffer ended in the middle of, with its terminator not
@@ -76,7 +82,7 @@ module Rune
       # Single-byte escapes that move the cursor, so cannot be discarded.
       ESCAPES = {
         'D' => :index, 'E' => :next_line, 'M' => :reverse_index,
-        '7' => :save_cursor, '8' => :restore_cursor
+        '7' => :save_cursor, '8' => :restore_cursor, 'c' => :full_reset
       }.freeze
 
       class << self
@@ -155,7 +161,7 @@ module Rune
         csi = scanner.scan(CSI)
         return csi_control(csi) if csi
 
-        single = scanner.scan(/[DEM78]/)
+        single = scanner.scan(/[DEM78c]/)
         return @screen.public_send(ESCAPES.fetch(single), []) if single
 
         # Consumed and ignored: none of these can move the cursor, so none of
@@ -182,11 +188,22 @@ module Rune
       end
 
       def csi_control(csi)
+        # DECSTR, a soft reset. It carries an intermediate byte, so both guards
+        # below reject it, and its final byte is not in CONTROLS — it was
+        # dropped twice over. terminfo's `rs2`/`is2` for xterm begin with it.
+        return @screen.soft_reset([]) if csi == '[!p'
+
         operation = CONTROLS[csi[-1]]
         parameters = csi[1..-2].to_s
-        # Private-parameter forms are modes (`\e[?25l`, `\e[?1049h`), never
-        # cursor motion, and must not be mistaken for their public namesakes.
-        return if operation.nil? || csi.include?('?')
+        # Private-parameter forms are modes (`\e[?25l`, `\e[?1049h`) or vendor
+        # extensions, never the public operation sharing the final byte. `?` was
+        # guarded and `<`, `>`, `=` were not, though all four are ECMA-48
+        # private-prefix bytes: kitty's `\e[<u`, `\e[>1u` and `\e[=5;1u` all ran
+        # DECRC and teleported the cursor, and `\e[>2T` ran SD and scrolled.
+        # Across 451 real captures on one machine there were 242 `CSI <u`, 244
+        # `CSI >u`, 40 `CSI =u` and *zero* public `CSI u`, so the restore-cursor
+        # row never once fired correctly on real agent output.
+        return if operation.nil? || csi.match?(/[?<>=]/)
         # An intermediate byte selects a *different* function sharing the same
         # final byte, so honouring one as its plain namesake would act on a
         # sequence that means something else entirely.
@@ -228,12 +245,39 @@ module Rune
           @bottom = @rows - 1
         end
 
-        # DECSTBM. Out-of-order or out-of-range bounds are ignored wholesale, as
-        # a real terminal does, rather than half-applied.
+        # RIS. Consumed but not acted on until now, under a comment asserting
+        # ignored escapes cannot move the cursor — false for a full reset. The
+        # trigger is someone typing `reset` or `tput init` to recover a garbled
+        # agent TUI, which is exactly the moment a scroll region is live: a
+        # stale region then confines every later line feed, IL, DL and scroll
+        # for the rest of the render.
+        def full_reset(_numbers = [])
+          @grid = Array.new(@rows) { +'' }
+          @saved = nil
+          soft_reset
+        end
+
+        # DECSTR. Resets the region, origin and saved cursor, and homes the
+        # cursor, but deliberately does not clear the display.
+        def soft_reset(_numbers = [])
+          @top = 0
+          @bottom = @rows - 1
+          @saved = nil
+          @wrap_pending = false
+          @row = 0
+          @column = 0
+        end
+
+        # DECSTBM. A bottom past the last row is clamped rather than discarded:
+        # discarding leaves the *previous* region in force, which is worse than
+        # doing nothing now that regions exist. xterm, xterm.js, VTE, st, tmux
+        # and pyte all clamp; GNU screen does discard, so this is a real
+        # divergence and clamping is the majority side of it.
         def scroll_region(numbers)
           top = (numbers[0].to_i.positive? ? numbers[0].to_i : 1) - 1
           bottom = (numbers[1].to_i.positive? ? numbers[1].to_i : @rows) - 1
-          return unless top < bottom && top >= 0 && bottom <= @rows - 1
+          bottom = @rows - 1 if bottom > @rows - 1
+          return unless top < bottom && top >= 0
 
           @top = top
           @bottom = bottom

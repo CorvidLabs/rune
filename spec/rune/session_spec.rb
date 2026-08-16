@@ -850,8 +850,16 @@ RSpec.describe Rune::Commands::SessionCommand do
       expect(outcome).to eq({ settled: true })
     end
 
+    # Inside the echo grace window nothing is offered while the echo might still
+    # be arriving, because a child drawing the input into a bordered composer
+    # defeats the search and trips no partial test either — handing back the
+    # whole slice there gave the pattern a screenful of the caller's own words.
+    # Past the window the slice is returned as before.
     it 'does not mistake a multibyte slice for a partly-arrived echo' do
-      expect(pending(echo: 'hello').beyond_echo('⣟⣯⣷', now: 0)).to eq('⣟⣯⣷')
+      send = pending(echo: 'hello')
+
+      expect(send.beyond_echo('⣟⣯⣷', now: 0)).to eq('')
+      expect(send.beyond_echo('⣟⣯⣷', now: 1.0)).to eq('⣟⣯⣷')
     end
 
     # Advancing past the echo by its byte length overshoots for non-ASCII, which

@@ -106,9 +106,22 @@ the transcript so `send` cursors and `read` offsets always describe the same lif
 This is the hard part, and rune gives you three tools in order of preference.
 
 **`--settle-ms N` (default 800)** — return once the child has been quiet for N ms. This is the
-primary signal. The settle clock only starts once output arrives that *isn't* the pty's echo of
-your own input, so an agent that echoes your prompt and then thinks for five seconds before
-answering still returns the answer, not your words back.
+primary signal. The settle clock only starts once output arrives that isn't the pty's echo of your
+own input, so an agent that echoes your prompt and then thinks before answering returns the answer
+rather than your words back.
+
+> **Known limitation, and the sharpest one in rune today: a child that *redraws* your input can
+> still settle on it.** The rule above holds when the echo arrives once. A line editor that repaints
+> the line on submit sends your input a second time, and that second copy counts as the child having
+> spoken. Measured with `--settle-ms 800`: `irb` and `python3 -q` return `settled: true` in about a
+> second with only the echo, 3 times out of 3 each, while the real answer arrives seconds later and
+> lands in whatever the *next* call captures. Plain `bash -i` is unaffected, including inputs that
+> wrap past the terminal width.
+>
+> **Nothing in the reply distinguishes this from a real answer** — `settled: true`,
+> `busy_at_send: false`, and the echo is legitimately part of a correct reply too. Until it is
+> fixed, drive a repainting REPL with `--wait-for-regex`, which is not affected, or check that the
+> reply contains something beyond what you sent.
 
 **`--wait-for-regex RE`** — return as soon as output matches. Deterministic, and the right answer
 whenever you know what the callee prints when it's done:
@@ -117,18 +130,17 @@ whenever you know what the callee prints when it's done:
 $ rune session send --name s --wait-for-regex '\$ $' "ls"
 ```
 
-> **Known limitation: the pattern can match the pty's echo of your own input.** A pty echoes what
-> you write, so if your pattern appears in the text you sent, it can match before the child has
-> done anything. rune tries to skip the echo by locating it in the output, and that fails when the
-> child *transforms* it — a REPL that repaints per keystroke, or readline wrapping a line past the
-> terminal width. Measured: `send --wait-for-regex PYDONE "…print('PYDONE')"` against `python3 -q`
-> returned in 0.22s with `matched: true`, ten seconds before the code ran, 4 times out of 4.
+> **The pattern is matched against the reply, not against the echo of your input.** A pty echoes
+> what you write, so a naive implementation returns the instant your own words come back. rune
+> locates the echo in *condensed* text — escapes and whitespace removed from both sides, which is
+> the difference between what you sent and every transformed echo we could capture — and vetoes a
+> match that a repainted copy of the input covers. Measured against `python3 -q`, whose REPL
+> repaints per keystroke: previously it returned in 0.22s with `matched: true`, eight seconds before
+> the code ran, 4 times out of 4; it now waits for the real output, 3 times out of 3.
 >
-> **The workaround is reliable: choose a pattern that cannot appear in your input.** Ask for a
-> token you never spell out — `"print the word DONE followed by the number of files changed"` and
-> match `/DONE \d+/` — or match on something structural like a shell prompt, as above. Nothing in
-> the reply distinguishes an echo match from a real one, so do not rely on `matched` alone when
-> your pattern is a literal you also sent.
+> The honest claim is *every echo shape we could capture from a real child is excluded*, not
+> *cannot happen*. If your pattern is a literal you also sent, a child that quotes your request back
+> verbatim can still satisfy it.
 
 **`--timeout-ms N` (default 120000)** — a hard cap. On expiry you get what was captured plus
 `settled: false, timed_out: true` — a result, not a failure. Set this deliberately: the default is
