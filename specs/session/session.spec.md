@@ -1,6 +1,6 @@
 ---
 module: session
-version: 19
+version: 20
 status: active
 files:
   - lib/rune/session/store.rb
@@ -9,6 +9,7 @@ files:
   - lib/rune/session/attachment.rb
   - lib/rune/session/prompt_scanner.rb
   - lib/rune/session/pending_send.rb
+  - lib/rune/session/transcript.rb
   - lib/rune/commands/session_command.rb
 ---
 # Sessions (`rune session`)
@@ -48,6 +49,15 @@ deciding who talks to whom stays the calling agent's job.
 | `Client` | class | One request/reply exchange against a session's control socket. |
 | `Unavailable` | class | Raised when a control socket is missing or refuses a connection — how a dead supervisor presents. |
 | `PromptScanner` | module | Reports whether the last non-blank line of text looks like an interactive prompt. |
+| `Transcript` | class | One session's durable transcript: reconstruction, cursors across rotation, search and rendering. |
+| `load` | class method | Reads a transcript log, returning the retained text and the bytes rotation dropped. |
+| `text` | reader | The output the log still holds. |
+| `dropped` | reader | Bytes of earlier output that rotation discarded. |
+| `cursor` | instance method | Total bytes the child has produced, including what rotation discarded. |
+| `from` | instance method | Everything from an absolute cursor onwards, as far as the retained text reaches. |
+| `screen` | instance method | What a terminal would be showing. |
+| `grep` | instance method | Lines matching a pattern with surrounding context, and how many matched. |
+| `filter` | internal method | Applies `--grep` to a read, or reports an unparseable pattern. |
 | `PendingSend` | class | One in-flight `send` and the decision of when it has been answered. |
 | `observe` | instance method | Records that something other than the pty's echo has arrived. |
 | `outcome` | instance method | The outcome for this tick, or nil to keep waiting. |
@@ -77,7 +87,6 @@ deciding who talks to whom stays the calling agent's job.
 | `tail_offset` | instance method | Byte offset of the first whole line within the keep bound of the end. |
 | `output_bytes_from` | instance method | Output bytes carried by the region being kept, without parsing events. |
 | `output_size` | instance method | Current size of a session's transcript file. |
-| `read_transcript_file` | internal method | Reads a transcript, returning the retained text and the bytes rotation dropped. |
 | `rotate_log` | internal method | Rotates the transcript once it reaches the ceiling. |
 | `output_path` | instance method | Returns one session's NDJSON transcript path. |
 | `socket_path` | instance method | Returns one session's control-socket path. |
@@ -152,10 +161,7 @@ deciding who talks to whom stays the calling agent's job.
 | `exchange` | internal method | Performs one control-socket request against a live session, mapping failures to results. |
 | `alive_session` | internal method | Returns a failure result unless the named session's supervisor is alive. |
 | `read_transcript` | internal method | Serves transcript output with cursor, tail, and byte bounds. |
-| `transcript_for` | internal method | Replays the NDJSON transcript from disk into the concatenated output text. |
 | `slice_from` | internal method | Returns transcript bytes at or after a cursor. |
-| `grep_output` | internal method | Keeps only lines matching `--grep`, with `--context` lines either side. |
-| `matching_lines` | internal method | Line indexes to keep for a grep, deduplicated so context windows do not repeat. |
 | `compile_grep` | internal method | Compiles a `--grep` pattern, returning nil when it is unparseable. |
 | `bound_size` | internal method | Applies `--max-output` or `--tail` to already-filtered text. |
 | `bound_output` | internal method | Applies `--tail`/`--max-output` and reports what was omitted. |
@@ -255,7 +261,6 @@ deciding who talks to whom stays the calling agent's job.
 | `crashed` | internal method | Records why the supervisor died and finishes the session. |
 | `child_still_talking?` | internal predicate | True when the child produced output within the settle window at send time. |
 | `serialized_launch` | internal method | Runs the conflict check and launch for one name under the start lock. |
-| `screen_field` | internal method | Renders the transcript for `read --screen`, or nothing when not asked. |
 | `screen_after` | internal method | Renders the settled screen for `send --screen`, client-side. |
 | `busy_fields` | internal method | Whether the child printed within the settle window, and how long since. |
 | `read_payload` | internal method | Builds the result body for a transcript read. |
@@ -689,3 +694,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-15 | CHG-0046-rotate-a-session-transcript-without-reading-it-seek-to-the-cut-and-copy-the-tai: Rotate a session transcript without reading it: seek to the cut and copy the tail, instead of parsing every line |
 | 2026-08-15 | CHG-0048-add-read-grep-for-searching-a-long-transcript-and-correct-what-the-docs-claim: Add read --grep for searching a long transcript, and correct what the docs claim about prompt_detected and settled |
 | 2026-08-15 | CHG-0049-report-child-busy-and-idle-ms-on-read-and-document-that-exit-code-is-a-process: Report child_busy and idle_ms on read, and document that exit_code is a process status rather than a verdict on the work |
+| 2026-08-15 | CHG-0050-extract-the-transcript-out-of-sessioncommand-reconstruction-cursors-search-an: Extract the transcript out of SessionCommand: reconstruction, cursors, search and rendering are one subject |

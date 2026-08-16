@@ -842,25 +842,25 @@ RSpec.describe Rune::Commands::SessionCommand do
     it 'accounts for every byte it drops' do
       written = flood('disk2', chunks: 420)
 
-      text, dropped = session_command.send(:read_transcript_file, 'disk2')
-      expect(dropped + text.bytesize).to eq(written)
-      expect(dropped).to be > 0
+      loaded = Rune::Session::Transcript.load(store.output_path('disk2'))
+      expect(loaded.dropped + loaded.text.bytesize).to eq(written)
+      expect(loaded.dropped).to be > 0
     end
 
     it 'resolves a cursor taken after the rotation exactly' do
       flood('disk3', chunks: 420)
-      text, dropped = session_command.send(:read_transcript_file, 'disk3')
+      loaded = Rune::Session::Transcript.load(store.output_path('disk3'))
 
-      recent = dropped + text.bytesize - 500
+      recent = loaded.cursor - 500
 
-      expect(session_command.send(:slice_from, text, recent, dropped).bytesize).to eq(500)
+      expect(loaded.from(recent).bytesize).to eq(500)
     end
 
     it 'returns what it still holds for a cursor from before the rotation' do
       flood('disk4', chunks: 420)
-      text, dropped = session_command.send(:read_transcript_file, 'disk4')
+      loaded = Rune::Session::Transcript.load(store.output_path('disk4'))
 
-      expect(session_command.send(:slice_from, text, 1, dropped).bytesize).to eq(text.bytesize)
+      expect(loaded.from(1).bytesize).to eq(loaded.text.bytesize)
     end
   end
 
