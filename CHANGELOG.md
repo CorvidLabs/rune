@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The screen tail could cut an escape sequence in half and print its remainder onto the screen.**
+  Found from a census of a real agent's output: 109,364 absolute cursor moves and 31,798
+  synchronised-update brackets across 4.5MB, and **zero** erases of any kind. A stream that is
+  almost entirely escape sequences makes the render window's cut far likelier to land inside one
+  than in text, and the remainder has no `ESC` left to identify it — cutting inside `\e[?2026h` put
+  a literal `?2026h` on screen. The code carried a comment claiming this was harmless. The cut now
+  resyncs to the first escape, bounded so that a stream with no escapes keeps its text.
+- **Three releases in a row failed to publish and nobody noticed.** v0.4.0, v0.5.0 and v0.6.0 each
+  failed at the provenance check inside `Publish Gem Package` — after the tag existed and the
+  release was announced — because the documented step that records provenance was skipped. Nothing
+  downstream broke, which is exactly why it went unseen: the Homebrew formula builds from the tag
+  tarball and the rubygems.org job is disabled, so the only casualty was a package nobody installs.
+  The release lane now runs `provenance-check` up front, so a missing attestation stops a release
+  before the tag rather than after it, and says what to run to fix it.
+
 ## [v0.7.0] - 2026-08-15
 
 Everything here comes from one day of field use: an agent drove grok through rune to do real work on

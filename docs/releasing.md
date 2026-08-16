@@ -4,6 +4,13 @@ Releases are prepared in a pull request and published only from a verified tag o
 package workflow refuses to publish when the tag differs from the gem/plugin version or when any
 commit since the previous tag lacks a passing Attest record.
 
+**The release lane checks provenance too, and that is the check you will actually hit.** The
+publish workflow's copy runs after the tag exists and the release is announced, which is too late to
+be useful: v0.4.0, v0.5.0 and v0.6.0 each failed there and nobody noticed for three releases,
+because nothing users depend on runs through it — the Homebrew formula builds from the tag tarball
+and the rubygems.org job is disabled. `fledge lanes run release` now runs `provenance-check` up
+front, so a missing attestation stops the release before the tag rather than after it.
+
 ## Prepare the release pull request
 
 1. Start from an up-to-date `main` branch.
@@ -23,27 +30,40 @@ commit since the previous tag lacks a passing Attest record.
 5. Commit, attest, push, and open a pull request. Do not create the release tag from the prep
    branch.
 
-## Tag and publish after merge
-
-Once the release-prep pull request is merged:
-
-1. Update local `main` and run the release lane against the merge commit:
-
-   ```sh
-   git switch main
-   git pull --ff-only
-   fledge lanes run release
-   ```
-
-2. Record and push provenance for the merge commit, then verify every commit since the prior
-   release and run the trust gate:
+   Attesting here is not optional bookkeeping: every commit in the range needs a record, not only
+   the merge commit, so a prep commit that skips this step fails `provenance-check` later with no
+   obvious cause.
 
    ```sh
    fledge attest sign --commit HEAD --reviewer human:leif \
      --confidence 1.0 --verdict proceed --tests-passed --human-approved \
+     --note "Release prep verified locally"
+   git push origin refs/notes/attest
+   ```
+
+## Tag and publish after merge
+
+Once the release-prep pull request is merged:
+
+1. Update local `main` and record provenance for the merge commit. This comes **before** the
+   release lane, not after: the squash merge produced a commit that has never been attested, and
+   `provenance-check` is the lane's second step.
+
+   ```sh
+   git switch main
+   git pull --ff-only
+   fledge attest sign --commit HEAD --reviewer human:leif \
+     --confidence 1.0 --verdict proceed --tests-passed --human-approved \
      --note "Release commit verified on main"
    git push origin refs/notes/attest
-   fledge attest verify --range PREVIOUS_TAG..HEAD --policy .attest.json
+   ```
+
+2. Run the release lane against the merge commit. `provenance-check` verifies every commit since
+   the previous release tag, so this is also the trust gate — a missing record anywhere in the
+   range stops the release here, before a tag exists.
+
+   ```sh
+   fledge lanes run release
    ```
 
 3. Wait for the `main` CI run to pass.

@@ -15,6 +15,7 @@ clean = "rm -f *.gem"
 smoke-test = "ruby examples/smoke_test.rb"
 set-version = "ruby scripts/set_release_version.rb \"$1\""
 version-check = "ruby scripts/check_release_version.rb"
+provenance-check = "ruby scripts/check_provenance.rb"
 
 [lanes.verify]
 description = "Full CI gate: version parity, lint, tests, and spec-sync."
@@ -25,8 +26,12 @@ description = "Fast quality check: lint + tests."
 steps = ["lint", "test"]
 
 [lanes.release]
-description = "Release gate: full verification, smoke tests, and gem build."
-steps = ["version-check", "fmt-check", "lint", "test", "spec-check", "spec-lifecycle", "smoke-test", "build"]
+description = "Release gate: full verification, provenance, smoke tests, and gem build."
+# provenance-check runs first, with version-check, because both are cheap and
+# both answer "should this be a release at all". Provenance used to be checked
+# only inside `Publish Gem Package` — after the tag existed and the release was
+# announced — where three consecutive failures went unnoticed.
+steps = ["version-check", "provenance-check", "fmt-check", "lint", "test", "spec-check", "spec-lifecycle", "smoke-test", "build"]
 
 [lanes.fix]
 description = "Auto-fix: format, then lint to show remaining issues."

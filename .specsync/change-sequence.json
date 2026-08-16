@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 52,
-  "id": "CHG-0052-the-screen-tail-can-cut-an-escape-sequence-in-half-and-print-its-remainder-onto",
+  "sequence": 53,
+  "id": "CHG-0053-fail-the-release-before-the-tag-when-provenance-is-missing-not-after-it",
   "acknowledged_collisions": []
 }

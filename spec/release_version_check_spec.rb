@@ -113,17 +113,19 @@ RSpec.describe 'release version check' do
     expect(sdd_policy.fetch('ignored_paths')).to include('.specsync/changes/', '.specsync/hashes.json')
   end
 
-  # CI no longer gates on Augur/Attest, so the release guide documents recording
-  # provenance and then verifying it directly, rather than handing off to a
-  # `fledge trust verify` whose range guard has been removed along with the gate.
-  it 'documents recording merge-commit attestation before verifying it' do
+  # CI no longer gates on Augur/Attest, so the release guide records provenance
+  # by hand and the release lane verifies it. The ordering is the whole point:
+  # a squash merge produces a commit that has never been attested, so signing
+  # has to come before the lane rather than after it. The guide used to say the
+  # opposite, which would fail `provenance-check` on the first step.
+  it 'documents recording merge-commit attestation before running the lane that verifies it' do
     post_merge_steps = release_docs.split('## Tag and publish after merge').last
     sign_position = post_merge_steps.index('fledge attest sign')
     push_position = post_merge_steps.index('git push origin refs/notes/attest')
-    verify_position = post_merge_steps.index('fledge attest verify')
+    lane_position = post_merge_steps.index('fledge lanes run release')
 
     expect(sign_position).to be < push_position
-    expect(push_position).to be < verify_position
+    expect(push_position).to be < lane_position
   end
 
   def write_setter_fixture(root, rune_version:, plugin_version:, later_version: nil)
