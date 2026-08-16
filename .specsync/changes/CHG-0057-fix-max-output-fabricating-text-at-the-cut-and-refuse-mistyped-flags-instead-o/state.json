@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0057-fix-max-output-fabricating-text-at-the-cut-and-refuse-mistyped-flags-instead-o",
+  "slug": "fix-max-output-fabricating-text-at-the-cut-and-refuse-mistyped-flags-instead-o",
+  "title": "Fix --max-output fabricating text at the cut and refuse mistyped flags instead of typing or exec-ing them",
+  "description": "Fix --max-output fabricating text at the cut and refuse mistyped flags instead of typing or exec-ing them",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "66abd03eef2fee1be7f20f9762d3a471dad9089d",
+  "created_at": 1786893305,
+  "updated_at": 1786893359,
+  "affected_specs": [
+    "session",
+    "pty_runner",
+    "cli"
+  ],
+  "affected_paths": [
+    "lib/rune/output_limiter.rb",
+    "lib/rune/command.rb",
+    "lib/rune/commands/run_command.rb",
+    "lib/rune/commands/session_command.rb",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A --max-output result carries a [rune] ==== N bytes omitted by --max-output ==== line between head and tail, and neither cut lands inside an escape sequence: censused over all 14,029 cut points of a real vim transcript, 2,306 head cuts and 4,399 tail cuts fell inside a sequence and all emitted the orphan, and now none do while the marker survives strip_ansi at all 14,029 (previously 0). An unparseable --grep returns empty output with grep_error and no grep_matches, matching what a valid non-matching pattern returns. rune session send --name=x --settle_ms 500 'echo HELLO' and rune run --tiemout=5 -- echo hi both fail with Unknown option instead of status ok, while rune session start --name=x claude --resume, rune run cargo clippy --tests, send -- --settle_ms and --- section --- are unchanged. bundle exec rspec (435 examples) and rubocop both pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}
