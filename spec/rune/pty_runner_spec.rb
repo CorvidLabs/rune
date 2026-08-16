@@ -5,6 +5,27 @@ require 'rune/script'
 require 'tmpdir'
 
 RSpec.describe Rune::PTYRunner do
+  # A timeout that captured nothing is the least actionable result rune
+  # produces. A field report spent three to five minutes per attempt on one and
+  # concluded rune was discarding the child's output; it is not, which is what
+  # the second example here pins.
+  describe 'a timeout that captured nothing' do
+    it 'says why, and names the stdin shape that causes it' do
+      result = described_class.new(['sh', '-c', 'sleep 5'], timeout_seconds: 1).run
+
+      expect(result.exit_code).to eq(124)
+      expect(result.data[:clean_output]).to include('produced no output')
+      expect(result.data[:clean_output]).to include('does not forward stdin')
+    end
+
+    it 'still returns whatever the child printed before it was killed, and adds no hint' do
+      result = described_class.new(['sh', '-c', 'echo SPOKE; sleep 5'], timeout_seconds: 1).run
+
+      expect(result.data[:clean_output]).to include('SPOKE')
+      expect(result.data[:clean_output]).not_to include('produced no output')
+    end
+  end
+
   describe '#run' do
     it 'executes command and captures clean output and exit code' do
       runner = described_class.new('echo "Hello World"')

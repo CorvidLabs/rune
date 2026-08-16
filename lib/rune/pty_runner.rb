@@ -150,9 +150,31 @@ module Rune
       # so a genuine "stuck on a prompt, got killed" case is still reported accurately.
       kill_orphaned_child(spawned_pid)
       timed_out_prompt = prompt_detected_in?(raw_output)
-      ["#{raw_output}\n[rune] Execution timed out after #{timeout_seconds} seconds", 124, timed_out_prompt,
-       stdout_buffer, stderr_buffer]
+      ["#{raw_output}\n[rune] Execution timed out after #{timeout_seconds} seconds#{timeout_hint(raw_output)}", 124,
+       timed_out_prompt, stdout_buffer, stderr_buffer]
     rescue PTY::ChildExited then [raw_output, 0, prompt_detected_in?(raw_output), stdout_buffer, stderr_buffer]
+    end
+
+    # An extra sentence on a timeout, only where it can be earned.
+    #
+    # A timeout that captured nothing at all is the least actionable result rune
+    # produces: a field report spent three to five minutes per attempt on one,
+    # and reasonably concluded rune was discarding the child's output. It is
+    # not — output captured before the kill is always returned, which a run
+    # printing before it hangs will show. Silence means the child really did
+    # print nothing, and the most common reason is that it was waiting for
+    # input that a `run` never supplies.
+    #
+    # rune deliberately does not forward its own stdin to the child: a tty
+    # belongs to the human, and forwarding a pipe would echo the caller's input
+    # back through the pty and into `clean_output`. So a child that reads stdin
+    # waits forever, and this says so rather than leaving it to be inferred.
+    def timeout_hint(raw_output)
+      return '' unless raw_output.to_s.strip.empty?
+
+      "\n[rune] The child produced no output before it was killed. If it reads stdin, note that " \
+        '`rune run` does not forward stdin to the child; put the redirect inside the command ' \
+        "(rune run -- sh -c 'cmd < file') so the shell performs it in the pty."
     end
 
     # prompt_detected reflects whether the *last* non-blank line of output looks like an

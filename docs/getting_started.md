@@ -163,6 +163,23 @@ $ ruby bin/rune run --json --timeout=1 -- sleep 3
 A timed-out command returns exit code `124` with a `[rune] Execution timed out after N seconds`
 message appended to the captured output — it's still a normal `Result`, not an exception.
 
+**Output captured before the kill is always returned**, so a child that printed and then hung shows
+what it printed. If the output is *empty*, the child genuinely printed nothing, and rune says so
+along with the most common reason.
+
+**`rune run` does not forward its own stdin to the child.** A tty belongs to the human — taking it
+is `rune watch`'s job — and forwarding a pipe would echo the caller's own input back through the pty
+and into `clean_output`. So `echo hi | rune run -- cat` times out: `cat` is waiting for input that
+never arrives. Put the redirect inside the command instead, where the shell performs it in the pty:
+
+```sh
+$ rune run -- sh -c 'claude -p --output-format text < prompt.md'
+```
+
+That works, and so does passing a multi-paragraph prompt as a single argument — newlines survive
+argv intact. The `command` field in the reply is a shell-escaped *display* reconstruction for
+humans, not what the child received; do not diagnose quoting from it.
+
 ### Bounding the output, and splitting the streams
 
 Three more flags, all before the `--` separator, all changing the *shape* of the result:
