@@ -2,7 +2,94 @@
 
 ## [Unreleased]
 
+## [v0.8.0] - 2026-08-16
+
+Four independent agents reviewed rune before this release, each on a different lens: renderer
+correctness against two reference emulators, supervisor races and lifecycle, every factual claim in
+the docs executed rather than read, and a session spent driving real multi-step work through it.
+They found nine real bugs and a page of documentation that was wrong rather than merely missing.
+That method is now recorded in `ROADMAP.md` as a prerequisite for 1.0, because it keeps working:
+most of the sharpest bugs in this project were found by an agent other than the one that wrote the
+code.
+
 ### Fixed
+
+- **`send` could settle on the pty's echo of your own input and return your words as the answer.**
+  The exact thing the guide promised would not happen. `observe` passed `now: nil`, and the
+  partial-echo guard reads `if now && ...`, so a nil clock skipped it and a half-arrived echo
+  counted as a reply — and since that flag latches, one such tick was enough. A pty delivers a long
+  line in several reads, so this fired for any input longer than one read, which is most real
+  prompts. Measured against `bash -i` with a three-second command: **0 of 3 runs returned the
+  answer before, 3 of 3 after.**
+- **A single escape sequence in child output could crash, hang, or exhaust memory.** Counts were
+  used unclamped as loop and allocation bounds, so `\e[99999999999999999999@` raised `RangeError`
+  out of `.render` and killed `read --screen`, `\e[999999999@` allocated 2.9GB, and `\e[1000000L`
+  never returned. Seven such cases now complete in 0.000s. This renders untrusted bytes, so an
+  unclamped count was a denial of service rather than a cosmetic bug.
+- **Scroll regions were ignored, which was the whole real-world rendering error.** `\e[t;br` was
+  dropped, so a line feed at a region's bottom walked down the page instead of scrolling inside it —
+  and every pager, editor and full-screen agent sets a region. Replaying two captured agent
+  transcripts against a reference emulator, **8 of 40 rows differed; stripping only the region
+  sequences from the same bytes dropped that to 0.**
+- **Sequences the parser did not recognise were printed onto the screen.** Three separate causes,
+  one symptom, and the same failure as the `ESC D` that once printed a literal `D`: the CSI pattern
+  was not the ECMA-48 grammar, so `\e[2 q` (emitted by fish, starship and Codex CLI) and the colon
+  form of truecolour SGR fell through; eight escapes including `RIS` and the charset designators had
+  no handler; and a sequence the stream ended in the middle of printed its body, which for a live
+  session is the normal case rather than an edge one.
+- **`\e[3J` and undefined erase parameters wiped the screen.** Both erase families used `else` as
+  "erase everything", so `\e[9K` destroyed a line and `\e[3J` — "erase *saved* lines", which this
+  renderer does not keep — cleared output that was still on screen.
+- **Resolving a large turn was quadratic in its size.** `beyond_echo` re-scanned the whole
+  accumulated slice every tick even after the answer had been recognised. A 12MB burst the child
+  produced in 3s took the supervisor 67s at 100% CPU, and a caller with a 30s timeout was told it
+  timed out while holding two thirds of a completed answer.
+- **`--context 3` was silently ignored.** The separate form of the flag, which is the form the guide
+  shows. `--context=3` worked. The alias table was missing an entry, which also made errors name
+  flags that do not exist: `Invalid --tail-lines value`.
+
+### Documentation
+
+Every factual claim in the docs was executed rather than read. Fifteen were wrong; the ones a caller
+would have built on:
+
+- **`child_busy` and `idle_ms` were listed as fields of a `send` reply.** They are on `read` and
+  `list`. A caller following the guide got `nil` and fell back to grepping the callee's UI, which is
+  precisely what those fields exist to replace.
+- **The `rune run --help --json` example was three flags stale**, in the one place `--max-output`,
+  `--tail` and `--separate-streams` could have been documented — and it was offered as proof that an
+  agent can discover the surface without scraping text. Both copies are now generated from real
+  output, and `--separate-streams` documents its real cost: it gives stderr its own pipe, so the
+  child no longer sees one controlling terminal.
+- **The architecture guide described the *old* `prompt_detected` semantics**, replaced deliberately
+  in 0.3.0, and listed two prompt signatures that are not detected. The claims were removed rather
+  than the patterns added: the detector's conservatism is deliberate.
+- The README's test numbers (`179 examples, 98%+`) against an actual 411 and 87%, an install command
+  that is not a valid `fledge plugins install` source, `session start` examples matching neither
+  output mode, and the `MAX_CANON` guidance, which claimed a shell-like child never sees a long line
+  — `bash --norc -i` uses readline, so it takes a 1995-character line byte-perfect.
+
+Newly documented because testing found them undocumented: `--no-wait` returns a different shape,
+`--no-newline`, that archiving puts a session out of `read`'s reach, and that **`start` returns
+`status: "ok"` and exits 0 when the command does not exist** — with `state: "exited"` and
+`exit_code: 127` in the body, so a caller checking the process status believes it started.
+
+`ROADMAP.md` was three releases out of date, still tracking 0.2.0. It now records where rune is,
+what 1.0 needs, and every finding from this round that is not yet fixed.
+
+### Known and not fixed
+
+- **`--wait-for-regex` can match the pty's echo of your own input.** Found by dogfooding, and the
+  most serious thing still open: it fires on `send "…print DONE" --wait-for-regex DONE`, which is
+  the primary way to drive an agent. Measured against `python3 -q`, it returned in 0.22s with
+  `matched: true`, ten seconds before the code ran, 4 times out of 4. rune locates the echo by exact
+  substring, which fails whenever the child *transforms* it — a REPL repainting per keystroke, or
+  readline wrapping past the terminal width. The fix is probably to locate the echo in rendered text
+  rather than raw bytes, and that wants measuring rather than guessing, so it is documented with a
+  reliable workaround instead: choose a pattern that cannot appear in your input.
+- Seven further findings are listed in `ROADMAP.md`, including `--max-output` splicing head and tail
+  with no marker, an unparseable `--grep` returning the whole transcript, and unknown flags being
+  typed at the child rather than rejected.
 
 - **The screen tail could cut an escape sequence in half and print its remainder onto the screen.**
   Found from a census of a real agent's output: 109,364 absolute cursor moves and 31,798

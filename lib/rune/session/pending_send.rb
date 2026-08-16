@@ -74,8 +74,25 @@ module Rune
       # Records that something other than the pty's echo has arrived. Settling
       # additionally requires this: "never started" is a timeout, not a settle,
       # and callers who genuinely expect no reply use --no-wait.
-      def observe(slice)
-        @saw_output = true unless beyond_echo(slice, now: nil).strip.empty?
+      #
+      # `now` is not optional, and passing nil here was a real bug rather than a
+      # tidy default. `beyond_echo`'s partial-echo guard is written `if now &&
+      # ...`, so a nil clock skipped it entirely and handed back the half-
+      # arrived echo as though it were a reply. Since @saw_output latches, one
+      # such tick was enough: the send then settled on the caller's own words
+      # while the child was still thinking, and returned them as the answer.
+      # A pty delivers a long line in several reads, so this fired whenever the
+      # input was longer than one read — which is most real prompts.
+      def observe(slice, now:)
+        # Latched, so once true there is nothing left to learn — and this is the
+        # hot path. `beyond_echo` re-scans the *whole* accumulated slice every
+        # tick, so without this a large turn is quadratic: a 12MB burst the
+        # child produced in 3s took the supervisor 67s to resolve, pegged at
+        # 100% CPU, and a caller with a 30s timeout was told it timed out while
+        # holding two thirds of a completed answer.
+        return if @saw_output
+
+        @saw_output = true unless beyond_echo(slice, now: now).strip.empty?
       end
 
       # The outcome for this tick, or nil to keep waiting.

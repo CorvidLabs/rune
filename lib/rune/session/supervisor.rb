@@ -644,8 +644,9 @@ module Rune
         return unless @pending
 
         slice = slice_from(@pending.cursor)
-        @pending.observe(slice)
-        outcome = @pending.outcome(slice, now: monotonic, child_finished: @child_finished,
+        now = monotonic
+        @pending.observe(slice, now: now)
+        outcome = @pending.outcome(slice, now: now, child_finished: @child_finished,
                                           submitted: @submit_at.nil?, last_output_at: @last_output_at)
         settle_pending(slice, **outcome) if outcome
       end

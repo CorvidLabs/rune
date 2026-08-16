@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786846300,
-  "commit": "33094e86b6d510722a50554436053a29bbfeb998",
+  "timestamp": 1786853617,
+  "commit": "8856cdf9a4030ba3898c6dc88299e97721cbb187",
   "contract_digest": "af09da4ecbcd72737b2970a443eefc179709c90ce65df42d2c97d602c525b405",
-  "workspace_digest": "7775b9a2df6f4fcf7b65f5a52d72534d57b2eaf32fde198e568b72a4f65e5fa0",
-  "acceptance_input_digest": "c50c4caf61264e7b423ef3cb20940b70d533dfb05c26caa257fe12f1fc3be45b",
+  "workspace_digest": "dc4b67529501342047bebdf016b362478bd566f49e0c3ef3094b54a328971d20",
+  "acceptance_input_digest": "690f7da337a83801fa16a0369bbbb1e112abcd5d3a2f987561588e97eb07bad7",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": "CHANGELOG.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "b0cb29ab60f7f114b7987b754da1b324c5bc9bf95bb416e7f2418b6095040fa7",
-        "entry_digest": "a4d7eda27ad9bc239c64cda9db4b58699aae835d5c2174ac89139d316ea3c2f5",
+        "payload_digest": "cabc64ecca4ee6dd808f576442e97cac811b05dbe02ad2721beda3deb0bea560",
+        "entry_digest": "cc741e27b82eb4ef5cb940c93d1d738f1b8fe933ef8c29396d558390d891ad83",
         "owners": [
           "@exact:delivery"
         ]
@@ -31,8 +31,8 @@
         "path": "Gemfile.lock",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "17a0529644811d7723ec5f5f463018997fa66dbaa1c8745c56f4f1a027d79fc1",
-        "entry_digest": "9a98a43c63241fa29e8a137fb41d395df49bbf48f676e03475d5bb042665c4c6",
+        "payload_digest": "6d71e37ae82e8a46300ad28b73a7611282f948e3b67cc586a7873ef79ee6e4ac",
+        "entry_digest": "4cedd87ebec621e72fe7f0cbcc9b886cfb9feb0499dc2c108157640fedf5bba3",
         "owners": [
           "@exact:delivery"
         ]
@@ -41,8 +41,8 @@
         "path": "lib/rune/version.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "0e0e97c80190bccbdc179321b9b71253a79edb34a71a27eb8c62948068ea6e6e",
-        "entry_digest": "ba5c4fe38085fea46b1db6a54ae950d2002c13d56b3b45be520190a518166564",
+        "payload_digest": "e70bbc2df77d77284c5c3a1c79efe89412f5cedb08e0e43b249b801a9ec4ed11",
+        "entry_digest": "a4592a77cdfe91edf890e8bd56e93717a17c733234d335e91db2176539d3699f",
         "owners": [
           "cli"
         ]
@@ -51,8 +51,8 @@
         "path": "plugin.toml",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "6180f96c01f4e9e5adb72c3a84ce00319ee323e25c444e4649290bb127adce1d",
-        "entry_digest": "f44d57c127cbc8ad4dba22d0c469d48f932cec483ea0f4d86d5bd89b8e5f042a",
+        "payload_digest": "ec46e26e40d1fdbe0a36b4a0e75bc70d43c110f5952701fa8dc7f87732ad62b3",
+        "entry_digest": "8c0df8926b7f66779b7c5796564c1270ba5d145cc5511839d52b8b488952cab3",
         "owners": [
           "@exact:delivery"
         ]
@@ -61,8 +61,8 @@
         "path": "specs/cli/cli.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "03af38a76ce108bd585a51216b8f1367fad35425e681f2175f0abdf4ad650d99",
-        "entry_digest": "0f49fc4e4ed9eff455e55bc22bf2bdcbe1de861a99083ccd7c920419e39c7c59",
+        "payload_digest": "198b2f61f50d8543816d213d4568c8932e335fa21a6101ba8293f43740955ad7",
+        "entry_digest": "6b124fa414b95b7bb0b953feffba71fd1bbabcef5b7c30bec5c9caa9c8f7b666",
         "owners": [
           "cli"
         ]

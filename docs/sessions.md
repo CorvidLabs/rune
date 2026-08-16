@@ -12,7 +12,7 @@ started it, and `send` blocks until the child has actually answered.
 
 ```console
 $ rune session start -- grok
-{"action":"start","name":"grok-amber","state":"running"}
+{"name":"grok-amber","command":["grok"],"child_pid":68012,"supervisor_pid":67926,"state":"running"}
 ```
 
 Omit `--name` and rune generates an unused `<tool>-<word>` codename. That matters more than it
@@ -32,8 +32,13 @@ $ rune session list --all-projects   # everything, labelled by project
 
 ```console
 $ rune session start --name grok -- grok
-{"action":"start","name":"grok","child_pid":68012,"supervisor_pid":67926,"state":"running"}
+{"name":"grok","command":["grok"],"child_pid":68012,"supervisor_pid":67926,"state":"running"}
 ```
+
+**`start` succeeding does not mean the child is running.** If the command does not exist, the
+reply is still `status: "ok"` and `rune` still exits 0 — with `state: "exited"` and
+`exit_code: 127` in the body. The start itself worked; the child died instantly. Check `state`,
+not the process exit status.
 
 `start` returns immediately and the `rune` process exits. `grok` keeps running, owned by a detached
 supervisor that holds its pty.
@@ -90,7 +95,9 @@ $ rune session archive --name reviewer
 $ rune session list --archived
 ```
 
-Archiving frees the name and files the transcript under the project's archive. An archived session
+Archiving frees the name and files the transcript under the project's archive. An archived session is out of
+`read`'s reach — `read --name` on it reports no such session — so pull anything you still want
+*before* archiving. An archived session
 can never be mistaken for a live one, and reusing the name starts genuinely fresh — `start` resets
 the transcript so `send` cursors and `read` offsets always describe the same lifetime.
 
@@ -110,11 +117,29 @@ whenever you know what the callee prints when it's done:
 $ rune session send --name s --wait-for-regex '\$ $' "ls"
 ```
 
+> **Known limitation: the pattern can match the pty's echo of your own input.** A pty echoes what
+> you write, so if your pattern appears in the text you sent, it can match before the child has
+> done anything. rune tries to skip the echo by locating it in the output, and that fails when the
+> child *transforms* it — a REPL that repaints per keystroke, or readline wrapping a line past the
+> terminal width. Measured: `send --wait-for-regex PYDONE "…print('PYDONE')"` against `python3 -q`
+> returned in 0.22s with `matched: true`, ten seconds before the code ran, 4 times out of 4.
+>
+> **The workaround is reliable: choose a pattern that cannot appear in your input.** Ask for a
+> token you never spell out — `"print the word DONE followed by the number of files changed"` and
+> match `/DONE \d+/` — or match on something structural like a shell prompt, as above. Nothing in
+> the reply distinguishes an echo match from a real one, so do not rely on `matched` alone when
+> your pattern is a literal you also sent.
+
 **`--timeout-ms N` (default 120000)** — a hard cap. On expiry you get what was captured plus
 `settled: false, timed_out: true` — a result, not a failure. Set this deliberately: the default is
 generous because agents are slow, so a mistaken call costs two minutes.
 
-`--no-wait` writes and returns immediately, for when you don't expect a reply at all.
+`--no-wait` writes and returns immediately, for when you don't expect a reply at all. Its reply is a
+different shape — `{action, name, sent: true, waited: false}`, with no `output`, `cursor` or
+`prompt_detected`, because nothing was waited for.
+
+`--no-newline` writes the text without the trailing carriage return that submits it, for composing a
+line in pieces or driving a TUI that reads keystrokes.
 
 ### The other fields on a reply
 
@@ -132,14 +157,30 @@ generous because agents are slow, so a mistaken call costs two minutes.
   the previous question.
 - `regex_timed_out: true` — the `--wait-for-regex` pattern exceeded its match budget and was
   abandoned. Almost always a catastrophically backtracking pattern; simplify it.
-- `child_busy` / `idle_ms` — whether the child has printed anything within the settle window, and
-  how long since it last did. This is the structured form of "is it still working": read it rather
-  than grepping the callee's own UI for a busy marker, which is presentation and changes without
-  notice. Note it says the child is *printing*, not that it is *working* — a child that backgrounded
-  a command and went quiet reports `child_busy: false`.
 - `dropped_bytes` — a count of earlier output rotated away before this read. It does **not**
   invalidate a `--since` cursor: cursors stay absolute, so one from before the rotation returns
   everything still held rather than an error.
+
+### `child_busy` and `idle_ms` are on `read`, not on `send`
+
+Whether the child has printed anything within the settle window, and how long since it last did.
+This is the structured form of "is it still working": use it rather than grepping the callee's own
+UI for a busy marker, which is presentation and changes without notice.
+
+**They are fields of `read` and `list`, not of a `send` reply.** A `send` already blocked until the
+child settled, so ask afterwards:
+
+```console
+$ rune session send --name grok --settle-ms 2500 "run the suite"
+$ rune session read --name grok --tail 1 --json     # child_busy, idle_ms
+```
+
+This document previously listed both among a `send` reply's fields, which is wrong in the way that
+matters most — a caller who reads `.child_busy` off a `send` gets `nil`, and falls back to grepping
+the UI, which is the exact thing these fields exist to replace.
+
+Note the name says the child is *printing*, not that it is *working*: a child that backgrounded a
+command and went quiet reports `child_busy: false`.
 
 ### Finding something in a long transcript
 
@@ -222,6 +263,29 @@ may be entirely faithful: if its layout shifts down a row and it repaints at the
 old copy has nothing to remove it, and **a real terminal shows the duplicate too**. Before treating
 a repeated line as a rune bug, check whether the agent erases anything at all.
 
+### Known limitation: a polled `--screen` can return a half-painted frame
+
+Reported from real use, and **not fixed**. Polling `--screen` on a repainting agent occasionally
+returns a frame that is mid-repaint — in the reported case, a line duplicated on two adjacent rows.
+
+Two candidate fixes were measured and rejected. Comparing consecutive renders and returning only a
+repeated one measured **worse** than doing nothing — 13 torn frames out of 20 against 11 — because
+an agent painting on a cycle rarely renders the same frame twice, so the check times out and hands
+back the torn frame regardless. Redefining stability as quiescence could not reproduce the tear at
+all: the identical child gave 11/20 once and 0/20 twice, which means the harness was not measuring
+what it appeared to. A fix that fails silently toward "looks done" is worse than a limitation you
+can plan around.
+
+**What to do about it.** Do not treat one rendered frame as authoritative for a decision you cannot
+undo. If you are reading a value, poll twice and require agreement. If you are waiting for a marker,
+`--wait-for-regex` is deterministic where `--screen` is a snapshot.
+
+**It may not be rune's fault.** A census of one agent's output over 4.5MB found zero erases of any
+kind, and an agent that never erases and shifts its layout leaves the old copy on screen — a real
+terminal shows the duplicate too. rune's renderer agrees with an independent emulator across six
+profiles built from that census. Before filing a duplicated line as a rune bug, check whether the
+agent erases anything at all.
+
 ### The transcript is bounded
 
 Both the file and the supervisor's memory are capped, so a session left running for a day does not
@@ -239,8 +303,10 @@ longer held.
 - **A single line of 1024+ bytes vanishes into a cooked-mode child.** That is `MAX_CANON`, a
   terminal limit, not rune's: the line discipline cannot assemble a longer canonical line and drops
   it silently — 1023 bytes arrive, 1024 do not. Most agent CLIs run their terminal in raw mode and
-  are unaffected (300KB arrives byte-perfect), but a shell-like child will simply never see a long
-  prompt. Chunk it, or drive a raw-mode target.
+  are unaffected (300KB arrives byte-perfect). So does an interactive shell: `bash --norc -i` uses
+  readline, which puts the terminal in raw mode, and takes a 1995-character line byte-perfect. The
+  limit bites a child that reads in *cooked* mode — a bare `cat`, or a script reading stdin without
+  readline. Chunk it, or drive a raw-mode target.
 - Enter is sent as a carriage return, which is what a real terminal sends, so raw-mode TUIs receive
   it. Cooked-mode shells are unaffected.
 - The child's pty gets an explicit window size, because a detached session has no terminal to copy

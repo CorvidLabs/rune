@@ -39,6 +39,28 @@ module Rune
       # form feed are line-feed class motion, not text, and were previously
       # written into the screen as characters.
       PRINTABLE = /[^\e\r\n\x08\x0b\x0c\t]+/
+      # The ECMA-48 CSI grammar: parameter bytes 0x30-0x3F, then intermediate
+      # bytes 0x20-0x2F, then one final byte 0x40-0x7E.
+      #
+      # The previous pattern allowed neither `:` nor the intermediates, so
+      # `\e[2 q` (DECSCUSR — set cursor shape, emitted by fish, starship, zsh
+      # vi-mode and Codex CLI) and `\e[38:2::255:0:0m` (the ITU-T T.416 colon
+      # form of truecolour SGR) did not match, fell through, and were *printed*:
+      # a real capture of one agent contained 80 such sequences.
+      CSI = %r{\[[0-9:;<=>?]*[ -/]*[@-~]}
+      # Escape forms that cannot move the cursor, so can be consumed and
+      # dropped — but must be *consumed*, since anything left behind is printed.
+      IGNORED = [
+        /\][^\a\e]*(?:\a|\e\\)/,          # OSC, terminated by BEL or ST
+        /[PX^_][^\e]*\e\\/,               # DCS, SOS, PM, APC
+        %r{[()*+][A-Za-z0-9<>%"&./:?-]},   # charset designation into G0-G3
+        /[%#][@A-Za-z0-9]/,                # UTF-8 select, DEC screen alignment
+        /[=><cHNOZlmno|}~]/,               # keypad mode, RIS, HTS, SS2/SS3, ...
+        / [FGLMN]/                         # ANSI conformance level
+      ].freeze
+      # A sequence the buffer ended in the middle of, with its terminator not
+      # yet arrived.
+      INCOMPLETE = %r{\A(?:\[[0-9:;<=>?]*[ -/]*|\][^\a\e]*|[PX^_][^\e]*|[()*+#% ])\z}
       # CSI final byte to the operation it performs. A table rather than a case
       # so that adding a sequence is a line, not a branch.
       CONTROLS = {
@@ -48,6 +70,7 @@ module Rune
         'J' => :erase_display, 'K' => :erase_line,
         '@' => :insert_blanks, 'P' => :delete_characters, 'X' => :erase_characters,
         'L' => :insert_lines, 'M' => :delete_lines, 'S' => :scroll_up, 'T' => :scroll_down,
+        'r' => :scroll_region,
         's' => :save_cursor, 'u' => :restore_cursor
       }.freeze
       # Single-byte escapes that move the cursor, so cannot be discarded.
@@ -129,7 +152,7 @@ module Rune
       end
 
       def escape(scanner)
-        csi = scanner.scan(/\[[0-9;?<>=!]*[@-~]/)
+        csi = scanner.scan(CSI)
         return csi_control(csi) if csi
 
         single = scanner.scan(/[DEM78]/)
@@ -137,17 +160,39 @@ module Rune
 
         # Consumed and ignored: none of these can move the cursor, so none of
         # them can change the text on the screen.
-        scanner.scan(/\][^\a\e]*(?:\a|\e\\)/) || scanner.scan(/[PX^_][^\e]*\e\\/) ||
-          scanner.scan(/[()][AB0K]/) || scanner.scan(/[=><]/)
+        #
+        # The list is long because anything *not* consumed here is printed. ESC
+        # is already gone by the time we arrive, so an unrecognised escape
+        # leaves its body to be matched by PRINTABLE and written onto the
+        # screen — the same failure as the `ESC D` that printed a literal `D`,
+        # which was fixed for three escapes and left in place for the rest.
+        # `\ec` put a literal `c` on screen, `\e(1` a `(1`, `\eN` an `N`.
+        IGNORED.any? { |pattern| scanner.scan(pattern) } || incomplete(scanner)
+      end
+
+      # A sequence the buffer ended in the middle of. Consumed rather than
+      # printed, because a real terminal holds an incomplete sequence in its
+      # parser and shows nothing. This is the normal case rather than an edge
+      # one: a live session's transcript ends wherever the last read landed, so
+      # `read --screen` regularly renders a stream cut mid-escape. Truncating
+      # the *start* of the window was fixed first; this is the same bug at the
+      # other end.
+      def incomplete(scanner)
+        scanner.terminate if scanner.rest.match?(INCOMPLETE)
       end
 
       def csi_control(csi)
         operation = CONTROLS[csi[-1]]
+        parameters = csi[1..-2].to_s
         # Private-parameter forms are modes (`\e[?25l`, `\e[?1049h`), never
         # cursor motion, and must not be mistaken for their public namesakes.
         return if operation.nil? || csi.include?('?')
+        # An intermediate byte selects a *different* function sharing the same
+        # final byte, so honouring one as its plain namesake would act on a
+        # sequence that means something else entirely.
+        return if parameters.match?(%r{[ -/]})
 
-        @screen.public_send(operation, csi[1..-2].to_s.delete('<>=!').split(';').map(&:to_i))
+        @screen.public_send(operation, parameters.delete('<>=!').split(';').map(&:to_i))
       end
 
       # The grid and cursor a terminal would maintain. Separated from the
@@ -171,6 +216,30 @@ module Rune
           # state no terminal uses, which every relative move then read wrong.
           @wrap_pending = false
           @saved = nil
+          # DECSTBM. Scrolling happens at the region's edges, not the screen's,
+          # and every pager, editor and full-screen agent sets one: `less`,
+          # `vim`, `htop`, Codex CLI and Claude Code all define a region and
+          # then rely on a line feed at its bottom to scroll. Ignoring `\e[t;br`
+          # meant a line feed at the region bottom walked down the page
+          # instead. Replaying two real captured agent transcripts, 8 of 40
+          # rows differed from a reference emulator; stripping only the region
+          # sequences from the same bytes dropped that to 0.
+          @top = 0
+          @bottom = @rows - 1
+        end
+
+        # DECSTBM. Out-of-order or out-of-range bounds are ignored wholesale, as
+        # a real terminal does, rather than half-applied.
+        def scroll_region(numbers)
+          top = (numbers[0].to_i.positive? ? numbers[0].to_i : 1) - 1
+          bottom = (numbers[1].to_i.positive? ? numbers[1].to_i : @rows) - 1
+          return unless top < bottom && top >= 0 && bottom <= @rows - 1
+
+          @top = top
+          @bottom = bottom
+          # DECSTBM homes the cursor, which is why a pager can set a region and
+          # start drawing without a separate CUP.
+          move_to(0, 0)
         end
 
         def to_s = @grid.map(&:rstrip).join("\n").sub(/\n+\z/, '')
@@ -204,12 +273,13 @@ module Rune
 
         def newline
           @wrap_pending = false
-          if @row >= @rows - 1
-            @grid.shift
-            @grid.push(+'')
-          else
-            @row += 1
-          end
+          return @row += 1 if @row < @bottom
+          # Below the region entirely: a line feed still moves down, and only
+          # the screen's own last row can stop it.
+          return @row += 1 if @row > @bottom && @row < @rows - 1
+          return if @row > @bottom
+
+          scroll_region_up(1)
         end
 
         # ESC D / ESC E / ESC M. Previously unrecognised, so the escape was
@@ -224,10 +294,10 @@ module Rune
 
         def reverse_index(_numbers = [])
           @wrap_pending = false
-          return @row -= 1 if @row.positive?
+          return @row -= 1 if @row > @top || (@row.positive? && @row < @top)
+          return if @row != @top
 
-          @grid.pop
-          @grid.unshift(+'')
+          scroll_region_down(1)
         end
 
         # DECSC/DECRC and CSI s/u. Ignoring these was justified in a comment
@@ -269,9 +339,13 @@ module Rune
           when 1
             erase_line([1])
             (0...@row).each { |row| @grid[row] = +'' }
-          else
+          when 2
             @grid = Array.new(@rows) { +'' }
           end
+          # 3 is "erase saved lines" — the scrollback, which this renderer does
+          # not keep — and anything else is undefined. Both were reaching an
+          # `else` that cleared the display, so `\e[3J` (emitted by `clear` and
+          # by several TUIs on startup) wiped output that is still on screen.
         end
 
         # Both directions include the cell under the cursor, per ECMA-48. Mode 1
@@ -280,56 +354,85 @@ module Rune
         def erase_line(numbers)
           @wrap_pending = false
           line = @grid[@row]
+          # Only 0, 1 and 2 are defined; an unknown parameter is a no-op rather
+          # than the full-line erase an `else` used to give it.
           @grid[@row] = case numbers.first.to_i
                         when 0 then line[0, @column].to_s
                         when 1 then (' ' * (@column + 1)) + line[(@column + 1)..].to_s
-                        else +''
+                        when 2 then +''
+                        else line
                         end
         end
 
         # ICH: shift the rest of the line right, losing what falls off the edge.
         def insert_blanks(numbers)
           line = padded_line
-          @grid[@row] = (line[0, @column].to_s + (' ' * count(numbers)) + line[@column..].to_s)[0, @columns].to_s
+          @grid[@row] =
+            (line[0, @column].to_s + (' ' * span(numbers, @columns)) + line[@column..].to_s)[0, @columns].to_s
           @wrap_pending = false
         end
 
         # DCH: shift the rest of the line left over the deleted characters.
         def delete_characters(numbers)
           line = padded_line
-          @grid[@row] = line[0, @column].to_s + line[(@column + count(numbers))..].to_s
+          @grid[@row] = line[0, @column].to_s + line[(@column + span(numbers, @columns))..].to_s
           @wrap_pending = false
         end
 
         # ECH: blank characters in place, without shifting anything.
         def erase_characters(numbers)
           line = padded_line
-          @grid[@row] = line[0, @column].to_s + (' ' * count(numbers)) + line[(@column + count(numbers))..].to_s
+          blanks = span(numbers, @columns)
+          @grid[@row] = line[0, @column].to_s + (' ' * blanks) + line[(@column + blanks)..].to_s
           @wrap_pending = false
         end
 
+        # IL/DL act from the cursor to the region bottom, and do nothing at all
+        # outside the region.
         def insert_lines(numbers)
-          count(numbers).times { @grid.insert(@row, +'') }
-          @grid.slice!(@rows..)
           @wrap_pending = false
+          return unless @row.between?(@top, @bottom)
+
+          span(numbers, @rows).times do
+            @grid.insert(@row, +'')
+            @grid.delete_at(@bottom + 1)
+          end
         end
 
         def delete_lines(numbers)
-          count(numbers).times { @grid.delete_at(@row) }
-          @grid.push(+'') while @grid.length < @rows
           @wrap_pending = false
+          return unless @row.between?(@top, @bottom)
+
+          span(numbers, @rows).times do
+            @grid.delete_at(@row)
+            @grid.insert(@bottom, +'')
+          end
         end
 
         def scroll_up(numbers)
-          count(numbers).times { @grid.shift }
-          @grid.push(+'') while @grid.length < @rows
           @wrap_pending = false
+          scroll_region_up(span(numbers, @rows))
         end
 
         def scroll_down(numbers)
-          count(numbers).times { @grid.unshift(+'') }
-          @grid.slice!(@rows..)
           @wrap_pending = false
+          scroll_region_down(span(numbers, @rows))
+        end
+
+        # Scrolling is always confined to the region; with the default region
+        # that is the whole screen, so the ordinary case is unchanged.
+        def scroll_region_up(lines)
+          lines.times do
+            @grid.delete_at(@top)
+            @grid.insert(@bottom, +'')
+          end
+        end
+
+        def scroll_region_down(lines)
+          lines.times do
+            @grid.delete_at(@bottom)
+            @grid.insert(@top, +'')
+          end
         end
 
         private
@@ -338,6 +441,20 @@ module Rune
         def count(numbers)
           value = numbers.first.to_i
           value.positive? ? value : 1
+        end
+
+        # The same, bounded by the dimension the sequence operates on.
+        #
+        # A real terminal cannot insert more blanks than a line holds or scroll
+        # by more rows than it has, so it clamps and returns immediately. rune
+        # took the parameter literally and used it as an allocation or loop
+        # bound, which made a single escape sequence in *child output* enough to
+        # take the renderer down: `\e[99999999999999999999@` raised RangeError
+        # out of `.render` and killed `read --screen`, `\e[999999999@` allocated
+        # 2.9GB, and `\e[1000000L` never finished. This renders untrusted bytes,
+        # so an unclamped count is a denial of service, not a cosmetic bug.
+        def span(numbers, bound)
+          [count(numbers), bound].min
         end
 
         # Every explicit move clears a pending wrap, which is what makes the

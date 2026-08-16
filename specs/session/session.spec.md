@@ -1,6 +1,6 @@
 ---
 module: session
-version: 20
+version: 21
 status: active
 files:
   - lib/rune/session/store.rb
@@ -264,6 +264,8 @@ deciding who talks to whom stays the calling agent's job.
 | `screen_after` | internal method | Renders the settled screen for `send --screen`, client-side. |
 | `busy_fields` | internal method | Whether the child printed within the settle window, and how long since. |
 | `read_payload` | internal method | Builds the result body for a transcript read. |
+| `ALIASES` | constant | Internal option keys whose user-facing flag is not their name with dashes. |
+| `flag_name` | internal method | What to call a flag when speaking to the person who typed it. |
 | `GENERATED_NAME_ATTEMPTS` | constant | How many codenames a start without `--name` tries before giving up. |
 | `REPLY_DRAIN_TIMEOUT` | constant | How long teardown keeps pushing out replies that are already queued. |
 | `drain_replies` | internal method | Delivers queued replies before teardown closes their sockets. |
@@ -695,3 +697,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-15 | CHG-0048-add-read-grep-for-searching-a-long-transcript-and-correct-what-the-docs-claim: Add read --grep for searching a long transcript, and correct what the docs claim about prompt_detected and settled |
 | 2026-08-15 | CHG-0049-report-child-busy-and-idle-ms-on-read-and-document-that-exit-code-is-a-process: Report child_busy and idle_ms on read, and document that exit_code is a process status rather than a verdict on the work |
 | 2026-08-15 | CHG-0050-extract-the-transcript-out-of-sessioncommand-reconstruction-cursors-search-an: Extract the transcript out of SessionCommand: reconstruction, cursors, search and rendering are one subject |
+| 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
