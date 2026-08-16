@@ -1,6 +1,6 @@
 ---
 module: session
-version: 21
+version: 22
 status: active
 files:
   - lib/rune/session/store.rb
@@ -58,6 +58,16 @@ deciding who talks to whom stays the calling agent's job.
 | `screen` | instance method | What a terminal would be showing. |
 | `grep` | instance method | Lines matching a pattern with surrounding context, and how many matched. |
 | `filter` | internal method | Applies `--grep` to a read, or reports an unparseable pattern. |
+| `Echo` | class | The pty's echo of one send, and where it ends in what has arrived back. |
+| `ESCAPE_SEQUENCE` | constant | Escape forms removed when condensing text for echo location. |
+| `PRINTED` | constant | A run of characters that survives condensing. |
+| `ECHO_SEARCH_LIMIT` | constant | Ceiling on the slice searched for the echo, bounding per-tick cost. |
+| `ECHO_COPY_MARGIN` | constant | How far around a match to look for a repainted copy of the input. |
+| `REPAINT_MARGIN_FLOOR` | constant | Smallest window the repaint veto will consider, for a short echo. |
+| `condense` | class method | Drops escapes and whitespace, so a transformed echo still matches what was sent. |
+| `empty?` | instance predicate | Whether anything was sent to echo back. |
+| `beyond` | instance method | The text past the located echo, or nil while it is unlocated. |
+| `repaint?` | instance method | Whether a repainted copy of the input covers a candidate match. |
 | `PendingSend` | class | One in-flight `send` and the decision of when it has been answered. |
 | `observe` | instance method | Records that something other than the pty's echo has arrived. |
 | `outcome` | instance method | The outcome for this tick, or nil to keep waiting. |
@@ -698,3 +708,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-15 | CHG-0049-report-child-busy-and-idle-ms-on-read-and-document-that-exit-code-is-a-process: Report child_busy and idle_ms on read, and document that exit_code is a process status rather than a verdict on the work |
 | 2026-08-15 | CHG-0050-extract-the-transcript-out-of-sessioncommand-reconstruction-cursors-search-an: Extract the transcript out of SessionCommand: reconstruction, cursors, search and rendering are one subject |
 | 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
+| 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |

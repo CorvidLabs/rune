@@ -13,9 +13,9 @@ skip_reason = ""
 threshold = "block"
 
 [provenance]
-mode = "soft"
+mode = "off"
 policy = ".attest.json"
-skip_reason = ""
+skip_reason = "Provenance required a manual signing step before every release. It was skipped for v0.4.0, v0.5.0 and v0.6.0 and nobody noticed, because the only thing gated on it was a GitHub Packages gem that nothing installs - the Homebrew formula builds from the tag tarball and the rubygems.org job is disabled. Enforcing it instead blocked releases on a human keystroke. A gate that is either skipped silently or blocks the work is not buying safety, so it is off and recorded as off rather than left to fail."
 
 [atlas]
 enabled = false

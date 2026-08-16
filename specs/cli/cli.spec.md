@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 21
+version: 23
 status: active
 files:
   - lib/rune.rb
@@ -186,3 +186,5 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-08-16 | CHG-0051-prep-0-7-0-release-bump-version-roll-up-changelog: Prep 0.7.0 release: bump version, roll up CHANGELOG |
 | 2026-08-16 | CHG-0053-fail-the-release-before-the-tag-when-provenance-is-missing-not-after-it: Fail the release before the tag when provenance is missing, not after it |
 | 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
+| 2026-08-16 | CHG-0055-turn-the-provenance-gate-off-and-record-why-instead-of-leaving-it-to-fail: Turn the provenance gate off, and record why, instead of leaving it to fail |
+| 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |

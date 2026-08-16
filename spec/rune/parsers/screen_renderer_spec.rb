@@ -175,7 +175,6 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
       "\e[2 q$ ready" => '$ ready',                       # DECSCUSR: intermediate byte
       "\e[38:2::255:0:0mERROR" => 'ERROR',                # SGR in ITU-T T.416 colon form
       "\e[0\"qb" => 'b',                                  # DECSCA
-      "stale\ecfresh" => 'stalefresh',                    # RIS
       "col\eHumn" => 'column',                            # HTS
       "a\eNb\eOc" => 'abc',                               # SS2 / SS3
       "a\e*Bb\e+Bc" => 'abc',                             # G2 / G3 designation
@@ -258,6 +257,66 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
     # not keep. `clear` emits it, and it was wiping the visible screen.
     it 'leaves the display alone on erase-saved-lines' do
       expect(described_class.render("first\r\nsecond\e[3J", rows: 6, columns: 40)).to eq("first\nsecond")
+    end
+  end
+
+  # Found by a second review round, each verified against GNU screen and
+  # @xterm/headless. pyte disagrees on one of these and is wrong: `\e[<u` is a
+  # well-formed CSI (`<` is a parameter byte, `u` a final byte) so it must be
+  # consumed whole, and pyte prints the `u`.
+  describe 'control bytes and private-marker sequences' do
+    it 'does not write BEL, NUL, SO, SI or DEL into the grid' do
+      raw = "bell\anul\x00so\x0esi\x0fdel\x7fend"
+
+      expect(described_class.render(raw, rows: 4, columns: 40)).to eq('bellnulsosidelend')
+    end
+
+    # `TERM=screen tput sgr0` is `\e[m\x0f\x0f`, so ncurses under tmux emitted
+    # two literal cells and a two-column shift on every attribute reset.
+    it 'does not shift the line on the SI pair ncurses emits with sgr0' do
+      expect(described_class.render("A\e[m\x0f\x0fB", rows: 4, columns: 40)).to eq('AB')
+    end
+
+    # `?` was guarded and `<`, `>`, `=` were not, though all four are ECMA-48
+    # private-prefix bytes. Across 451 real captures there were 526 private
+    # `CSI u` forms and zero public ones, so restore-cursor never fired
+    # correctly on real agent output — it only ever teleported the cursor.
+    it 'does not run a private-marker sequence as its public namesake' do
+      expect(described_class.render("L1\r\nL2\r\nL3\e[>2T", rows: 4, columns: 40)).to eq("L1\nL2\nL3")
+      expect(described_class.render("AB\e[3;3HCD\e[<u", rows: 4, columns: 40)).to eq("AB\n\n  CD")
+    end
+  end
+
+  # 0.8.0 gave the renderer scroll-region state, which turned two previously
+  # harmless no-ops into paths that leave that state stale.
+  describe 'resetting the scroll region' do
+    # The trigger is someone typing `reset` or `tput init` to recover a garbled
+    # agent TUI — exactly when a region is live. terminfo's rs1 for xterm is
+    # `\ec` and rs2/is2 begin with `\e[!p`.
+    it 'resets the region and clears the screen on RIS' do
+      raw = "\e[2;3rA\r\nB\r\nC\ecX\r\nY\r\nZ\r\nQ"
+
+      expect(described_class.render(raw, rows: 4, columns: 20)).to eq("X\nY\nZ\nQ")
+    end
+
+    # DECSTR carries an intermediate byte, so both csi_control guards rejected
+    # it, and its final byte is not in CONTROLS — it was dropped twice over.
+    it 'resets the region without clearing the screen on DECSTR' do
+      raw = "\e[2;3rA\r\nB\r\nC\e[!pX\r\nY\r\nZ\r\nQ"
+
+      expect(described_class.render(raw, rows: 4, columns: 20)).to eq("X\nY\nZ\nQ")
+    end
+
+    it 'prints neither escape as text' do
+      expect(described_class.render("ok\ecfresh", rows: 4, columns: 20)).to eq('fresh')
+    end
+
+    # Discarding an out-of-range region leaves the PREVIOUS one in force, which
+    # is worse than doing nothing now that regions exist.
+    it 'clamps a region whose bottom is past the last row rather than discarding it' do
+      raw = "\e[2;5r\e[3;99r\e[8;1HX\nY"
+
+      expect(described_class.render(raw, rows: 8, columns: 20)).to eq("\n\n\n\n\n\nX\n Y")
     end
   end
 

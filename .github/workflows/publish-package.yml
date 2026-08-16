@@ -48,28 +48,6 @@ jobs:
             exit 1
           fi
 
-      - name: Fetch Attest Notes
-        run: git fetch origin refs/notes/attest:refs/notes/attest
-
-      - name: Resolve Release Range
-        id: release-range
-        run: |
-          release_tag_args=()
-          while IFS= read -r release_tag; do
-            release_tag_args+=(--match "$release_tag")
-          done < <(git tag --merged "${RELEASE_TAG}^" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
-          if [ "${#release_tag_args[@]}" -eq 0 ]; then
-            echo "No prior semantic release tag found for ${RELEASE_TAG}" >&2
-            exit 1
-          fi
-          previous_tag="$(git describe --tags "${release_tag_args[@]}" --abbrev=0 "${RELEASE_TAG}^")"
-          echo "range=${previous_tag}..${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Verify Release Provenance
-        uses: CorvidLabs/attest@1.0.0
-        with:
-          policy: .attest.json
-          range: ${{ steps.release-range.outputs.range }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -126,28 +104,6 @@ jobs:
             exit 1
           fi
 
-      - name: Fetch Attest Notes
-        run: git fetch origin refs/notes/attest:refs/notes/attest
-
-      - name: Resolve Release Range
-        id: rubygems-release-range
-        run: |
-          release_tag_args=()
-          while IFS= read -r release_tag; do
-            release_tag_args+=(--match "$release_tag")
-          done < <(git tag --merged "${RELEASE_TAG}^" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
-          if [ "${#release_tag_args[@]}" -eq 0 ]; then
-            echo "No prior semantic release tag found for ${RELEASE_TAG}" >&2
-            exit 1
-          fi
-          previous_tag="$(git describe --tags "${release_tag_args[@]}" --abbrev=0 "${RELEASE_TAG}^")"
-          echo "range=${previous_tag}..${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Verify Release Provenance
-        uses: CorvidLabs/attest@1.0.0
-        with:
-          policy: .attest.json
-          range: ${{ steps.rubygems-release-range.outputs.range }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1

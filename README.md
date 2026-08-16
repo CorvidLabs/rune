@@ -264,7 +264,6 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
   ```
 - **[spec-sync](https://github.com/CorvidLabs/spec-sync)** — Contract enforcement (`specs/`)
 - **[augur](https://github.com/CorvidLabs/augur)** — Change risk scoring
-- **[attest](https://github.com/CorvidLabs/attest)** — Commit provenance, gated by the release lane
 
 ---
 
@@ -280,7 +279,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ## Development & Verification
 
 ```sh
-fledge run test         # Run RSpec test suite (411 examples, 87% line coverage)
+fledge run test         # Run RSpec test suite (405 examples, 87% line coverage)
 fledge run lint         # Run RuboCop linter (0 offenses)
 fledge lanes run verify # Full CI gate (lint + tests + strict 100%-coverage spec-sync)
 fledge lanes run release # Verify, smoke-test, and build the release gem

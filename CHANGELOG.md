@@ -14,13 +14,29 @@ code.
 
 ### Fixed
 
+- **`--wait-for-regex` matched the pty's echo of your own input.** It fired on
+  `send "…print DONE" --wait-for-regex DONE`, the primary way to drive an agent. The echo was
+  located by exact substring, which fails whenever the child *transforms* it — a REPL repainting per
+  keystroke, readline wrapping past the terminal width. It is now located in **condensed** text,
+  escapes and whitespace removed from both sides, with the offset memoised and a veto rejecting a
+  match that a repainted copy of the input covers. Measured against `python3 -q`: previously it
+  returned in 0.22s with `matched: true`, eight seconds before the code ran, 4 times out of 4; it
+  now waits for the real output, 3 times out of 3.
+
+  Worth recording what was rejected, because the roadmap had named it as the likely fix: rendering
+  the stream with `ScreenRenderer` and locating the echo on the rendered screen scored **worse** than
+  the shipped baseline and was the most expensive option tried. It fails on the wrap case precisely
+  because a slice starting mid-screen has no way to know the cursor column.
+
 - **`send` could settle on the pty's echo of your own input and return your words as the answer.**
   The exact thing the guide promised would not happen. `observe` passed `now: nil`, and the
   partial-echo guard reads `if now && ...`, so a nil clock skipped it and a half-arrived echo
   counted as a reply — and since that flag latches, one such tick was enough. A pty delivers a long
   line in several reads, so this fired for any input longer than one read, which is most real
   prompts. Measured against `bash -i` with a three-second command: **0 of 3 runs returned the
-  answer before, 3 of 3 after.**
+  answer before, 3 of 3 after** — including inputs that wrap past the terminal width. It does **not**
+  cover a child that *redraws* the input: `irb` and `python3 -q` still settle on their own repaint,
+  which is now documented in the guide and is the top item on the road to 1.0.
 - **A single escape sequence in child output could crash, hang, or exhaust memory.** Counts were
   used unclamped as loop and allocation bounds, so `\e[99999999999999999999@` raised `RangeError`
   out of `.render` and killed `read --screen`, `\e[999999999@` allocated 2.9GB, and `\e[1000000L`
@@ -64,7 +80,7 @@ would have built on:
 - **The architecture guide described the *old* `prompt_detected` semantics**, replaced deliberately
   in 0.3.0, and listed two prompt signatures that are not detected. The claims were removed rather
   than the patterns added: the detector's conservatism is deliberate.
-- The README's test numbers (`179 examples, 98%+`) against an actual 411 and 87%, an install command
+- The README's test numbers (`179 examples, 98%+`) against an actual 405 and 87%, an install command
   that is not a valid `fledge plugins install` source, `session start` examples matching neither
   output mode, and the `MAX_CANON` guidance, which claimed a shell-like child never sees a long line
   — `bash --norc -i` uses readline, so it takes a 1995-character line byte-perfect.
@@ -77,16 +93,24 @@ Newly documented because testing found them undocumented: `--no-wait` returns a 
 `ROADMAP.md` was three releases out of date, still tracking 0.2.0. It now records where rune is,
 what 1.0 needs, and every finding from this round that is not yet fixed.
 
+### Changed
+
+- **The provenance gate is off**, and `.trust.toml` records `provenance.mode = "off"` with the
+  reason rather than leaving a check to keep failing. It required signing every commit by hand
+  before a release; that step was skipped for v0.4.0, v0.5.0 and v0.6.0 and nobody noticed for three
+  releases, because the only thing gated on it was a GitHub Packages gem that nothing installs — the
+  Homebrew formula builds from the tag tarball and the rubygems.org job is disabled. Moving the same
+  check earlier, into the release lane, only converted a silent failure into a blocked release: the
+  gate was either skipped without consequence or stopped the work, and never in between. The
+  tag-and-version validation that actually prevents a wrong release is untouched.
+
 ### Known and not fixed
 
-- **`--wait-for-regex` can match the pty's echo of your own input.** Found by dogfooding, and the
-  most serious thing still open: it fires on `send "…print DONE" --wait-for-regex DONE`, which is
-  the primary way to drive an agent. Measured against `python3 -q`, it returned in 0.22s with
-  `matched: true`, ten seconds before the code ran, 4 times out of 4. rune locates the echo by exact
-  substring, which fails whenever the child *transforms* it — a REPL repainting per keystroke, or
-  readline wrapping past the terminal width. The fix is probably to locate the echo in rendered text
-  rather than raw bytes, and that wants measuring rather than guessing, so it is documented with a
-  reliable workaround instead: choose a pattern that cannot appear in your input.
+- **The settle path can still return your own input as the answer when the child redraws it.**
+  `--wait-for-regex` is fixed; `--settle-ms` is not. A rule was prototyped, measured at 12/12 on the
+  failing cases, and **rejected** because it broke a child whose reply ends with the request — the
+  counterexample and why coverage-based rules cannot work either are recorded in `ROADMAP.md`, so
+  the next attempt starts past that dead end.
 - Seven further findings are listed in `ROADMAP.md`, including `--max-output` splicing head and tail
   with no marker, an unparseable `--grep` returning the whole transcript, and unknown flags being
   typed at the child rather than rejected.

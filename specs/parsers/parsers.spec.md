@@ -1,6 +1,6 @@
 ---
 module: parsers
-version: 8
+version: 9
 status: active
 files:
   - lib/rune/parsers/table_parser.rb
@@ -54,6 +54,8 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | `CSI` | constant | The ECMA-48 CSI grammar: parameters, then intermediates, then a final byte. |
 | `IGNORED` | constant | Escape forms consumed and dropped, because anything not consumed is printed. |
 | `INCOMPLETE` | constant | A sequence the stream ended in the middle of, its terminator not yet arrived. |
+| `full_reset` | instance method | RIS: clears the grid, homes the cursor and resets the scroll region. |
+| `soft_reset` | instance method | DECSTR: resets region, saved cursor and origin without clearing the display. |
 | `scroll_region` | instance method | DECSTBM: confines scrolling to a band of rows, and homes the cursor. |
 | `scroll_region_up` | instance method | Scrolls the region up, losing its top row. |
 | `scroll_region_down` | instance method | Scrolls the region down, losing its bottom row. |
@@ -169,3 +171,4 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | 2026-08-15 | CHG-0039-fix-six-defects-found-by-a-read-only-grok-kimi-and-agy-council-review-of-0-5-0: Fix six defects found by a read-only grok, kimi and agy council review of 0.5.0: renderer escapes and last-column cursor, a send accepted mid-delivery, a send settled before submission, stop killing before teardown, a false exit code, and a skipped process-group kill |
 | 2026-08-16 | CHG-0052-the-screen-tail-can-cut-an-escape-sequence-in-half-and-print-its-remainder-onto: The screen tail can cut an escape sequence in half and print its remainder onto the screen |
 | 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
+| 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |

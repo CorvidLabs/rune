@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0055-turn-the-provenance-gate-off-and-record-why-instead-of-leaving-it-to-fail",
+  "slug": "turn-the-provenance-gate-off-and-record-why-instead-of-leaving-it-to-fail",
+  "title": "Turn the provenance gate off, and record why, instead of leaving it to fail",
+  "description": "Turn the provenance gate off, and record why, instead of leaving it to fail",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "bc30c64da1284057e09a48320ba99cac1b33d737",
+  "created_at": 1786856244,
+  "updated_at": 1786866458,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    ".trust.toml",
+    "fledge.toml",
+    ".github/workflows/publish-package.yml",
+    "scripts/check_provenance.rb",
+    "spec/provenance_check_spec.rb",
+    "spec/release_version_check_spec.rb",
+    "docs/releasing.md",
+    "README.md",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The release lane no longer runs a provenance check and passes end to end without any signing step. The publish workflow no longer references attest, while its tag and version validation is untouched. .trust.toml records provenance.mode = off with a stated reason, so the state is declared rather than implicit. docs/releasing.md, README and CHANGELOG match. Tests that asserted on the removed steps are retargeted rather than deleted."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}
