@@ -69,7 +69,7 @@ colorized, human-formatted output:
 
 ```sh
 $ rune version
-rune v0.7.0
+rune v0.8.0
   Ruby 4.0.6 (arm64-darwin25)
   fledge:    ✓ available
   spec-sync: ✓ available
@@ -274,6 +274,17 @@ are unit-tested, including a test that drives the arrow-key menu itself end-to-e
 object plus `IO.pipe`s drives a real interactive child process without needing an actual controlling
 terminal).
 
+
+### Bounding a watch
+
+Two independent limits, both before the `--` separator, both off by default:
+
+- **`--timeout=SECONDS`** kills the session after N seconds of wall clock, however busy it is.
+- **`--idle-timeout=SECONDS`** kills it after N seconds with **no output and no input** — the one
+  you want for "this agent has stopped doing anything", since a long build is not idle.
+
+Either gives exit code `124`, with `timed_out: true` and a `timeout_kind` of `"timeout"` or
+`"idle_timeout"` saying which fired.
 ## Parsing structured text
 
 `Rune::Parsers::TableParser` and `Rune::Parsers::KeyValueParser` turn unstructured terminal output

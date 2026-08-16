@@ -107,6 +107,27 @@ RSpec.describe 'release version check' do
     expect(File.read(File.expand_path('../.trust.toml', __dir__))).to include('mode = "off"')
   end
 
+  # A stale version string shipped in the guides through three releases, and a
+  # flag went undocumented for four. Both are mechanical, so both are gated now.
+  describe 'the guides-current check' do
+    let(:script) { File.expand_path('../scripts/check_docs_current.rb', __dir__) }
+
+    it 'passes against the tree as it stands' do
+      output, status = Open3.capture2e(RbConfig.ruby, script, chdir: File.expand_path('..', __dir__))
+
+      expect(status).to be_success
+      expect(output).to include("current with #{Rune::VERSION}")
+    end
+
+    it 'is in the release lane, before the expensive steps' do
+      config = File.read(File.expand_path('../fledge.toml', __dir__))
+      lane = config.split('[lanes.release]').last[/steps = \[(.+?)\]/m, 1].to_s
+
+      expect(lane).to include('docs-check')
+      expect(lane.index('docs-check')).to be < lane.index('test')
+    end
+  end
+
   it 'keeps SpecSync policy files meaningful while ignoring generated state' do
     expect(sdd_policy.fetch('meaningful_paths')).to include('.specsync/sdd.json', '.specsync/config.toml')
     expect(sdd_policy.fetch('ignored_paths')).not_to include('.specsync/')
