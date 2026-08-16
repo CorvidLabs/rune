@@ -1,6 +1,6 @@
 ---
 id: CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and
-state: accepted
+state: archived
 type: feature
 base_commit: fe93c863bda8d91d977ba5d3f66928ea346502b6
 ---

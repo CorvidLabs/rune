@@ -1,6 +1,6 @@
 ---
 id: CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha
-state: accepted
+state: archived
 type: feature
 base_commit: 8856cdf9a4030ba3898c6dc88299e97721cbb187
 ---

@@ -1,6 +1,6 @@
 ---
 id: CHG-0050-extract-the-transcript-out-of-sessioncommand-reconstruction-cursors-search-an
-state: accepted
+state: archived
 type: feature
 base_commit: 896813d4a8029c914d0b40ad5d3638a8cd364526
 ---

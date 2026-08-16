@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0049-report-child-busy-and-idle-ms-on-read-and-document-that-exit-code-is-a-process",
+  "slug": "report-child-busy-and-idle-ms-on-read-and-document-that-exit-code-is-a-process",
+  "title": "Report child_busy and idle_ms on read, and document that exit_code is a process status rather than a verdict on the work",
+  "description": "Report child_busy and idle_ms on read, and document that exit_code is a process status rather than a verdict on the work",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "846b0f4516b36abdeb6cdeba1824f7efd0aebbdd",
+  "created_at": 1786833626,
+  "updated_at": 1786900270,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/commands/session_command.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    "docs/sessions.md",
+    "docs/getting_started.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "rune session read reports child_busy and idle_ms, derived from the transcript's own timestamps so they work for a stopped session, and verified to be true at 61ms idle and false at 3268ms. The getting-started guide states that exit_code means the wrapped process ended rather than that the work succeeded, with the observed case of eight consecutive zero exits from runs whose conclusions were wrong. The session guide notes that child_busy means the child is printing, not that it is working. Full suite and lint pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

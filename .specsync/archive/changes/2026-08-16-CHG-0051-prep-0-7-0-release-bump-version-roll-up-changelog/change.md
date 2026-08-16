@@ -1,6 +1,6 @@
 ---
 id: CHG-0051-prep-0-7-0-release-bump-version-roll-up-changelog
-state: accepted
+state: archived
 type: feature
 base_commit: 9f2bb58db796eff3dea7b4b75f18d4ae1f983664
 ---

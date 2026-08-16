@@ -1,6 +1,6 @@
 ---
 id: CHG-0053-fail-the-release-before-the-tag-when-provenance-is-missing-not-after-it
-state: accepted
+state: archived
 type: feature
 base_commit: 33094e86b6d510722a50554436053a29bbfeb998
 ---

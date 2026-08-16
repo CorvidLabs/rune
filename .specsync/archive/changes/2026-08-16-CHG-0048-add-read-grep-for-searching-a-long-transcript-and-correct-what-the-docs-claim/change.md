@@ -1,6 +1,6 @@
 ---
 id: CHG-0048-add-read-grep-for-searching-a-long-transcript-and-correct-what-the-docs-claim
-state: accepted
+state: archived
 type: feature
 base_commit: feb88ab148b50c5e1fbd6b7c700111d5fd7e5769
 ---

@@ -1,6 +1,6 @@
 ---
 id: CHG-0052-the-screen-tail-can-cut-an-escape-sequence-in-half-and-print-its-remainder-onto
-state: accepted
+state: archived
 type: feature
 base_commit: 29888fa7284bb23c4a9f8fbfc4983f69d4592ed6
 ---

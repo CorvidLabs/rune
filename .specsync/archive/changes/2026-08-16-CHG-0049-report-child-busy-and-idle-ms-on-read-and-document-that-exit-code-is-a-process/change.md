@@ -1,6 +1,6 @@
 ---
 id: CHG-0049-report-child-busy-and-idle-ms-on-read-and-document-that-exit-code-is-a-process
-state: accepted
+state: archived
 type: feature
 base_commit: 846b0f4516b36abdeb6cdeba1824f7efd0aebbdd
 ---

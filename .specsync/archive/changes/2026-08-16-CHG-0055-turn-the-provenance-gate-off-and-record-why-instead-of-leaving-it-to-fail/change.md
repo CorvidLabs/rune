@@ -1,6 +1,6 @@
 ---
 id: CHG-0055-turn-the-provenance-gate-off-and-record-why-instead-of-leaving-it-to-fail
-state: accepted
+state: archived
 type: feature
 base_commit: bc30c64da1284057e09a48320ba99cac1b33d737
 ---
