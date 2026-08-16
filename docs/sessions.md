@@ -208,6 +208,20 @@ Two things it is not. It is the *end state*, so anything scrolled away is gone �
 remains the record of what happened. And it is opt-in because it is only meaningful for a child that
 paints a screen: for a cooked-mode shell the byte stream already is the answer.
 
+**It is rendered from the last 256KB, and for some agents that has a visible cost.** A census of
+grok's output over 4.5MB found 109,364 absolute cursor moves, 31,798 synchronised-update brackets,
+and **zero** erases of any kind — no `\e[K`, no `\e[2K`, no `\e[2J`, no scroll regions. An agent
+that repaints purely by positioning and overwriting depends on the terminal remembering every cell
+it wrote, however long ago. Rendering from a window starts from a blank grid instead, so anything
+painted once and never repainted — a header, a banner — is simply absent, and rune cannot tell that
+it is missing. Reading `--screen` more often does not help; the window is measured in bytes, not
+time.
+
+The same census explains a subtler point. When an agent never erases, a duplicated line on screen
+may be entirely faithful: if its layout shifts down a row and it repaints at the new position, the
+old copy has nothing to remove it, and **a real terminal shows the duplicate too**. Before treating
+a repeated line as a rune bug, check whether the agent erases anything at all.
+
 ### The transcript is bounded
 
 Both the file and the supervisor's memory are capped, so a session left running for a day does not

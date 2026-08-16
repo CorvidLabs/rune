@@ -172,6 +172,39 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
       expect(described_class.render(raw, rows: 4, columns: 40, tail_bytes: 64)).to eq('late')
     end
 
+    # Found by taking a census of a real agent's output: it repaints purely by
+    # absolute positioning inside synchronised-update brackets and never erases
+    # anything, so the stream is almost entirely escape sequences and a cut is
+    # far more likely to land inside one than in text.
+    it 'does not print the remainder of an escape sequence the tail cut in half' do
+      suffix = "\e[?2026h\e[2;1HHELLO\e[?2026l"
+      raw = ('x' * 1000) + suffix
+
+      # Every cut lands at a different point inside the leading sequence.
+      (0..6).each do |bytes_lost|
+        rendered = described_class.render(raw, rows: 4, columns: 40, tail_bytes: suffix.bytesize - bytes_lost)
+
+        expect(rendered).to eq("\nHELLO")
+      end
+    end
+
+    it 'keeps text when the cut lands in a stream that has no escapes to resync on' do
+      raw = "line\n" * 500
+
+      expect(described_class.render(raw, rows: 4, columns: 40, tail_bytes: 40)).to include('line')
+    end
+
+    it 'keeps text before an escape that is further away than the resync scan' do
+      # 300 bytes of text before the first escape, which is past the 256-byte
+      # scan. Resyncing to it would silently discard eight rows of real output.
+      raw = "#{'y' * 1000}#{'z' * 300}\e[2;1HAFTER"
+
+      rendered = described_class.render(raw, rows: 10, columns: 40, tail_bytes: 311)
+
+      expect(rendered).to include('z')
+      expect(rendered).to include('AFTER')
+    end
+
     it 'survives invalid UTF-8 in the stream' do
       expect { described_class.render("ok\xC3(\xA9", rows: 4, columns: 40) }.not_to raise_error
     end

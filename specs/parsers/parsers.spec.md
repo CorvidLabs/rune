@@ -1,6 +1,6 @@
 ---
 module: parsers
-version: 6
+version: 7
 status: active
 files:
   - lib/rune/parsers/table_parser.rb
@@ -51,6 +51,7 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | `scroll_down` | instance method | SD: scrolls the screen down, blanking the lines it exposes. |
 | `DEFAULT_ROWS` | constant | Rows assumed when no size is given. |
 | `DEFAULT_COLUMNS` | constant | Columns assumed when no size is given. |
+| `RESYNC_SCAN_BYTES` | constant | How far past the tail cut to look for an escape to resync on. |
 | `DEFAULT_TAIL_BYTES` | constant | How much of a transcript tail is replayed, bounding work for a long session. |
 | `TAB_WIDTH` | constant | Columns between tab stops. |
 | `PRINTABLE` | constant | Pattern for bytes the renderer writes rather than interprets. |
@@ -160,3 +161,4 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | 2026-08-15 | CHG-0033-render-the-terminal-screen-for-session-send-and-read-so-an-agent-driving-a-full: Render the terminal screen for session send and read, so an agent driving a full-screen agent can find the answer instead of searching every repaint frame |
 | 2026-08-15 | CHG-0037-fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune: Fix two defects found by having grok and claude review this branch through rune itself: erase-line excluded the cursor cell, and backpressure defeated the terminator delay |
 | 2026-08-15 | CHG-0039-fix-six-defects-found-by-a-read-only-grok-kimi-and-agy-council-review-of-0-5-0: Fix six defects found by a read-only grok, kimi and agy council review of 0.5.0: renderer escapes and last-column cursor, a send accepted mid-delivery, a send settled before submission, stop killing before teardown, a false exit code, and a skipped process-group kill |
+| 2026-08-16 | CHG-0052-the-screen-tail-can-cut-an-escape-sequence-in-half-and-print-its-remainder-onto: The screen tail can cut an escape sequence in half and print its remainder onto the screen |

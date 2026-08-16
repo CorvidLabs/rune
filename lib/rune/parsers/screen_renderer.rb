@@ -30,6 +30,10 @@ module Rune
       # limit. Only the tail can still be on screen: a full repaint cycle of a
       # 40x120 terminal is a few KB, so this is orders of magnitude of headroom.
       DEFAULT_TAIL_BYTES = 256 * 1024
+      # How far past the cut to look for an escape to resync on. Comfortably
+      # more than any CSI sequence, and small enough that a stream containing
+      # no escapes at all keeps essentially all of its text.
+      RESYNC_SCAN_BYTES = 256
       TAB_WIDTH = 8
       # Everything that is not a control this renderer acts on. Vertical tab and
       # form feed are line-feed class motion, not text, and were previously
@@ -63,12 +67,31 @@ module Rune
 
         private
 
-        # Starting mid-stream can only mislead about the first line, and a
-        # partial escape sequence at the cut is consumed harmlessly as text.
+        # Starting mid-stream can only mislead about the first line.
+        #
+        # A partial escape sequence at the cut is *not* harmless, which this
+        # comment claimed until a census of a real agent's output showed why it
+        # matters. The remainder of a sliced sequence has no `ESC` left to
+        # identify it, so it is printed: cutting inside `\e[?2026h` puts a
+        # literal `?2026h` on the screen, at whatever position the cursor
+        # happens to hold. Resyncing to the first `ESC` drops that remainder.
         def tail(text, tail_bytes)
           return text if tail_bytes.nil? || text.bytesize <= tail_bytes
 
-          text.byteslice(-tail_bytes, tail_bytes).to_s.scrub
+          resync(text.byteslice(-tail_bytes, tail_bytes).to_s.scrub)
+        end
+
+        # The scan is bounded because a cut can also land in plain text, where
+        # there is no way to tell the two apart and the next `ESC` may be far
+        # away or absent. Dropping a couple of lines from the start of a 256KB
+        # window costs nothing — that first line is already unreliable — while
+        # dropping to the next escape in a stream that has none would discard
+        # the whole screen.
+        def resync(window)
+          escape = window.byteslice(0, RESYNC_SCAN_BYTES).to_s.index("\e")
+          return window if escape.nil? || escape.zero?
+
+          window.byteslice(escape..).to_s
         end
       end
 

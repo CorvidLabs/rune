@@ -34,6 +34,13 @@
       "timestamp": 1786839686,
       "digest": "99bd20eef764e517732e3bc514a904ea7bf10bfa38a8bd7b869d468613dbb763",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1786842331,
+      "digest": "8946fc4570203d8c54987df44db00c4211e26cc6605e40088e1015e746fd77e5",
+      "note": null
     }
   ],
   "reopenings": [
@@ -408,6 +415,130 @@
       },
       "stale_acceptance_input_digest": "20ec233f79edd9d0a9fb241da550db396ff4a3c74409f439f7184d08e06a8657",
       "current_acceptance_input_digest": "4a10d70604e81015d13fd6fa0639582db7e10dece762f9771b08d556f16a9b1b"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0048-add-read-grep-for-searching-a-long-transcript-and-correct-what-the-docs-claim",
+      "actor": "claude",
+      "reason": "the screen-tail resync (CHG-0052) added a section to docs/sessions.md on what the render window costs an agent that never erases; re-verifying against the doc as it now stands",
+      "timestamp": 1786842226,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1786839686,
+        "digest": "99bd20eef764e517732e3bc514a904ea7bf10bfa38a8bd7b869d468613dbb763",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786839681,
+        "commit": "8ab9139ba16b55620526d2f72f5a546deed093f6",
+        "contract_digest": "26857057fe32ae22f86bf604c2afb414688e847f5d61997d2026f4d1a9507ca6",
+        "workspace_digest": "675c718e4279e6a826d1040373f1b9a147bae6e62d0a67b956d6edaede70b67d",
+        "acceptance_input_digest": "4a10d70604e81015d13fd6fa0639582db7e10dece762f9771b08d556f16a9b1b",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "71a48ed35e9e2b9eeed3e9e89a53f3bc6337ab0f14b0db4717155f1b48f35b7a",
+              "entry_digest": "f3b10db12b0c7c231bbd25c4189e58a8772ac4cd52abeb0754b97b273944dcd3",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "README.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "9092672f2bf63eca279d96dc9c627485d5a4bf42e7c69b126ac61c457aab7631",
+              "entry_digest": "a26b02a98fd72e32ec3613deee90ab1a4d36f46923b26a57bbcd4364e738f6c0",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/sessions.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "df5c49a8aa8413a1a493bdb345801f5ec08c8fb61105b4c89ec8f149a80321d5",
+              "entry_digest": "b3819e09dce4d296a69f29c4cc55909f93b4849fa8009a2fc4b1d04e65926f06",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/commands/session_command.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "dbf2a16eb3dd0ec69b8e26eb294e533977cf6899e14c1b9f2be25bf5da1ce6dd",
+              "entry_digest": "0e2f07f7154083de192581f79af8066cbe122b29ba3fe8c6b4e11c1ebfac9d22",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ce36d735cdda520dd26c54c3fd518fdc9688b5fca5ef9b0c5830feb3c65e7024",
+              "entry_digest": "cff1893ad3e1699ac0a197e8b85414dfdbbecb774e2d2f1ef7785f738c419aff",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "f4235f1e28cf73ad37f8d2a32e0d0bedad52916289439cc0d5fed70f9ec7b6b0",
+              "entry_digest": "da2146f1db53c1de9b1b0e4dfa126f3619973a7c94b60774c5812b47971d5e3b",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "4a10d70604e81015d13fd6fa0639582db7e10dece762f9771b08d556f16a9b1b",
+      "current_acceptance_input_digest": "80d29695f8dd46d0b5751366a116cab75cf631748558ebaf89c2e61716055878"
     }
   ]
 }
