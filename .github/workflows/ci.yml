@@ -121,3 +121,69 @@ jobs:
         with:
           require-coverage: "100"
           lifecycle-enforce: "true"
+
+  # Every release from v0.4.0 through v0.6.0 failed to publish, all at the same
+  # step and all in about fifteen seconds. `.attest.json` sets
+  # `requireAttestation` and `requireTestsPassed`, and nothing in this
+  # repository was recording either: attest notes stop at a5bfcfd on 2026-08-14,
+  # so fifteen commits piled up behind a gate that could not pass.
+  #
+  # It went unnoticed because nothing users depend on runs through it. The
+  # Homebrew formula builds from the tag tarball, and the rubygems.org job is
+  # `if: false`, so the only casualty was a GitHub Packages gem nobody installs.
+  # A gate that fails silently and blocks nothing is worse than no gate: it
+  # reads as protection while protecting nothing.
+  #
+  # CI is the honest place to record `--tests-passed`, because CI is the only
+  # party that watched the tests run. It deliberately records nothing about
+  # review or human approval — those are claims a runner cannot make, and the
+  # value of a provenance ledger is precisely that its entries are true.
+  attest:
+    name: Attest
+    needs: [verify, spec-sync]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # Fetched as a release asset for the same reason as fledge above: the
+      # install script resolves "latest" through the rate-limited
+      # unauthenticated API, and runners share IPs.
+      - name: Install Attest
+        env:
+          ATTEST_VERSION: '1.0.0'
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL --retry 3 --retry-all-errors \
+            "https://github.com/CorvidLabs/attest/releases/download/${ATTEST_VERSION}/attest-linux-x86_64" \
+            -o "$HOME/.local/bin/attest"
+          chmod +x "$HOME/.local/bin/attest"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Record that the tests passed
+        run: |
+          git fetch origin "refs/notes/attest:refs/notes/attest" || true
+          attest sign --commit "$GITHUB_SHA" \
+            --reviewer "ci:github-actions" \
+            --verdict proceed \
+            --tests-passed \
+            --note "Ruby 3.0-4.0 matrix and the spec-sync contract check passed on ${GITHUB_SHA}."
+          # Notes are a single ref, so two runs landing together collide. Merge
+          # the other run's note in rather than force-pushing over it — a
+          # ledger that drops entries under contention is not a ledger. The
+          # remote is fetched into a *separate* ref on purpose: fetching over
+          # refs/notes/attest would discard the attestation just signed above.
+          for attempt in 1 2 3; do
+            if git push origin "refs/notes/attest:refs/notes/attest"; then
+              exit 0
+            fi
+            echo "notes push rejected (attempt ${attempt}); merging the concurrent run's notes"
+            git fetch origin "+refs/notes/attest:refs/notes/attest-remote"
+            git notes --ref=attest merge -s cat_sort_uniq refs/notes/attest-remote
+          done
+          echo "::error::could not push attest notes after three attempts" >&2
+          exit 1
