@@ -117,6 +117,15 @@ primary signal. The settle clock only starts once output arrives that isn't the 
 own input, so an agent that echoes your prompt and then thinks before answering returns the answer
 rather than your words back.
 
+> **A prompt that never submits looks exactly like this too, and is a different bug.** rune writes a
+> send's text and then its carriage return as a *separate* write a moment later, because a TUI that
+> reads them together treats the return as part of the text and never submits. That delay is a race
+> nothing can observe: measured against Kimi, the old 0.05s lost 3 of 3 sends — the prompt sat in the
+> composer, `send` returned `settled: true` with only the echo, and the child waited for a keystroke
+> that had already been written. It is 0.25s now, and Claude Code, grok and Kimi all submit. If you
+> meet a TUI slower still, the tell is that `read --screen` shows your text sitting in the input box:
+> send an empty string to deliver a bare carriage return, and it will go.
+
 > **Known limitation, and the sharpest one in rune today: a child that *redraws* your input can
 > still settle on it.** The rule above holds when the echo arrives once. A line editor that repaints
 > the line on submit sends your input a second time, and that second copy counts as the child having

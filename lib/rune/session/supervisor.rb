@@ -107,7 +107,22 @@ module Rune
       # How long after writing a send's text the terminating carriage return
       # is written, as its own write. Long enough that the child completes a read
       # in between, short enough to be invisible next to a model round trip.
-      SUBMIT_DELAY = 0.05
+      #
+      # 0.05 was tuned against Claude Code and silently failed against Kimi:
+      # measured 3 of 3 sends where the prompt landed in Kimi's composer and was
+      # never submitted, so `send` returned `settled: true` with only the echo
+      # and the child sat waiting for a keystroke that had already been written.
+      # Sending a bare carriage return afterwards submitted the queued text and
+      # the answer appeared, which is what identified the delay rather than the
+      # settle rule as the cause. At 0.30 and 0.80 it submits every time.
+      #
+      # 0.25 buys a 5x margin over the value that failed while staying an order
+      # of magnitude under a model round trip. It is a race either way: the child
+      # has to finish one read before the terminator arrives, and nothing here
+      # can observe whether it did. A TUI slower than this will fail the same way
+      # — which is why the failure now has a name in the docs instead of looking
+      # like the settle bug.
+      SUBMIT_DELAY = 0.25
       # Hard cap on a whole send, when the caller does not set one.
       DEFAULT_TIMEOUT_MS = 120_000
       UNDELIVERED_INPUT_ERROR = 'previous input is still being delivered to the child'
