@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0061-release-0-9-0-bump-the-version-and-record-the-round-s-measurements",
+  "slug": "release-0-9-0-bump-the-version-and-record-the-round-s-measurements",
+  "title": "Release 0.9.0: bump the version and record the round's measurements",
+  "description": "Release 0.9.0: bump the version and record the round's measurements",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "7041cb9163a91f82075fe50e1be202ceba717a09",
+  "created_at": 1786990808,
+  "updated_at": 1786994949,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "lib/rune/version.rb",
+    "plugin.toml",
+    "Gemfile.lock",
+    "CHANGELOG.md",
+    "ROADMAP.md",
+    "docs/getting_started.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Rune::VERSION, plugin.toml, Gemfile.lock and docs/getting_started.md all read 0.9.0 and agree, which the docs-check gate enforces for the guide. CHANGELOG's Unreleased section becomes v0.9.0 dated 2026-08-17 and gains entries for the two fixes made this round plus a Verified-not-changed section for the two durability claims that were observed rather than altered. ROADMAP's 0.8.0 review table is re-measured against the tree: seven of eight closed, one corrected because measurement contradicted it, one left open. The full release lane passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

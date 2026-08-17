@@ -369,4 +369,41 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
       expect(described_class.render('')).to eq('')
     end
   end
+
+  # The size now arrives from outside the process — a session records its
+  # child's winsize in a JSON file and reads it back — so "absent", "not a
+  # number" and "larger than any terminal" are all inputs this has to survive.
+  describe '.dimensions' do
+    it 'uses the defaults when no size is given' do
+      expect(described_class.dimensions(nil, nil)).to eq([described_class::DEFAULT_ROWS,
+                                                          described_class::DEFAULT_COLUMNS])
+    end
+
+    it 'takes a real size as given' do
+      expect(described_class.dimensions(24, 80)).to eq([24, 80])
+    end
+
+    it 'accepts a size that arrived as text, which is how JSON round-trips can leave it' do
+      expect(described_class.dimensions('24', '80')).to eq([24, 80])
+    end
+
+    it 'falls back for a size no terminal has' do
+      expect(described_class.dimensions(0, -1)).to eq([described_class::DEFAULT_ROWS,
+                                                       described_class::DEFAULT_COLUMNS])
+      expect(described_class.dimensions('tall', {})).to eq([described_class::DEFAULT_ROWS,
+                                                            described_class::DEFAULT_COLUMNS])
+    end
+
+    # The grid is allocated eagerly, so an unbounded dimension is an allocation
+    # an untrusted file could ask for.
+    it 'clamps a size past any real terminal rather than allocating it' do
+      expect(described_class.dimensions(10**12, 10**12)).to eq([described_class::MAX_ROWS,
+                                                                described_class::MAX_COLUMNS])
+    end
+
+    it 'renders at a caller-supplied size without raising on a nonsensical one' do
+      expect(described_class.render('abcdef', rows: nil, columns: 3)).to eq("abc\ndef")
+      expect(described_class.render('abcdef', rows: 4, columns: 'three')).to eq('abcdef')
+    end
+  end
 end

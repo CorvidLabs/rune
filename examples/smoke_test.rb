@@ -229,16 +229,73 @@ section('Rune::Script — the .new-silently-empty fix') do
 end
 
 section('Signal forwarding') do
-  check('SIGINT to the rune process terminates the wrapped child promptly, not after it finishes') do
-    runner = Rune::PTYRunner.new('sleep 10', timeout_seconds: 30)
+  # These checks pin rune's contract rather than the child's disposition. The
+  # previous version of this section sent ONE signal and asserted the run ended,
+  # which passed only because `sleep` happens to die on SIGINT. Run where SIGINT
+  # is inherited as ignored — exactly what a task runner does, and how this was
+  # caught — the child inherits SIG_IGN, the forwarded signal does nothing, rune
+  # correctly keeps waiting, and the check failed at 10.01s. It was asserting
+  # the child's disposition, not rune's contract.
+  #
+  # The child proves receipt through its *exit status*, not its stdout. An
+  # earlier version had it print a marker and assert on `clean_output`; that
+  # failed on CI with an empty string, which cannot distinguish "the signal was
+  # not forwarded" from "the child's last write was not captured on the way
+  # out". An exit code survives the teardown either way, and 42 can only be
+  # produced by the handler actually running.
+  #
+  # It has to be Ruby rather than a shell `trap`: POSIX lets a shell decline to
+  # trap a signal it inherited as ignored, and under a task runner INT *is*
+  # inherited as ignored, so a shell child would silently prove nothing.
+  # `Signal.trap` installs over SIG_IGN either way.
+  #
+  # The signal waits for a readiness file rather than a fixed delay. The first
+  # version slept 1s and passed locally while failing on CI, where a cold Ruby
+  # interpreter had not reached `Signal.trap` yet — so the signal killed the
+  # child before it could report, and the check blamed rune for the harness's
+  # race. There is no sleep long enough to be correct on an unknown machine.
+  # Passed as argv, not as a shell string. With a string, rune spawns `sh -c`
+  # and signals whatever pid that produced — which is the child only if the
+  # shell exec-optimizes into it. macOS's does and Linux's did not, so this
+  # passed locally and timed out on CI with rune signalling a shell that had
+  # inherited SIG_IGN while the real child slept on. Shell semantics for string
+  # commands are documented and deliberate; a test of signal *forwarding* should
+  # simply not put a shell in the middle.
+  check('one SIGINT reaches the child, and rune reports the child\'s own exit rather than aborting') do
+    Dir.mktmpdir do |dir|
+      ready = File.join(dir, 'ready')
+      script = "Signal.trap('INT') { exit 42 }; File.write(#{ready.inspect}, '1'); sleep 30"
+      runner = Rune::PTYRunner.new([RbConfig.ruby, '-e', script], timeout_seconds: 20)
+      signaller = Thread.new do
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 15
+        sleep 0.05 until File.exist?(ready) || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        Process.kill('INT', Process.pid) if File.exist?(ready)
+      end
+      result = runner.run
+      signaller.join
+      assert(File.exist?(ready), 'the child never became ready; nothing was signalled')
+      # 42 proves three things at once: the signal was forwarded, rune did not
+      # abort on the first one (that would be 130), and rune reported the
+      # child's own status rather than a timeout (124).
+      assert(result.data[:exit_code] == 42,
+             "expected the child's handler exit 42, got #{result.data.inspect}")
+    end
+  end
+end
+
+section('Signal escalation') do
+  check('a second SIGINT stops rune promptly at 130, even though the child ignores it') do
+    runner = Rune::PTYRunner.new('trap "" INT; sleep 30', timeout_seconds: 60)
     Thread.new do
+      sleep 0.3
+      Process.kill('INT', Process.pid)
       sleep 0.3
       Process.kill('INT', Process.pid)
     end
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     result = runner.run
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-    assert(elapsed < 5, "expected early termination, took #{elapsed.round(2)}s (child was not signaled)")
+    assert(elapsed < 10, "expected early termination, took #{elapsed.round(2)}s")
     assert(result.data[:exit_code] == 130, result.data.inspect)
   end
 end

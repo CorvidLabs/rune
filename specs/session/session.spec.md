@@ -1,6 +1,6 @@
 ---
 module: session
-version: 22
+version: 29
 status: active
 files:
   - lib/rune/session/store.rb
@@ -50,14 +50,17 @@ deciding who talks to whom stays the calling agent's job.
 | `Unavailable` | class | Raised when a control socket is missing or refuses a connection — how a dead supervisor presents. |
 | `PromptScanner` | module | Reports whether the last non-blank line of text looks like an interactive prompt. |
 | `Transcript` | class | One session's durable transcript: reconstruction, cursors across rotation, search and rendering. |
-| `load` | class method | Reads a transcript log, returning the retained text and the bytes rotation dropped. |
+| `load` | class method | Reads a transcript log, returning the retained text and where in it the stream is not contiguous. |
+| `record_gap` | class method | Records one dropped region at a retained offset, merging it with one already recorded there. |
 | `text` | reader | The output the log still holds. |
-| `dropped` | reader | Bytes of earlier output that rotation discarded. |
-| `cursor` | instance method | Total bytes the child has produced, including what rotation discarded. |
+| `dropped` | reader | Bytes of earlier output that was discarded, by rotation or by a write that failed. |
+| `gaps` | reader | Each dropped region as the retained offset it sits at and the total dropped up to and including it. |
+| `cursor` | instance method | Total bytes the child has produced, including everything discarded. |
 | `from` | instance method | Everything from an absolute cursor onwards, as far as the retained text reaches. |
-| `screen` | instance method | What a terminal would be showing. |
+| `retained_offset` | instance method | Where an absolute cursor lands in the retained text, walking past each dropped region rather than subtracting one total. |
+| `screen` | instance method | What a terminal of a given size would be showing. |
 | `grep` | instance method | Lines matching a pattern with surrounding context, and how many matched. |
-| `filter` | internal method | Applies `--grep` to a read, or reports an unparseable pattern. |
+| `filter` | internal method | Applies `--grep` to a read, or fails the filter closed and reports why. |
 | `Echo` | class | The pty's echo of one send, and where it ends in what has arrived back. |
 | `ESCAPE_SEQUENCE` | constant | Escape forms removed when condensing text for echo location. |
 | `PRINTED` | constant | A run of characters that survives condensing. |
@@ -66,18 +69,23 @@ deciding who talks to whom stays the calling agent's job.
 | `REPAINT_MARGIN_FLOOR` | constant | Smallest window the repaint veto will consider, for a short echo. |
 | `condense` | class method | Drops escapes and whitespace, so a transformed echo still matches what was sent. |
 | `empty?` | instance predicate | Whether anything was sent to echo back. |
-| `beyond` | instance method | The text past the located echo, or nil while it is unlocated. |
+| `ends_at` | instance method | The character offset just past the echo, or nil while it is unlocated. |
 | `repaint?` | instance method | Whether a repainted copy of the input covers a candidate match. |
 | `PendingSend` | class | One in-flight `send` and the decision of when it has been answered. |
-| `observe` | instance method | Records that something other than the pty's echo has arrived. |
+| `absorb` | instance method | Folds the bytes that arrived since the last tick into everything the send decides on. |
 | `outcome` | instance method | The outcome for this tick, or nil to keep waiting. |
-| `beyond_echo` | instance method | Returns the portion of a response past the pty's echo of the input. |
+| `matchable` | instance method | The bounded text a `--wait-for-regex` pattern is matched against this tick. |
 | `busy_at_send` | reader | Whether the child was still producing output when this send landed. |
 | `client` | reader | The control connection waiting on this send. |
 | `cursor` | reader | Transcript offset taken when the send was written, so the reply holds only its own output. |
 | `compile_regex` | class method | Compiles `--wait-for-regex` with a bounded match budget, returning nil when absent or invalid. |
 | `supports_regex_timeout?` | class predicate | Whether this Ruby can bound a single regex match. |
 | `ECHO_GRACE_SECONDS` | constant | How long a prefix of the input may still be assumed to be the pty's echo. |
+| `MATCH_WINDOW_BYTES` | constant | How much recent post-echo output a `--wait-for-regex` pattern is matched against. |
+| `MATCH_WINDOW_SLACK` | constant | How far past that window output may accumulate before it is trimmed back. |
+| `MATCH_SPAN` | constant | How far each scan resumes behind the last, and so the longest match always found. |
+| `BLANK_CHARACTER` | constant | The first character that counts as the child having produced output of its own. |
+| `UTF8_CONTINUATION` | constant | Bytes a window trim must not cut on, so the window stays valid UTF-8. |
 | `REGEX_MATCH_TIMEOUT` | constant | How long one `--wait-for-regex` match may run before the pattern is abandoned. |
 | `REGEX_TIMEOUT_ERROR` | constant | The regex-timeout error class, or an unraised stand-in on Ruby without one. |
 | `DEFAULT_TIMEOUT_MS` | constant | Hard cap on a whole send when the caller does not set one. |
@@ -86,6 +94,10 @@ deciding who talks to whom stays the calling agent's job.
 | `default_home` | class method | Resolves `RUNE_HOME`, treating an empty value as unset, else `~/.rune`. |
 | `valid_name?` | class predicate | Accepts only session names safe to use as a directory component. |
 | `alive?` | class predicate | Asks the OS whether a pid exists; `EPERM` counts as alive, a bad value as dead. |
+| `process_start_times` | class method | Start times for the pids that still exist, keyed by pid, read from `ps` under `LC_ALL=C`. |
+| `process_start_time` | class method | Start time for one pid, or nil when it is gone. |
+| `parse_start_times` | class method | Parses `ps -o pid=,lstart=` output into a pid-to-start-time map. |
+| `positive_pid` | class method | Coerces a value to a positive pid, or nil when it is not one. |
 | `with_bindable_path` | class method | Runs a bind/connect against a path short enough for `sockaddr_un`, chdir-ing into the session directory when the absolute path is too long. |
 | `sessions_dir` | instance method | Returns the directory holding every session. |
 | `session_dir` | instance method | Returns one session's directory. |
@@ -93,18 +105,25 @@ deciding who talks to whom stays the calling agent's job.
 | `MAX_LOG_BYTES` | constant | Ceiling on a session's transcript file before it is rotated. |
 | `LOG_KEEP_BYTES` | constant | How much recent output a rotation keeps. |
 | `rotate_output` | instance method | Rewrites the transcript keeping its recent tail, recording what was dropped. |
+| `prepare_rotation` | instance method | Writes the replacement transcript to a temp path, without touching the caller's open handle. |
 | `output_bytes` | instance method | Output bytes carried by one transcript line. |
 | `tail_offset` | instance method | Byte offset of the first whole line within the keep bound of the end. |
-| `output_bytes_from` | instance method | Output bytes carried by the region being kept, without parsing events. |
+| `output_bytes_from` | instance method | Stream bytes the region being kept accounts for — its output and any gap it already records — counting only whole records, without parsing them. |
+| `whole_record?` | instance predicate | Whether a transcript line is a record the reader will parse, decided on its last byte; a line with no trailing newline is parsed instead. |
+| `parseable?` | instance predicate | Whether one line parses as JSON. |
+| `NEWLINE_BYTE` | constant | The byte `whole_record?` treats as a line terminator. |
+| `CLOSE_BRACE_BYTE` | constant | The byte a whole NDJSON record ends on. |
 | `output_size` | instance method | Current size of a session's transcript file. |
-| `rotate_log` | internal method | Rotates the transcript once it reaches the ceiling. |
+| `rotate_log` | internal method | Rotates the transcript once it reaches the ceiling, backing off rather than retrying an attempt that failed. |
+| `HARD_LOG_CEILING` | constant | The size past which recording stops rather than growing, when rotation cannot succeed. |
+| `ROTATE_RETRY_SECONDS` | constant | How long a failed rotation waits before it is attempted again. |
 | `output_path` | instance method | Returns one session's NDJSON transcript path. |
 | `socket_path` | instance method | Returns one session's control-socket path. |
 | `exist?` | instance predicate | Reports whether a session directory exists. |
 | `names` | instance method | Lists known session names in sorted order. |
 | `create` | instance method | Creates a session directory and forces owner-only permissions. |
 | `remove` | instance method | Deletes a session directory and its contents. |
-| `write_meta` | instance method | Writes `meta.json` with owner-only permissions. |
+| `write_meta` | instance method | Replaces `meta.json` atomically, with owner-only permissions. |
 | `read_meta` | instance method | Reads `meta.json`, returning nil when absent or unparseable. |
 | `update_meta` | instance method | Merges fields into existing metadata, or nil when the session is unknown. |
 | `open_output` | instance method | Opens the append-only transcript for the supervisor's lifetime, owner-only and unbuffered. |
@@ -134,7 +153,6 @@ deciding who talks to whom stays the calling agent's job.
 | `SUBMIT_DELAY` | constant | How long after a send's text the terminating carriage return is written. |
 | `begin_pending` | internal method | Records the send cursor, settle window, regex, deadline, and echo for an in-flight send. |
 | `resolve_pending` | internal method | Re-evaluates an in-flight send against new output once per loop tick. |
-| `beyond_echo` | internal method | Returns the portion of a response past the pty's echo of the input, handling a partially-arrived echo. |
 | `settle_pending` | internal method | Replies to an in-flight send and clears the pending state. |
 | `handle_stop` | internal method | Acknowledges a stop request and ends the event loop. |
 | `status_payload` | internal method | Builds the reply for a `status` request. |
@@ -146,7 +164,15 @@ deciding who talks to whom stays the calling agent's job.
 | `resolve_orphaned_pending` | internal method | Replies to a send that would otherwise never be answered because the supervisor is exiting. |
 | `terminate_child` | internal method | Kills and reaps a still-running child. |
 | `safe_close` | internal method | Closes an IO, tolerating one already closed. |
-| `log_event` | internal method | Appends one timestamped NDJSON event to the transcript. |
+| `writable_log?` | internal predicate | Whether the transcript handle is open, checked before a record is generated. |
+| `log_event` | internal method | Appends one timestamped NDJSON event to the transcript, recording a write that failed as a gap rather than losing it. |
+| `append_log` | internal method | Writes one event, preceded by the `truncated` event accounting for any pending gap; nil when the event did not reach the file. |
+| `write_record` | internal method | Writes one NDJSON record, preceded by the torn marker when the last write failed; nil when nothing can be trusted to have landed. |
+| `gap_line` | internal method | The `truncated` event that accounts for output no write could record. |
+| `note_log_gap` | internal method | Adds an unrecordable event's output bytes to the pending gap. |
+| `writable_log` | internal method | The transcript handle, reopened if it has gone away, or nil while it cannot be opened. |
+| `gap_field` | internal method | The `transcript_gap_bytes` field, present only while a hole is still owed. |
+| `TORN_MARKER` | constant | Line written ahead of the first record after a failed write, so any fragment that write left cannot parse. |
 | `REGEX_MATCH_TIMEOUT` | constant | How long one `--wait-for-regex` match may run before the pattern is abandoned. |
 | `REGEX_TIMEOUT_ERROR` | constant | The regex-timeout error class, or an unraised stand-in on Ruby without one. |
 | `positive_int` | internal method | Coerces a request value to a positive integer, falling back to a default. |
@@ -172,7 +198,9 @@ deciding who talks to whom stays the calling agent's job.
 | `alive_session` | internal method | Returns a failure result unless the named session's supervisor is alive. |
 | `read_transcript` | internal method | Serves transcript output with cursor, tail, and byte bounds. |
 | `slice_from` | internal method | Returns transcript bytes at or after a cursor. |
-| `compile_grep` | internal method | Compiles a `--grep` pattern, returning nil when it is unparseable. |
+| `compile_grep` | internal method | Compiles a `--grep` pattern, returning `[pattern, nil]` or `[nil, Ruby's own reason]`. |
+| `grep_failure` | internal method | Builds the `grep`/`grep_error` fields for a pattern that would not compile; no `grep_matches`, because nothing was searched. |
+| `render_output` | internal method | Renders a `send`/`read` reply for a terminal: `grep_error` first, then the stripped text. |
 | `bound_size` | internal method | Applies `--max-output` or `--tail` to already-filtered text. |
 | `bound_output` | internal method | Applies `--tail`/`--max-output` and reports what was omitted. |
 | `list` | internal method | Describes every known session. |
@@ -181,6 +209,11 @@ deciding who talks to whom stays the calling agent's job.
 | `graceful_stop` | internal method | Asks the supervisor to stop over its control socket, tolerating an unreachable one. |
 | `kill_remaining` | internal method | Force-kills any surviving child and supervisor, tolerating already-dead pids. |
 | `extract_options` | internal method | Extracts session flags before the first `--`, leaving the wrapped command untouched. |
+| `flag_to_validate?` | internal predicate | Whether a flag-shaped token in this position is one a mistyped spelling should be refused for. |
+| `scan_flags` | internal method | Walks the pre-separator tokens, consuming flags and rejecting a mistyped one that precedes the first operand. |
+| `unknown_flag_error` | internal method | Rejects a flag-shaped token that matches no session flag, instead of letting it be typed at the child. |
+| `suggestion` | internal method | Offers the dash-for-underscore correction when that exact spelling is a real flag, and nothing otherwise. |
+| `KNOWN_FLAGS` | constant | Every long flag `session` answers to, both spellings `separate_form?` accepts, derived from the parser's own tables. |
 | `consume_flag` | internal method | Consumes one boolean or value flag at an argv position. |
 | `consume_value_flag` | internal method | Consumes a value flag in either `--flag=value` or `--flag value` form. |
 | `assign` | internal method | Coerces and stores one flag value, reporting a message on failure. |
@@ -192,6 +225,8 @@ deciding who talks to whom stays the calling agent's job.
 | `name_error` | internal method | Builds the message for a missing or invalid session name. |
 | `no_such_session` | internal method | Builds the message for an unknown session name. |
 | `render_list` | internal method | Renders the session list for a terminal. |
+| `render_orphan` | internal method | Prints the warning line naming a session's orphaned child pid, if it has one. |
+| `render_archive` | internal method | Renders an `archive` reply, printing the orphaned-child warning after the envelope. |
 | `store` | internal method | Returns the memoized store for this invocation. |
 | `SUBCOMMANDS` | constant | User-facing session subcommands, used for help and error messages. |
 | `START_TIMEOUT` | constant | How long `start` waits for the supervisor to report ready. |
@@ -213,6 +248,8 @@ deciding who talks to whom stays the calling agent's job.
 | `DETACH_HINT` | constant | The detach instruction shown when a terminal attaches. |
 | `CHUNK` | constant | Maximum bytes moved per read while attached. |
 | `with_clean_output` | internal method | Adds the ANSI-stripped `clean_output` beside a reply's raw output, matching `rune run`. |
+| `bounded_output` | internal method | Applies `--max-output`/`--tail` to a control-socket reply, deriving `clean_output` from the bounded raw text. |
+| `conflicting_bounds` | internal method | Rejects `--max-output` combined with `--tail`, the pair `rune run` already refuses. |
 | `attach` | internal method | Validates the session and hands a real terminal to it. |
 | `GRACEFUL_STOP_TIMEOUT` | constant | How long `stop` waits for a cooperative shutdown before force-killing. |
 | `DISPATCH` | constant | Maps each session subcommand, including the hidden supervisor entry point, to its handler. |
@@ -229,6 +266,9 @@ deciding who talks to whom stays the calling agent's job.
 | `CODENAMES` | constant | Word list paired with a tool name to form generated session names. |
 | `archive_session` | internal method | Archives a stopped session after validating it. |
 | `archive_rejection` | internal method | Returns the failure that blocks an archive, or nil to proceed. |
+| `with_orphans` | internal method | Adds `orphaned_child_pid` to each listed session whose child provably outlived its supervisor. |
+| `orphaned_pids` | internal method | Maps session names to child pids that are provably still alive, in one batched `ps`. |
+| `orphan_candidate` | internal method | One session's `[name, pid, recorded start time]`, or nil when the question cannot be asked soundly. |
 | `still_running` | internal method | Message explaining that a session must be stopped before archiving. |
 | `list_archived` | internal method | Lists this project's archived sessions. |
 | `list_all_projects` | internal method | Lists live sessions across every project, labelled by project. |
@@ -263,8 +303,12 @@ deciding who talks to whom stays the calling agent's job.
 | `drop_writer` | internal method | Handles an IO that failed to accept a write, distinguishing the pty from a terminal. |
 | `detach` | internal method | Removes an attached terminal and restores the headless size when it was the last. |
 | `reap_idle_clients` | internal method | Closes control connections that connected and never sent a request. |
+| `send_rejection` | internal method | The reason a send cannot be accepted, or nil to proceed. |
 | `handle_resize` | internal method | Applies a resize request sent over its own control connection. |
 | `resize_child` | internal method | Sets the child's pty dimensions and signals SIGWINCH so it re-lays-out. |
+| `record_window_size` | internal method | Records the child's current winsize in meta, so `--screen` can render at it. |
+| `MAX_ROWS` | constant | Ceiling on a row count arriving over the control socket, applied to the pty and the record. |
+| `MAX_COLUMNS` | constant | Ceiling on a column count arriving over the control socket, for the same reason. |
 | `MAX_OUTBOX_BYTES` | constant | Ceiling on undrained output for one attached terminal before it is dropped. |
 | `DEFAULT_SETTLE_MS` | constant | How long the child must be quiet before a send is considered answered. |
 | `EXIT_SUPERVISOR_CRASHED` | constant | Exit code recorded when the supervisor itself died rather than the child. |
@@ -272,6 +316,9 @@ deciding who talks to whom stays the calling agent's job.
 | `child_still_talking?` | internal predicate | True when the child produced output within the settle window at send time. |
 | `serialized_launch` | internal method | Runs the conflict check and launch for one name under the start lock. |
 | `screen_after` | internal method | Renders the settled screen for `send --screen`, client-side. |
+| `screen_fields` | internal method | The rendered screen and the size it was rendered at, for `--screen` on either command. |
+| `window_size` | internal method | The child's last recorded winsize, resolved to a usable one. |
+| `liveness` | internal method | The child's state and exit code, on every send and read rather than only on `list`. |
 | `busy_fields` | internal method | Whether the child printed within the settle window, and how long since. |
 | `read_payload` | internal method | Builds the result body for a transcript read. |
 | `ALIASES` | constant | Internal option keys whose user-facing flag is not their name with dashes. |
@@ -285,7 +332,8 @@ deciding who talks to whom stays the calling agent's job.
 | `spawn_supervisor` | internal method | Re-invokes rune's executable as the detached supervisor for one session. |
 
 > Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base`, `socket_live?`,
-> `terminal_size`, `forward_resize`, `forward_pending_resize` and `with_resize_forwarding` are
+> `terminal_size`, `forward_resize`, `forward_pending_resize`, `reset_log_state`,
+> `write_atomic` and `with_resize_forwarding` are
 > intentionally absent from the table above. They exist and are exercised by the suite, but
 > SpecSync's Ruby extractor does not surface them from their position in the class body
 > (rune#20 / spec-sync#479), and documenting an export it cannot see fails the contract check.
@@ -341,7 +389,13 @@ deciding who talks to whom stays the calling agent's job.
    escape hatch.
 10. The child's pty is given an explicit window size. A detached session has no controlling terminal
     to copy dimensions from and an unset pty defaults to 0x0, which leaves a full-screen TUI agent
-    rendering into nothing.
+    rendering into nothing. Every size the supervisor *changes* the child to is recorded in
+    `meta.json`, so a process that is not the supervisor can render the transcript at it. The
+    starting default is deliberately not recorded: an absent size renders at exactly those
+    dimensions anyway, and writing it would put a second meta write immediately after
+    `record_running`, against the parent's own update during launch. Only a size that actually
+    changed is written: a human dragging a window edge emits a SIGWINCH per frame, and each one
+    would otherwise rewrite the whole file on the thread that must keep pumping the pty.
 11. Output is decoded incrementally as UTF-8 via `UTF8StreamDecoder`, same as `PTYRunner`/
     `PTYWatcher`: incomplete multi-byte suffixes are retained across reads.
 12. The transcript is an append-only NDJSON log using the **same event vocabulary `PTYWatcher`
@@ -413,11 +467,17 @@ deciding who talks to whom stays the calling agent's job.
     the raw slice. Matching the raw slice meant waiting for a marker you had just asked the agent to
     print returned the caller's own echoed words immediately — and since that is the normal way the
     flag is used, the documented deterministic escape hatch was the least reliable path available.
-34. Echo suppression locates the echo within the slice rather than requiring it at the cursor. The
-    cursor is taken the instant input is written, so bytes the child was already emitting (the tail
-    of a previous prompt, a redraw) can arrive first. A partially-arrived echo is recognised by its
-    *trailing* bytes matching the start of the echo, so a child that was mid-output when the send
-    landed cannot turn a half-arrived echo into a reply.
+34. Echo suppression locates the echo within what has arrived rather than requiring it at the
+    cursor. The cursor is taken the instant input is written, so bytes the child was already
+    emitting (the tail of a previous prompt, a redraw) can arrive first. Until a copy of the input
+    is found, nothing is offered to the pattern for `ECHO_GRACE_SECONDS`; past that window what has
+    arrived is offered *provisionally*, because a child that never echoes at all would otherwise
+    hang every send to it. Provisional means the search continues: a child whose echo lands a
+    second late is not a child that did not echo, and when its copy turns up the offer is withdrawn
+    and the boundary set behind it. Output offered provisionally is therefore never latched as "the
+    child has spoken" — abandoning the search at the grace window instead was measured to settle
+    such a send on the echo alone, 0.8s after it arrived and a second before the child had said
+    anything of its own.
 35. An in-flight send whose caller goes away is released as soon as its socket reports EOF, rather
     than held until `--timeout-ms`. Otherwise one cancelled call locked the session for the whole
     timeout — two minutes at the default — refusing every later send.
@@ -436,6 +496,19 @@ deciding who talks to whom stays the calling agent's job.
     and a full disk while logging does not end the session.
 40. Every directory rune creates under `RUNE_HOME` is owner-only, not just the leaf session
     directory, so the set of tools being driven and their session names is not world-readable.
+40a. `meta.json` is replaced, never truncated in place: the JSON is serialised first, written whole
+    to a private per-pid temp path, and renamed over the target, the same shape `rotate_output`
+    already uses. Every other rune process answers "does this session exist, and is it alive?" out of
+    this file with no lock to take, so an instant where it is short or empty is an instant where
+    `send` says "No such session", `list` reports `state: dead`, and `read --screen` loses the
+    recorded geometry. That was rare while meta was written a handful of times per session and stops
+    being rare once the winsize is recorded — a human dragging a window edge emits a SIGWINCH per
+    frame. Measured through a real attach dragged across 250 window shapes in 7.5 seconds while
+    another process did exactly what `alive_session` does: 90 of 294,728 reads came back unreadable
+    with the truncating write and 0 of 312,582 with the rename. The temp path carries the
+    writer's pid because two processes write this file — the CLI records `state`/`supervisor_pid`
+    while the supervisor records `state`/`child_pid` and the winsize — and a shared temp path would
+    let them interleave into one corrupt file that then got renamed into place.
 41. Nothing on the event-loop thread blocks on a write — including control replies and the attach
     acknowledgement, which are queued like everything else and whose client is closed only once the
     reply has actually drained. Output to the child and to attached terminals is queued and drained
@@ -499,6 +572,23 @@ deciding who talks to whom stays the calling agent's job.
     work for a stopped session too. Without them a caller had to grep the callee's rendered UI for a
     busy marker, which is presentation rather than API. The flag says the child is *printing*, not
     that it is *working*: a child that backgrounded a command and went quiet reports false.
+41r. A mistyped flag is refused, not typed at the child. `send --name=x --settle_ms 500 'echo
+    HELLO'` matched no flag, so the flag, its value and the input were joined with spaces and
+    written to the child, which answered `status: ok`. Two limits keep the refusal from catching
+    anything that works: nothing after the first `--` is examined, so `send --name=x -- --settle_ms`
+    still types `--settle_ms`; and nothing after the first operand is examined, so
+    `start --name=x claude --resume` and `send --name=x git log --oneline` are untouched. `---` and
+    `--- section ---` are not flag-shaped and are sent as typed.
+
+41q. A `--grep` pattern that will not compile selects nothing, and the read returns nothing. It used
+    to return the entire transcript under `status: ok` — the exact opposite of the same read with a
+    valid pattern that matches nothing, so a caller that did not read `grep_error` saw every line as
+    though it had matched, at the maximum possible cost. `grep_matches` is absent rather than `0`,
+    because no search happened. The read still succeeds: `cursor`, `dropped_bytes`,
+    `prompt_detected`, `idle_ms`/`child_busy` and `screen` have no bearing on the pattern, and a
+    failure would take the cursor the caller needs down with them. `send` still rejects a bad
+    `--wait-for-regex` outright, because there the pattern decides when to return.
+
 41o. `read --grep` filters the *cleaned* text, not the repaint stream. A full-screen agent's frames
     split words across escape sequences, so a pattern plainly visible on screen does not match the
     bytes. The reply carries `grep_matches`; an unparseable pattern is reported as `grep_error`
@@ -516,6 +606,56 @@ deciding who talks to whom stays the calling agent's job.
     the recent tail and records what it dropped in a `truncated` event, so cursors stay absolute: a
     cursor taken before a rotation still names the same position in the stream, and `read` reports
     `dropped_bytes` rather than silently returning less than was asked for.
+41w. A transcript write that fails is *recorded*, not merely survived. The in-memory cursor has
+    already advanced — those bytes really were produced — so a hole nothing accounts for makes every
+    cursor `send` hands out unresolvable by `read`, permanently and silently. Reproduced on a full
+    filesystem by the durability prototype this is taken from, and carried over rather than
+    re-derived here: `send` answered `cursor: 1849946` while `read` reported 187221 with
+    `dropped_bytes` nil, `read --since=1849946` returned "" for the rest of the session, and freeing
+    the disk made it worse because logging resumed over the hole without a word. Output that no
+    write could record is carried and emitted as a `truncated` event by the next write that
+    succeeds — the same vehicle rotation already uses — so `read` resolves a pre-hole cursor again
+    and reports `dropped_bytes`. While the hole is still owed there is nowhere on disk to record it,
+    so the supervisor reports `transcript_gap_bytes` on `status` and on the `send` reply that hands
+    out the unresolvable cursor; that is the only place the skew is known at all.
+41x. "Recorded" means exactly "its own write returned". A write that fails part-way leaves a
+    fragment, and a fragment can be a *complete* JSON record that merely never got its newline —
+    which a later append would silently terminate, counting a gap twice. So each record is written
+    on its own, and the first record after a failure is preceded by `TORN_MARKER`, which makes any
+    dangling fragment unparseable. Swept here across every split point of the record carrying a gap:
+    0 disagreements in 91 cases between the reconstructed cursor and the supervisor's own.
+41y. A cursor is mapped through *each* dropped region, not past one running total. `since - dropped`
+    is correct only while the dropped region is a **prefix** of the stream, which rotation
+    guarantees and a failed write does not: a hole in the middle shifts output the cursor is not in
+    front of, and every cursor issued before the hole then resolves |hole| bytes early — already
+    delivered output, handed back as new, which re-fires prompt detection and every "did my command
+    finish" check built on it. Measured on 25 chunks x 4000B, a 48_000-byte mid-stream hole and 25
+    more (cursor 248_000, dropped 48_000): `from(100_000)` returned 148_000 bytes beginning at the
+    start of the stream, 48_000 of them already delivered, against 100_000 beginning after the hole.
+    Each region is recorded as (retained offset, cumulative dropped) at load, a cursor landing
+    inside one clamps **forward** to its end — those bytes are gone either way, and later output is
+    honest where earlier output is not — and a single prefix collapses to exactly the old
+    arithmetic, byte for byte, at every probe of every rotation case.
+41z. A rotation counts exactly the bytes the reader will reconstruct from the region it keeps, since
+    the head event it writes is `total_output - kept`. Two ways that was wrong, both permanent and
+    silent, both measured here on ~11MB transcripts rotated with the region in the kept tail: a
+    `truncated` event inside the tail was not counted, so a hole recorded mid-stream was counted
+    twice and every later cursor sat **+400_000** bytes past the end of the stream; and a fragment
+    left by a torn write *was* counted although `Transcript.load` cannot parse it, so every later
+    cursor sat low — **-4096/-16384/-40960** for 1/4/10 torn writes, scaling with the
+    outage because `TORN_MARKER` terminates each fragment into a countable line of its own. That
+    this is worse than 0.8.0's flat -4096, where a fragment and the record after it merged into one
+    unparseable line, is the prototype's measurement carried over and was not re-derived here. A
+    real outage moves both dials at once and they do not cancel: a torn write plus the gap it opened
+    measured **+16384**. All four cases, and a healthy transcript that must not move at all, measure
+    0 once a line counts only if it is a whole record and a `truncated` in the tail counts as the
+    bytes it names. The test is the line's last byte rather than a parse, because parsing the kept
+    region cost 96MB per rotation (41n); `TORN_MARKER` is what makes that exact, since a fragment it
+    terminated ends in `n` and cannot parse either. The one shape a byte test cannot decide is a
+    fragment the file simply ends on, of which there is at most one, so a line with no trailing
+    newline is parsed outright: swept over every split point of every record shape, with braces,
+    quotes, escapes and the marker's own bytes inside the payload, 0 disagreements in 1760 cases,
+    against 10 with that branch removed.
 41j. The supervisor holds a bounded *window* of output, not all of it. Cursors remain absolute byte
     offsets into the whole stream, because `read` serves them client-side from the transcript file;
     the process itself only needs the attach backlog and whatever the current send has produced,
@@ -524,6 +664,27 @@ deciding who talks to whom stays the calling agent's job.
     tracked output one-for-one — 27MB to 69MB in eighty seconds at 500KB/s — and never came down.
     After it, resident memory plateaus: over one 150-second run the last 60 seconds added 30MB of
     output and 0.16MB of memory.
+41aa. Resolving an in-flight send costs the bytes that just arrived, never everything the turn has
+    produced. Both halves of that were quadratic and both starved the pty drain, because the same
+    thread does the copying and the pumping. The pattern was matched against the whole accumulated
+    slice on every 4 KB read — 66.69s inside the echo search and 17.65s inside the match, for a
+    12 MB turn that then reported `settled: false, timed_out: true` at 90.51s while holding 11.46 MB
+    of a 12.00 MB answer whose completion marker the child had already printed. Underneath it, the
+    supervisor built that slice with `byteslice`, which marks a mutable String *shared*, so the very
+    next `<<` copied the whole transcript to make it independent again: one copy of the turn per
+    read, 85% of a sampled 24 MB profile, and the reason a plain `send` with no pattern at all was
+    superlinear too (48 MB in 118.87s). The send is now fed what `append` just received and holds
+    bounded state; the full slice is built once, on the tick that answers it. Measured after: 12 MB
+    settles `matched: true` in 0.98s with all 12.15 MB read, and 48 MB in 3.37s.
+41ab. A `--wait-for-regex` pattern is matched against the most recent `MATCH_WINDOW_BYTES` of
+    post-echo output, with each scan resuming `MATCH_SPAN` characters behind where the last one
+    stopped. That resumption is the guarantee worth stating: any single match up to `MATCH_SPAN`
+    characters long is always found, because on the tick that completes it the scan still begins
+    behind where it started. A single match that must span more than that is never found — the
+    deliberate cost of the bound, documented in `docs/sessions.md`. The scan is resumed by position
+    rather than against a substring so that `\A` keeps meaning the start of the child's answer and
+    cannot be satisfied by wherever the window happens to begin. None of this bounds the reply:
+    `output` remains everything the child produced for the turn.
 41i. A `--wait-for-regex` match is bounded, and a pattern that exceeds its budget is abandoned with
     `regex_timed_out: true` rather than retried. Matching runs on the only thread, so a pattern that
     backtracks catastrophically blocks the loop: it cannot pump the pty, answer `stop`, or even
@@ -537,6 +698,52 @@ deciding who talks to whom stays the calling agent's job.
     a latency regression. `read --screen` renders the whole transcript rather than a `--since`
     slice, because a screen is the product of every escape sequence before it and replaying from a
     mid-stream cursor would show a screen the child never displayed.
+41s. `--screen` renders at the size the child's pty is actually set to, and reports it as
+    `screen_rows`/`screen_cols`. The size is not a constant — the child starts at
+    `DEFAULT_ROWS`x`DEFAULT_COLUMNS`, `attach` resizes it to the terminal that took it over, and
+    `detach` restores the default — so the supervisor records the current winsize in `meta.json`
+    whenever it changes it and the caller's process reads it back. Rendering at a fixed default
+    while a human was attached from any other shape produced a screen nobody ever saw: measured
+    against a child that lays out against its winsize, resized over the control socket to 30x100,
+    with pyte 0.8.2 and GNU screen 4.00.03 replaying the same transcript bytes as independent
+    oracles that agreed with each other exactly, **36 of 37 rows differed before and 0 of 31 after**.
+    Repeated at 24x80 (30/31 before, 0/25 after), 12x40 (18/19, 0/13) and 50x200 (50/51, 0/51); at
+    40x120, where the two sizes coincide, 0 wrong both ways. Repeated again through a real
+    `rune session attach` in a real 30x100 pty, comparing against the bytes that terminal itself
+    received: 29 of 30 rows differed before, 0 of 30 after.
+    A size that was never recorded or that is not a usable terminal (hand-edited meta, a pty whose
+    size was never set) falls back to `DEFAULT_ROWS`x`DEFAULT_COLUMNS`, which is exactly the previous
+    behaviour and is also the size `apply_window_size` gives a child nobody has attached to.
+41t. A caller can tell a recorded size from the fallback, and `screen_rows`/`screen_cols` are not how.
+    A session attached from a 40-row terminal records exactly the fallback numbers, so the pair
+    cannot carry the distinction; `screen_size_recorded` is the field that does. It is true only when
+    the resolved size is what `meta.json` actually held — a value that was clamped, discarded or
+    absent reports false, because what is being reported then is a default and not a fact about the
+    child.
+41u. A winsize arriving over the control socket is clamped where it is recorded, not where it is
+    rendered. A pty's winsize fields are 16-bit, so `{"op":"resize","rows":65535,"cols":65535}` is
+    accepted by the kernel; recording it unbounded would make every later `--screen` drive a grid
+    that size for the rest of the session's life, reinstating one layer up the denial of service
+    behavioural point 12 of `parsers` clamps at the renderer. Measured on a 683KB `\e[999L`
+    transcript, one `read --screen`: **0.76s at 40x120, 17.72s at the 1000x2000 the renderer would
+    have clamped 65535 to, and 3.41s at the `MAX_ROWS`x`MAX_COLUMNS` ceiling** that is now the most
+    a client can ask for. The pty is clamped too, so the child, the record and the render agree —
+    recording a size the child never had is the bug this whole point exists to fix. The residual
+    cost at the ceiling is the renderer's per-row cost for line-insert and scroll operations, which
+    a genuinely 300-row terminal pays identically; it is bounded, not eliminated.
+41v. The whole retained transcript is rendered at the *current* size, including output painted before
+    a resize. That is what an attaching terminal itself shows, because the supervisor replays the
+    backlog into it at its size — verified through a real attach at 0 of 30 rows wrong even for a
+    child that ignores SIGWINCH entirely. The unresolved case is a child that never repaints *and*
+    whose pty is resized under an already-attached terminal, where that terminal is reflowing glyphs
+    it has already drawn. There is no reference answer to match: fed the bytes that terminal
+    received and shrunk mid-stream from 40x120 to 24x80, GNU screen 4.00.03 kept only the cursor row
+    and pyte 0.8.2 kept nothing at all, and the two disagreed with each other on one row of the
+    little they retained. Rune keeps the content and re-flows it, which differs from both (24/24
+    against pyte, 24/25 against GNU screen) where the old fixed 40x120 render differed in 15 — but
+    that score is an artifact of a mostly blank screen coincidentally matching mostly blank oracles,
+    not evidence that the fixed size was closer to what anyone saw. Documented rather than tuned to
+    whichever emulator was measured last.
 41k. An attachment reports the way it ended, and never both ways at once. The note that the session
     is still running is printed only when the human actually detached; when the attachment ended
     because output stopped, the failure says so and points at `rune session list` rather than
@@ -560,8 +767,90 @@ deciding who talks to whom stays the calling agent's job.
     same codename and the loser would fail on a name it never asked for, with many others free —
     which is precisely the parallel-agent case an optional `--name` exists to serve. An explicit
     `--name` still fails on contention: that name was the request.
-45. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
+46. A rotation that cannot be written costs only the rotation. `rotate_output` closes the caller's
+    handle after the replacement is in place, never before, and removes any half-written temp file
+    on the way out. Closing first meant a failure anywhere later left the supervisor holding a
+    closed handle it had no idea was closed, and `log_event`'s own rescue then swallowed every
+    subsequent write — recording stopped silently and permanently. Measured on a real EACCES
+    directory: 200 further events left the transcript 564,000 bytes behind the cursor, and restoring
+    write permission widened the gap to 654,000 rather than resuming. A failed rotation is then
+    backed off for `ROTATE_RETRY_SECONDS` rather than retried on the next event, because
+    `@log_bytes` stays over the ceiling and every attempt seeks and scans the tail it means to keep
+    before it discovers it cannot write — 8,388,576 bytes in 4.8ms at the real bound, on the single
+    thread that also drains the pty.
+46a. A transcript write that fails is recorded, not merely survived. The in-memory cursor has
+    already advanced, so a hole nothing accounts for makes every cursor `send` hands out
+    unresolvable by `read`, permanently — reproduced with RUNE_HOME on a full 20MB ramdisk, where
+    852,000 bytes of output went unrecorded under `dropped: 0` and freeing the disk resumed logging
+    over the hole without a word. The lost byte count is carried and emitted as a `truncated` event
+    by the next write that succeeds, the same vehicle rotation uses, so a pre-hole cursor resolves
+    again and `read` reports `dropped_bytes` rather than silently returning less. Re-measured on the
+    same ramdisk: skew −873,000 during the outage and 0 after recovery. While the hole is still owed
+    there is nowhere on disk to record it, so `send` replies and `status` carry
+    `transcript_gap_bytes` — the only window in which the skew is knowable at all.
+46b. A write that fails part-way leaves a fragment, and a fragment can be a complete JSON object
+    that merely never got its newline — which, once more text is appended, silently swallows the
+    next good record too. Measured on that ramdisk: 280 of 300 writes failed and one left a
+    4,938-byte line parsing as neither record. `TORN_MARKER` is therefore written ahead of the first
+    record to follow a failure, so the fragment terminates into a line that cannot parse and only it
+    is lost. `Store#whole_record?` and `Transcript.load` must then agree exactly on which lines
+    count, because one feeds a rotation's head event and the other reconstructs the stream: the test
+    is a byte comparison (records are one line ending `}`, a marked fragment ends `n`) with the
+    file's unterminated last line parsed outright, since that is the one shape bytes cannot settle.
+    Swept over every split point of 36 record shapes with braces, quotes, escapes, raw newlines and
+    the marker's own bytes in the payload: 8,832 lines compared, 0 disagreements, and 10 cases the
+    byte test alone would have got wrong on that last line.
+47. Teardown kills the child before it records the session as exited. `cleanup` used to write
+    `state: 'exited'` first, so a supervisor dying in that window left a concluded record beside a
+    live process holding a pty. `conclude` already had this order on the normal path; the abnormal
+    one now matches it. `terminate_child` is idempotent and each teardown step keeps its own rescue,
+    so a child that will not die still gets the record written after it.
+48. A child that outlived its supervisor is *reported*, never made a reason to refuse. `list` and
+    the `archive` reply carry `orphaned_child_pid` when a session's supervisor is gone and its
+    recorded child is provably still running. Nothing is blocked and nothing is signalled; the
+    operator is told the number while it is still reachable, because archiving moves the session out
+    of the live namespace and that reply is the last place the pid appears.
+48a. "Provably" means the pair (pid, start time), not the bare pid and not its process group. The
+    supervisor records the child's start time as `ps` reports it, under `LC_ALL=C` because `lstart`
+    is formatted through the locale (`Fri Aug 14 13:41:13 2026` under C, `ven. 14 août 13:41:13
+    2026` under fr_FR). A bare `alive?` answers yes for any process that recycled the number. Asking
+    the process group is not a fix and was measured to be actively wrong in both directions: 1,222
+    of 1,390 live processes on the development machine (87.9%) lead their own group, and 130 of the
+    200 most recently allocated pids (65.0%), so a group question answers "alive" for a stranger
+    about as often as a bare pid does — while a child that is *not* a group leader is missed
+    entirely. An earlier design refused the archive on that test and directed the caller to
+    `rune session stop`, which SIGKILLs the recorded pid's whole process group; two runs of it
+    killed unrelated live groups.
+48b. The recorded `state` is deliberately not consulted. A check that skipped sessions recorded
+    `exited`/`stopped`/`failed` was blind to exactly the case invariant 47 describes. `state` is a
+    claim by a process that is now dead; the pid/start-time pair is evidence.
+48c. Where the question cannot be asked soundly, the answer is silence rather than a guess. A
+    session with no recorded `child_started_at` — started before the field existed, or by a
+    supervisor that died in the window between recording the pid and recording the start time —
+    reports nothing, even if its child is in fact alive.
+49. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
     additive.
+49a. The child ends up at the default geometry, but may observe `0x0` first. `PTY.spawn` returns the
+    master only once the child is already running, so `apply_window_size` cannot land before a child
+    that reads its winsize immediately; such a child is corrected by the SIGWINCH that follows.
+    Observed on a Ruby 3.1 CI runner as `SIZE:[0, 0]` then `RESIZED:[40, 120]`, where every other
+    version won the race. Closing it would mean opening the pty, setting its size, and spawning onto
+    the slave by hand instead of using `PTY.spawn` — a change to the spawn path that has not been
+    measured, so this is recorded as a limitation rather than fixed in a hurry. A child that reads
+    its size once at startup and never handles WINCH is the case that loses.
+50. `--max-output` and `--tail` bound `send` as well as `read`. Both flags were parsed for every
+    subcommand and applied only by `read`, so `send --max-output=120` returned everything under
+    `status: ok` — a caller that asked for a bound was told it succeeded and did not get one.
+    `send` is the worst place for that gap: it is the call an agent makes most, and one turn of a
+    full-screen TUI is megabytes. Bounding happens in the command rather than the supervisor
+    because the cap is one caller's presentation choice; the transcript, the cursor, and every
+    attached client still see the whole stream.
+50a. `clean_output` is derived from the *bounded* raw text, not bounded separately. Bounding the
+    two independently lets them describe different windows of one reply and leaves
+    `omitted_bytes` true of only one of them. This is what `read` already does.
+50b. `--max-output` and `--tail` are mutually exclusive on every session subcommand, with the same
+    message `rune run` has always used. Accepting both applied whichever `bound_size` tested
+    first, so the caller silently got the other one.
 
 ## Behavioral Examples
 
@@ -580,6 +869,9 @@ deciding who talks to whom stays the calling agent's job.
 - `rune session read --name grok --tail 50` returns the last 50 lines of transcript without
   sending anything.
 - `rune session list` shows each session's state, distinguishing `running` from `dead`.
+- `rune session list` adds `orphaned_child_pid` to any session whose supervisor is gone while its
+  recorded child is provably still running, and `rune session archive` carries the same field on its
+  reply. Neither blocks and neither signals the process.
 - `rune session attach --name grok` drops your terminal into the running agent; Ctrl-] detaches and
   leaves it running, so `rune session send --name grok ...` still works afterwards.
 - `rune session stop --name grok` kills and reaps the session; running it twice succeeds both times.
@@ -598,6 +890,8 @@ deciding who talks to whom stays the calling agent's job.
 | `pty` stdlib unavailable | `Result.failure`, same check and message class as `PTYRunner.pty_available?` |
 | `--settle-ms`/`--timeout-ms`/`--tail`/`--max-output` not a positive integer | `Result.failure` before spawning anything |
 | `--wait-for-regex` is not a valid regular expression | `Result.failure` before sending anything |
+| `--grep` is not a valid regular expression | Succeeds with empty `output`/`clean_output`, `grep_error` carrying Ruby's own reason, and no `grep_matches` |
+| A flag-shaped token before the first operand matches no session flag | `Result.failure("Unknown option: ...")` before anything is sent, with the dash-for-underscore suggestion when one applies |
 | `--timeout-ms` elapses before settling | Succeeds with the captured output, `settled: false`, `timed_out: true` |
 | Wrapped command missing/non-executable | Session records exit code 127/126, same convention as `rune run` |
 | `attach` with a non-TTY stdin | `Result.failure` pointing at `send`/`read` for non-interactive access |
@@ -605,6 +899,20 @@ deciding who talks to whom stays the calling agent's job.
 
 ## Known Limitations
 
+- **An orphaned child can only be reported when its identity was recorded.** The report rests on
+  matching the recorded `child_started_at` against the live process's start time. Sessions started
+  before that field existed report nothing, and so does a session whose supervisor died in the
+  window between recording the child's pid and recording its start time — `record_running` is
+  deliberately still the first write, because a pid on disk matters more than an identity for it.
+  Silence therefore means "not known to be orphaned", never "known not to be".
+- **`lstart` resolves to one second.** Two processes wearing the same pid within a single second
+  would be indistinguishable to the identity test. Real pid reuse cannot be that fast — the pid
+  space has to wrap first, measured at 2,482 pid numbers consumed per second under a sustained spawn
+  loop on the development machine, so ~40 seconds for the 99,999-pid space — but the bound is a real
+  one and not a proof.
+- **The report needs `ps`.** Where `ps` is missing or refuses, `process_start_times` returns nothing
+  and every session reports no orphan. That is the safe direction (silence, not a false accusation),
+  but it is silent about being unavailable.
 - **A single line of 1024 bytes or more is silently discarded by a cooked-mode child's terminal.**
   This is `MAX_CANON`, a tty limit rather than a rune bound: the line discipline cannot assemble a
   longer canonical line, so it drops it and the child never sees it. Measured exactly — 1023 bytes
@@ -612,6 +920,22 @@ deciding who talks to whom stays the calling agent's job.
   CLIs) are unaffected: 300KB arrives byte-perfect. This matters because an agent prompt easily
   exceeds 1KB and nothing reports the loss. Send such input to a cooked-mode child in chunks, or
   drive a raw-mode target.
+- **A `--wait-for-regex` pattern that must span more than `MATCH_SPAN` characters is never
+  found.** The pattern is matched against the most recent `MATCH_WINDOW_BYTES` of post-echo output;
+  anything shorter than the re-read span is always found, whatever the turn grows to, but
+  `OPEN[\s\S]*CLOSE` bracketing half a megabyte matched before this bound and does not now — such a
+  send runs on to `--settle-ms` or `--timeout-ms` instead. Verified end to end at both sizes: 8 KB
+  between the brackets matches, 512 KB does not. Wait for a marker, and use `read` for the span
+  between two of them.
+- **The repaint veto needs to see a whole copy of the input, and a pty read can tear one in half.**
+  `Echo#repaint?` rejects a match that a redrawn copy of the input covers, but it looks a bounded
+  distance *after* the match as well as before, and that trailing half may not have arrived yet.
+  Reproduced deterministically by splitting a repaint frame immediately after the token: whole
+  frames are vetoed, the torn frame is not, and a pattern that appears only inside the caller's own
+  input is answered `matched: true` by it. Pre-existing and unchanged by the match-window work;
+  it is why a pattern that also occurs in what you sent remains the shape to avoid. Deferring such
+  a match until its trailing context arrives is not obviously safe — an answer that is the last
+  thing the child ever prints has no trailing context — so this is recorded rather than patched.
 - **On Ruby 3.0 and 3.1 a `--wait-for-regex` pattern can still wedge a session.** Per-`Regexp`
   timeouts arrived in 3.2; below that there is no way to bound a single match, so a catastrophically
   backtracking pattern blocks the supervisor's only thread with no recovery but `stop`. Ruby 3.2 and
@@ -667,6 +991,12 @@ deciding who talks to whom stays the calling agent's job.
   sequences and carriage returns with very few newlines — `--tail 6` against a real agent returned
   effectively the entire 338KB transcript. This is inherent to line-counting, not a bug in the
   bound.
+- **`--max-output=BYTES` bounds the transcript, not the reply.** The head and tail are joined by a
+  `[rune] ==== N bytes omitted by --max-output ====` line, and pulling either cut back to an escape
+  sequence boundary can drop a few more bytes; neither is charged against `BYTES`, so a reply can
+  exceed it by roughly the marker's length. A caller sizing a buffer should allow for that. The
+  budget has never been an exact ceiling in any case — `scrub` overshoots it whenever a cut splits a
+  multi-byte character.
 - **`clean_output` strips terminal control sequences but not terminal *semantics*.** With
   `TextSanitizer` widened (see the `parsers` change log) the escape codes are gone, but a
   full-screen agent's output is still a stream of repaints: the same line reappears many times and
@@ -709,3 +1039,8 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-15 | CHG-0050-extract-the-transcript-out-of-sessioncommand-reconstruction-cursors-search-an: Extract the transcript out of SessionCommand: reconstruction, cursors, search and rendering are one subject |
 | 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
 | 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |
+| 2026-08-17 | CHG-0057-make-transcript-cursors-survive-a-mid-stream-gap-record-where-each-dropped-regi: Make transcript cursors survive a mid-stream gap: record where each dropped region sits and map cursors through the list |
+| 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
+| 2026-08-17 | CHG-0059-expose-subcommands-as-structured-data-in-per-command-help: Expose subcommands as structured data in per-command help |
+| 2026-08-17 | CHG-0060-bound-send-output-with-max-output-and-tail-and-make-the-two-mutually-exclus: Bound send output with --max-output and --tail, and make the two mutually exclusive |
+| 2026-08-17 | CHG-0063-assert-the-geometry-rune-guarantees-not-the-scheduler-that-usually-delivers-it: Assert the geometry rune guarantees, not the scheduler that usually delivers it |

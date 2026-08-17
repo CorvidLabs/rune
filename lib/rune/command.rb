@@ -2,8 +2,26 @@
 
 module Rune
   class Command
+    # A token shaped like one of rune's own long flags: `--`, a letter, then flag characters only,
+    # optionally `=value`.
+    #
+    # Deliberately narrow, because in every command that has one the same argv position also
+    # carries text the caller means as *input* or as the wrapped command's own argv. `--- section
+    # ---` (second character is not a letter, and it holds spaces) and `--foo bar` as one token are
+    # not flags and are still passed through; only a token that could not plausibly be anything but
+    # a mistyped flag matches. `/m` so a value carrying a newline is still recognized by its name.
+    FLAG_SHAPED = /\A--[A-Za-z][A-Za-z0-9_-]*(?:=.*)?\z/m
+
     class << self
       attr_reader :command_name, :command_summary, :command_usage
+
+      # Whether `token` looks like a long flag rune could have meant to own.
+      #
+      # `rune session frobnicate` has always been rejected, but a mistyped *flag* was not: it
+      # matched nothing, fell through to the argv the command passes on, and was then typed at a
+      # child or execed as a program name. Commands use this to tell "you misspelled a flag" from
+      # "this is your input".
+      def flag_shaped?(token) = FLAG_SHAPED.match?(token)
 
       def name(cmd_name = nil)
         return super() if cmd_name.nil?
@@ -28,6 +46,23 @@ module Rune
       end
 
       def command_flags = @command_flags ||= []
+
+      # Declares one subcommand so `rune <command> --help --json` can list them
+      # as data, in the same `{name, summary}` shape `rune --help` already uses
+      # for top-level commands.
+      #
+      # Without this the surface was structured at the top level and a string
+      # one level down: `rune session --help --json` carried the subcommands
+      # only inside its `usage` line, as `<start|send|read|...>`. An agent
+      # discovering the CLI had to parse JSON for one level and then split on
+      # `|` for the next, which a field report flagged after hitting exactly
+      # that. Commands without subcommands declare none and the key stays
+      # absent, so nothing that reads the old payload changes shape.
+      def subcommand(name, description)
+        command_subcommands << { name: name.to_s, summary: description }
+      end
+
+      def command_subcommands = @command_subcommands ||= []
     end
 
     # Override in subclasses

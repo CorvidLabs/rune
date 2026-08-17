@@ -1,5 +1,10 @@
 # rune
 
+[![CI](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml/badge.svg)](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml)
+[![Ruby](https://img.shields.io/badge/ruby-3.0%20%E2%80%93%204.0-CC342D?logo=ruby&logoColor=white)](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml)
+[![Dependencies](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](rune.gemspec)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 A Ruby CLI tool and library designed from the ground up to be **human & AI agent first-class**.
 
 `rune` serves as a universal pseudo-terminal (PTY) runner and structured data bridge for any CLI command or interactive TUI application.
@@ -107,7 +112,7 @@ rune run --help --json | jq '.data | {usage, flags}'
     },
     {
       "flag": "--max-output=BYTES",
-      "description": "Bound clean_output/raw_output to BYTES each, keeping head+tail. Mutually exclusive with --tail. Before `--` only."
+      "description": "Bound clean_output/raw_output to BYTES each, keeping head+tail and marking the join with a `[rune] ==== N bytes omitted by --max-output ====` line. Mutually exclusive with --tail. Before `--` only."
     },
     {
       "flag": "--tail=N",

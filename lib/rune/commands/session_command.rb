@@ -36,11 +36,23 @@ module Rune
       flag '--tail=N', 'read: keep only the last N lines.'
       flag '--grep=RE',
            'read: keep only lines matching RE, from the rendered text rather than the repaint ' \
-           'stream. Use with --context=N for surrounding lines.'
+           'stream. Use with --context=N for surrounding lines. A pattern that will not compile ' \
+           'selects nothing and is reported as grep_error.'
       flag '--context=N', 'read: lines of context to keep either side of a --grep match (default 0).'
-      flag '--max-output=BYTES', 'read: bound the returned text to BYTES, keeping head and tail.'
+      flag '--max-output=BYTES',
+           'read: bound the returned text to BYTES of transcript, keeping head and tail. The join ' \
+           'is marked in the text with a `[rune] ==== N bytes omitted by --max-output ====` line, ' \
+           'which is rune\'s annotation rather than transcript and is not charged to BYTES.'
       flag '--all-projects', 'list: include sessions from every project, not just this one.'
       flag '--archived', 'list: show archived sessions instead of live ones.'
+
+      subcommand 'start',   'Start a named session that outlives this invocation and keeps its child alive.'
+      subcommand 'send',    'Send text to the child and wait for it to settle, match a regex, or time out.'
+      subcommand 'read',    'Read transcript output, optionally since a cursor, as a screen, or grepped.'
+      subcommand 'attach',  'Attach this terminal to a running session as a live bidirectional view.'
+      subcommand 'list',    'List sessions with state, exit code, and recent activity.'
+      subcommand 'stop',    'Stop a session, ending its child and supervisor.'
+      subcommand 'archive', 'Archive a stopped session, retaining its transcript.'
 
       SUBCOMMANDS = %w[start send read attach list stop archive].freeze
       # How long `start` waits for the supervisor to come up and report ready
@@ -84,6 +96,14 @@ module Rune
         '--screen' => :screen
       }.freeze
 
+      # Every long flag this command answers to, for the "did you mean" in `unknown_flag_error`.
+      # Built from the same three tables the parser uses, and carrying both spellings
+      # `separate_form?` accepts, so a flag cannot be added without appearing here.
+      KNOWN_FLAGS = (
+        BOOLEAN_FLAGS.keys +
+        VALUE_FLAGS.keys.flat_map { |key| [ALIASES[key], "--#{key.to_s.tr('_', '-')}"] }
+      ).compact.uniq.freeze
+
       # `_supervise` is deliberately absent from SUBCOMMANDS: it is how `start`
       # re-invokes rune as the detached supervisor, so it must dispatch but must
       # never appear in help or in an error's list of valid subcommands.
@@ -104,11 +124,32 @@ module Rune
       def human_render(data, io)
         case data[:action]
         when 'list' then render_list(data, io)
-        # A human reading a driven TUI agent wants the stripped text, not its
-        # repaint traffic; agent mode still gets both fields in the envelope.
-        when 'send', 'read' then io.puts(data[:clean_output] || data[:output])
+        when 'send', 'read' then render_output(data, io)
+        when 'archive' then render_archive(data, io)
         else io.puts(JSON.generate(data.except(:action)))
         end
+      end
+
+      # The orphan warning is printed after the archive line rather than folded
+      # into the JSON blob, because this is the last moment the pid is reachable
+      # by name and a human skimming a one-line envelope would miss it.
+      def render_archive(data, io)
+        io.puts(JSON.generate(data.except(:action, :orphaned_child_pid)))
+        return unless data[:orphaned_child_pid]
+
+        io.puts "\e[33m! child pid #{data[:orphaned_child_pid]} is still running and this session no " \
+                "longer names it. Check it with 'ps -p #{data[:orphaned_child_pid]}'.\e[0m"
+      end
+
+      # A human reading a driven TUI agent wants the stripped text, not its
+      # repaint traffic; agent mode still gets both fields in the envelope.
+      #
+      # `grep_error` is printed first because the text below it is empty when a
+      # pattern would not compile: a bare blank line with no reason for it is a
+      # worse answer than the whole transcript this used to print.
+      def render_output(data, io)
+        io.puts("\e[31m✗ #{data[:grep_error]}\e[0m") if data[:grep_error]
+        io.puts(data[:clean_output] || data[:output])
       end
 
       private
@@ -124,7 +165,7 @@ module Rune
       # ---- start
 
       def start(args)
-        options, rest, error = extract_options(args)
+        options, rest, error = extract_options(args, operand_owns_flags: true)
         return Result.failure(error) if error
 
         command = rest.first == '--' ? rest[1..] : rest
@@ -224,7 +265,14 @@ module Rune
         end
 
         meta = store.read_meta(name) || {}
+        # `project` because a session's namespace is the cwd's basename plus a
+        # hash, so every git worktree is a separate one. A caller that started a
+        # session in a worktree and read from the parent repo got
+        # "No such session", and `list` — the remedy the error suggests — showed
+        # an empty array, actively confirming the wrong conclusion. Reported by
+        # someone who was about to debug the wrong program.
         Result.success({ action: 'start', name: name, command: command,
+                         project: store.project,
                          child_pid: meta[:child_pid], supervisor_pid: pid,
                          state: meta[:state], exit_code: meta[:exit_code] }.compact)
       end
@@ -317,7 +365,8 @@ module Rune
         regex_error = validate_regex(options[:wait_for_regex])
         return Result.failure(regex_error) if regex_error
 
-        exchange(options[:name], send_payload(options, text), action: 'send', screen: options[:screen])
+        exchange(options[:name], send_payload(options, text),
+                 action: 'send', screen: options[:screen], options: options)
       end
 
       def send_payload(options, text)
@@ -329,6 +378,19 @@ module Rune
         }.compact
       end
 
+      # The child's state, on every send and read.
+      #
+      # Only `list` carried it, and the driving loop is send -> read -> send. A
+      # child that exited answered `settled: true` with no indication, so a naive
+      # loop drove a corpse forever seeing plausible replies each time. Reported
+      # from real use by someone who read `settled: true, matched: nil` at 1198ms
+      # against a 30s settle window and started drafting a bug that --settle-ms
+      # was being ignored — the child had died. Presentation gap, not a data gap.
+      def liveness(name)
+        meta = store.read_meta(name) || {}
+        { state: meta[:state], exit_code: meta[:exit_code] }.compact
+      end
+
       def validate_regex(source)
         return nil if source.nil?
 
@@ -338,7 +400,7 @@ module Rune
         "Invalid --wait-for-regex value: #{e.message}"
       end
 
-      def exchange(name, payload, action:, screen: false)
+      def exchange(name, payload, action:, screen: false, options: {})
         alive = alive_session(name)
         return alive if alive.is_a?(Result)
 
@@ -348,7 +410,8 @@ module Rune
         return Result.failure("Session #{name.inspect}: #{reply[:error]}") if reply[:error]
 
         Result.success({ action: action, name: name }
-                         .merge(with_clean_output(reply))
+                         .merge(bounded_output(reply, options))
+                         .merge(liveness(name))
                          .merge(screen_after(name, screen)))
       rescue Session::Client::Unavailable => e
         Result.failure("Session #{name.inspect} is not reachable (#{e.message}). It may have exited; " \
@@ -378,6 +441,29 @@ module Rune
         return reply unless reply.key?(:output)
 
         reply.merge(clean_output: Parsers::TextSanitizer.strip_ansi(reply[:output]))
+      end
+
+      # `--max-output` and `--tail` were parsed for every subcommand but applied
+      # only by `read`, so `send` accepted both and silently returned everything.
+      # That is the wrong one to leave unbounded: `send` is the call an agent
+      # makes most, and one turn of a full-screen TUI is megabytes. An agent that
+      # asked for a bound and was told `status: ok` had no way to know it did not
+      # get one.
+      #
+      # Bounding happens here rather than in the supervisor because the cap is a
+      # presentation choice of this one caller — the transcript, the cursor, and
+      # every other attached client must still see the whole stream.
+      def bounded_output(reply, options)
+        return with_clean_output(reply) unless reply.key?(:output) &&
+                                               (options[:max_output_bytes] || options[:tail_lines])
+
+        # Bound the raw text and derive `clean_output` from the bounded result,
+        # which is what `read` does. Bounding the two independently would let
+        # them describe different windows of the same reply, and leave the
+        # `omitted_bytes` count true of only one of them.
+        bounded, extra = bound_size(reply[:output].to_s, options)
+        reply.merge(output: bounded,
+                    clean_output: Parsers::TextSanitizer.strip_ansi(bounded)).merge(extra)
       end
 
       def alive_session(name)
@@ -428,7 +514,8 @@ module Rune
           prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }
           .merge(transcript.dropped.positive? ? { dropped_bytes: transcript.dropped } : {})
           .merge(busy_fields(options))
-          .merge(options[:screen] ? { screen: transcript.screen } : {})
+          .merge(liveness(options[:name]))
+          .merge(options[:screen] ? screen_fields(transcript, options[:name]) : {})
       end
 
       # The screen as it stands once the send has settled. Read from the
@@ -438,7 +525,48 @@ module Rune
       def screen_after(name, screen)
         return {} unless screen
 
-        { screen: Session::Transcript.load(store.output_path(name)).screen }
+        screen_fields(Session::Transcript.load(store.output_path(name)), name)
+      end
+
+      # Rendered at the size the child's pty is actually set to, which is not
+      # the size it was started at: `attach` resizes the child to the human's
+      # terminal, so for the whole time anyone is attached from a window that is
+      # not 40x120 a fixed default renders a screen the child never drew. The
+      # supervisor records the current winsize in meta on every resize; this
+      # reads it back.
+      #
+      # The size is reported alongside the screen because a caller cannot
+      # otherwise tell a real geometry from the fallback, and the numbers alone
+      # cannot carry that distinction either: a session attached from a 40-row
+      # terminal records exactly the fallback's own 40x120.
+      #
+      # `screen_size_recorded` is the field that can. False means the size shown
+      # is the documented default, for one of three reasons — nobody has resized
+      # this child (where the default is not a guess: it is what the supervisor
+      # set the pty to), the session directory predates rune recording a size at
+      # all, or meta held a size the renderer refused as unusable.
+      def screen_fields(transcript, name)
+        rows, columns, recorded = window_size(name)
+        { screen: transcript.screen(rows: rows, columns: columns),
+          screen_rows: rows, screen_cols: columns, screen_size_recorded: recorded }
+      end
+
+      # The child's last recorded winsize, resolved through the renderer so an
+      # absent one (an old session directory) or a nonsensical one (hand-edited
+      # meta, a pty whose size was never set) becomes the documented default
+      # rather than a crash.
+      #
+      # "Recorded" is decided by comparing the resolved size against what meta
+      # actually held, not by whether the keys are present, so a value that was
+      # clamped or discarded on the way through is reported as the default it
+      # became.
+      def window_size(name)
+        meta = store.read_meta(name) || {}
+        rows, columns = Parsers::ScreenRenderer.dimensions(meta[:rows], meta[:cols])
+        # A size the supervisor had to reduce is not the child's geometry, so it
+        # is not "recorded" either — the spec said as much before the code did.
+        recorded = rows == meta[:rows] && columns == meta[:cols] && !meta[:size_reduced]
+        [rows, columns, recorded]
       end
 
       def bound_output(text, options, transcript = nil)
@@ -453,17 +581,49 @@ module Rune
       def filter(text, options, transcript)
         return [text, {}] unless options[:grep] && transcript
 
-        pattern = compile_grep(options[:grep])
-        return [text, { grep_error: "invalid --grep pattern: #{options[:grep]}" }] unless pattern
+        pattern, reason = compile_grep(options[:grep])
+        return [+'', grep_failure(options[:grep], reason)] unless pattern
 
         filtered, matches = transcript.grep(pattern, context: options[:context_lines].to_i)
         [filtered, { grep: options[:grep], grep_matches: matches }]
       end
 
+      # A filter that will not compile selected nothing, so nothing is what the
+      # read returns.
+      #
+      # It used to return the *entire* transcript: `--grep='[unclosed'` came back
+      # `status: ok` carrying every byte — the exact opposite of the same read
+      # with a valid pattern that matches nothing, which returns zero. A caller
+      # that did not read `grep_error` therefore saw every line as though it had
+      # matched, at the maximum possible cost. A filter that cannot run should
+      # fail closed.
+      #
+      # The read itself still succeeds, which is deliberate and is the whole
+      # reason `grep_error` exists: `read` also carries `cursor`, `dropped_bytes`,
+      # `prompt_detected`, `idle_ms`/`child_busy` and optionally `screen`, none of
+      # which the pattern has any bearing on, and a `Result.failure` would throw
+      # all of it away — including the cursor the caller needs to make progress —
+      # and would leave `grep_error` with no envelope to travel in. (`send`
+      # rejects a bad `--wait-for-regex` outright, and should: there the pattern
+      # decides *when to return*, so proceeding would mean writing the input and
+      # then waiting out the full timeout.)
+      #
+      # `grep_matches` is deliberately absent rather than `0`: nothing was
+      # searched, and a caller must be able to tell that from a search that found
+      # nothing.
+      def grep_failure(source, reason)
+        { grep: source, grep_error: "invalid --grep pattern: #{reason}; returned no output" }
+      end
+
+      # Returns `[pattern, nil]`, or `[nil, reason]` for a pattern that will not
+      # compile. The reason is Ruby's own message, which both quotes the pattern
+      # and says what is wrong with it (`premature end of char-class: /[unclosed/`);
+      # the old message named the pattern and stopped there, so a caller was told
+      # its filter was bad but not why.
       def compile_grep(source)
-        Regexp.new(source)
-      rescue RegexpError
-        nil
+        [Regexp.new(source), nil]
+      rescue RegexpError => e
+        [nil, e.message.lines.first.to_s.strip]
       end
 
       def bound_size(text, options)
@@ -509,7 +669,7 @@ module Rune
         return list_all_projects if options[:all_projects]
 
         Result.success({ action: 'list', project: store.project,
-                         sessions: store.names.map { |name| describe(name) } })
+                         sessions: with_orphans(store.names.map { |name| describe(name) }, store) })
       end
 
       def list_archived
@@ -522,9 +682,76 @@ module Rune
       def list_all_projects
         sessions = Session::Store.projects(store.home).flat_map do |project|
           scoped = Session::Store.new(home: store.home, project: project)
-          scoped.names.map { |name| describe(name, scoped).merge(project: project) }
+          described = scoped.names.map { |name| describe(name, scoped).merge(project: project) }
+          with_orphans(described, scoped)
         end
         Result.success({ action: 'list', all_projects: true, sessions: sessions })
+      end
+
+      # ---- orphaned children
+      #
+      # A supervisor killed with SIGKILL leaves its child running, reparented to
+      # pid 1 and still holding the pty. Nothing in rune owns that process any
+      # more, and nothing used to say so: `list` showed the session `dead` and
+      # `archive` filed it away, both without a word about the pid still burning
+      # CPU behind them.
+      #
+      # This reports and never blocks. An earlier attempt refused the archive and
+      # sent the caller to `rune session stop`, which kills the recorded child's
+      # whole process group — so the moment its liveness test was wrong about a
+      # recycled pid, the remedy killed a stranger. It was wrong often: that test
+      # asked the process *group*, on the premise that a recycled pid sits in its
+      # parent's group, and on this machine 87.9% of live processes lead their own
+      # group. Two runs of it killed unrelated live groups (pids 92948 and 80847).
+      # Reporting cannot do that, so the accuracy question stops being a safety
+      # question and becomes an honesty one.
+      #
+      # The state field is deliberately not consulted. The refusal skipped any
+      # session recorded `exited`/`stopped`/`failed`, which is exactly where the
+      # bug lives: `Supervisor#cleanup` used to write `state: 'exited'` before it
+      # terminated the child, so a supervisor dying in that window left a
+      # concluded record next to a live process and the check waved it through.
+      # `state` is a claim by a process that is now dead; the pair below is
+      # evidence.
+      def with_orphans(described, scoped)
+        orphans = orphaned_pids(described.map { |entry| entry[:name] }, scoped)
+        return described if orphans.empty?
+
+        described.map do |entry|
+          pid = orphans[entry[:name]]
+          pid ? entry.merge(orphaned_child_pid: pid) : entry
+        end
+      end
+
+      # Sessions whose supervisor is gone but whose recorded child is provably
+      # still the same process, still running. Batched into one `ps` for the
+      # whole listing, and skipped entirely when nothing qualifies, because
+      # `list` runs while several agents are working and has to stay cheap.
+      def orphaned_pids(names, scoped)
+        candidates = names.filter_map { |name| orphan_candidate(name, scoped) }
+        return {} if candidates.empty?
+
+        live = Session::Store.process_start_times(candidates.map { |candidate| candidate[1] })
+        candidates.each_with_object({}) do |(name, pid, started), found|
+          found[name] = pid if live[pid] == started
+        end
+      end
+
+      # `[name, pid, recorded start time]`, or nil when the question cannot be
+      # asked soundly. A live supervisor disqualifies the session because its
+      # child is *supposed* to be running — "orphan" means nothing owns it. A
+      # missing `child_started_at` disqualifies it because that is a session
+      # started before this field existed, or one whose supervisor died in the
+      # window before it was written: the honest answer there is silence, not a
+      # guess from the bare pid.
+      def orphan_candidate(name, scoped)
+        meta = scoped.read_meta(name) || {}
+        pid = Session::Store.positive_pid(meta[:child_pid])
+        started = meta[:child_started_at]
+        return nil if pid.nil? || started.nil? || started.to_s.empty?
+        return nil if Session::Store.alive?(meta[:supervisor_pid])
+
+        [name, pid, started]
       end
 
       # State is always recomputed from real process liveness. A supervisor
@@ -712,8 +939,17 @@ module Rune
         rejection = archive_rejection(options[:name])
         return rejection if rejection
 
+        # Read before the move, because the move is what makes the pid
+        # unreachable: once the directory is out of the live namespace, `list`
+        # will not show the session and `stop` answers "no such session", so this
+        # reply is the last place the number appears. Reported rather than
+        # refused — see `with_orphans` for why refusing was worse than the gap it
+        # covered.
+        orphan = orphaned_pids([options[:name]], store)[options[:name]]
         target = store.archive(options[:name], stamp: Time.now.strftime('%Y%m%d-%H%M%S'))
-        Result.success({ action: 'archive', name: options[:name], archived_to: File.basename(target) })
+        Result.success({ action: 'archive', name: options[:name],
+                         archived_to: File.basename(target),
+                         orphaned_child_pid: orphan }.compact)
       end
 
       def archive_rejection(name)
@@ -742,11 +978,43 @@ module Rune
       # silently swallowed `foo` into the wrapped command's argv and then failed
       # with "a session name is required" — a confusing error a long way from
       # its cause.
-      def extract_options(args)
+      # `operand_owns_flags` is true only for `start`, whose operand is a
+      # program followed by that program's own argv — `start --name=x claude
+      # --resume` must keep working, so a flag after the program name is the
+      # child's business.
+      #
+      # Everywhere else it is false, and that is the fix: `send` takes literal
+      # text, and rune *consumes* a correctly-spelled flag after it
+      # (`send 'echo hi' --settle-ms 600` really does have its flag eaten) while
+      # a mistyped one was typed at the child under `status: ok`. Permuting for
+      # consumption and not for validation was the inconsistency.
+      def extract_options(args, operand_owns_flags: false)
         separator_index = args.index('--')
         head = separator_index ? args[0...separator_index] : args
         tail = separator_index ? args[separator_index..] : []
 
+        options, rest, error = scan_flags(head, operand_owns_flags: operand_owns_flags)
+        error ||= conflicting_bounds(options)
+        [options, rest + tail, error]
+      end
+
+      # `rune run` has always refused this pair; sessions accepted both and
+      # applied whichever `bound_size` checked first, so a caller that asked for
+      # `--tail` alongside `--max-output` was told `status: ok` and quietly given
+      # the other one. Same message as `run`, because it is the same mistake.
+      def conflicting_bounds(options)
+        return nil unless options[:max_output_bytes] && options[:tail_lines]
+
+        'Cannot combine --max-output and --tail; use one or the other.'
+      end
+
+      def flag_to_validate?(token, rest, operand_owns_flags)
+        return false unless self.class.flag_shaped?(token)
+
+        operand_owns_flags ? rest.empty? : true
+      end
+
+      def scan_flags(head, operand_owns_flags: false)
         options = {}
         error = nil
         rest = []
@@ -754,11 +1022,54 @@ module Rune
         while index < head.length
           consumed, message = consume_flag(head, index, options)
           error ||= message
-          rest << head[index] if consumed.zero?
+          if consumed.zero?
+            # Validated wherever a flag would have been CONSUMED, not only
+            # before the first operand. `consume_flag` is tried at every index,
+            # so `send 'echo hi' --settle-ms 600` really does have its flag
+            # eaten by rune — while `send 'echo hi' --settle_ms 600` was typed
+            # at the child with status: ok. Permuting for consumption and not
+            # for validation is the inconsistency; this closes it.
+            error ||= unknown_flag_error(head[index]) if flag_to_validate?(head[index], rest, operand_owns_flags)
+            rest << head[index]
+          end
           index += consumed.zero? ? 1 : consumed
         end
 
-        [options, rest + tail, error]
+        [options, rest, error]
+      end
+
+      # `rune session frobnicate` has always been rejected, but a mistyped
+      # *flag* was not: `send --settle_ms 500 'echo HELLO'` (underscore for dash)
+      # matched nothing, so the flag, its value and the input were joined with
+      # spaces and typed at the child, which answered `status: ok`. Against
+      # `cat` that echoes back nonsense; against an agent CLI it is a garbage
+      # prompt to a paid model, and against a confirmation dialog it is an
+      # answer nobody meant to give.
+      #
+      # Two limits keep this from rejecting anything that works today. Nothing
+      # after the first `--` is examined, so the documented passthrough is
+      # untouched: `send --name=NAME -- --settle_ms` still types `--settle_ms`
+      # at the child, and that is what the error points at. And nothing after
+      # the first operand is examined either, which is the getopt convention and
+      # is what `rune session start --name=x claude --resume` needs — past the
+      # program name every `--flag` belongs to the child, not to rune. The same
+      # rule keeps `send --name=x git log --oneline` typing what it says.
+      def unknown_flag_error(token)
+        return nil unless self.class.flag_shaped?(token)
+
+        name = token.split('=', 2).first
+        "Unknown option: #{name}.#{suggestion(name)} " \
+          'Flags are recognized only before a `--` separator; to send it to the child as literal ' \
+          "input, put it after one: rune session <subcommand> --name=NAME -- #{name}"
+      end
+
+      # Only the dash-for-underscore confusion, which is the mistake actually
+      # observed and the one an exact-match check can call with certainty. A
+      # fuzzy matcher would start guessing, and a wrong guess in an error message
+      # is worse than none.
+      def suggestion(name)
+        candidate = name.tr('_', '-')
+        KNOWN_FLAGS.include?(candidate) && candidate != name ? " Did you mean #{candidate}?" : ''
       end
 
       # Returns [tokens_consumed, error]. Zero means "not one of our flags".
@@ -839,7 +1150,14 @@ module Rune
           io.puts "#{icon} #{scope}\e[1m#{session[:name]}\e[0m  #{session[:state]}#{idle_suffix(session)}  " \
                   "#{Array(session[:command]).join(' ')}"
           io.puts "    \e[90m#{session[:last_line]}\e[0m" if session[:last_line]
+          render_orphan(session, io)
         end
+      end
+
+      def render_orphan(session, io)
+        return unless session[:orphaned_child_pid]
+
+        io.puts "    \e[33m! child pid #{session[:orphaned_child_pid]} is still running with no supervisor\e[0m"
       end
 
       # Idle time is the fastest read on "is this one stuck": a running agent

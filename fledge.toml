@@ -15,6 +15,7 @@ clean = "rm -f *.gem"
 smoke-test = "ruby examples/smoke_test.rb"
 set-version = "ruby scripts/set_release_version.rb \"$1\""
 version-check = "ruby scripts/check_release_version.rb"
+docs-check = "ruby scripts/check_docs_current.rb"
 
 [lanes.verify]
 description = "Full CI gate: version parity, lint, tests, and spec-sync."
@@ -26,7 +27,7 @@ steps = ["lint", "test"]
 
 [lanes.release]
 description = "Release gate: full verification, smoke tests, and gem build."
-steps = ["version-check", "fmt-check", "lint", "test", "spec-check", "spec-lifecycle", "smoke-test", "build"]
+steps = ["version-check", "docs-check", "fmt-check", "lint", "test", "spec-check", "spec-lifecycle", "smoke-test", "build"]
 
 [lanes.fix]
 description = "Auto-fix: format, then lint to show remaining issues."

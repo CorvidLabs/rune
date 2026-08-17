@@ -1,0 +1,120 @@
+## MODIFIED
+
+### SPEC SECTION Public API
+
+| Name | Type | Description |
+|------|------|-------------|
+| `CLI` | class | CLI router. Class methods: `run(argv)`, `register(command_class)`, `commands`. Instance: `run(argv)`. |
+| `Command` | class | Base class for commands. DSL: `name(n)`, `summary(s)`, `usage(text)`, `flag(spec, description)`. Override: `call(args, options)`, `human_render(data, io)`. Shared: `flag_shaped?(token)`. |
+| `FLAG_SHAPED` | constant | Matches a token shaped like one of rune's own long flags — `--`, a letter, flag characters, optional `=value`. Deliberately narrow: the same argv position also carries input text and wrapped-command argv, so `---`, `--- section ---` and any token with a space are not flags. |
+| `flag_shaped?` | class method | Whether a token looks like a long flag rune could have meant to own. Commands use it to tell a mistyped flag from their own operands, so an unrecognized `--flag` is refused rather than exec'd or typed at a child. |
+| `Result` | class | Structured result. Class methods: `.success(data, exit_code: nil)`, `.failure(error, data: nil, exit_code: nil)`. Instance: `#success?`, `#failure?`, `#to_h`, `#exit_code`. |
+| `Renderer` | class | Output formatter. `#agent_mode?`, `#render(result, human_block:)`. Supports JSON and NDJSON modes. |
+| `Error` | class | Base exception reserved for rune-specific library errors. |
+| `Rune` | module | Top-level namespace for the library and CLI framework. |
+| `register` | class method | Registers a command subclass immediately after its DSL name is declared. |
+| `run` | method | Dispatches an argv array, renders its `Result`, and exits with `Result#exit_code`. |
+| `commands` | reader | Returns the registered command-name-to-class mapping. |
+| `name` | class method | With an argument, declares and registers the CLI name for a `Command` subclass; without one, returns the normal Ruby class name. |
+| `summary` | class method | Declares the help summary for a `Command` subclass. |
+| `call` | instance method | Command execution contract; subclasses must return a `Result`. |
+| `human_render` | instance method | Optional command-specific terminal renderer. |
+| `command_name` | reader | Returns the subclass's declared CLI name. |
+| `command_summary` | reader | Returns the subclass's declared help summary. |
+| `success?` | predicate | Reports whether a `Result` has `:ok` status. |
+| `failure?` | predicate | Reports whether a `Result` has `:error` status. |
+| `success` | class method | Constructs a successful `Result`, optionally with a process exit override. |
+| `failure` | class method | Constructs an error `Result`, optionally with data and a process exit override. |
+| `to_h` | instance method | Serializes the stable status/data/error envelope. |
+| `exit_code` | instance method | Returns the explicit process exit override or the status-derived default. |
+| `status` | reader | Returns the symbolic result status. |
+| `data` | reader | Returns the result payload, if any. |
+| `error` | reader | Returns the result error message, if any. |
+| `agent_mode?` | predicate | Selects structured output for explicit JSON modes or non-TTY output. |
+| `render` | instance method | Renders one `Result` in NDJSON, JSON, or human form. |
+| `render_event` | instance method | Emits and flushes a named NDJSON event when NDJSON mode is active. |
+| `io` | reader | Returns the renderer's output stream. |
+| `json_mode` | reader | Reports whether explicit JSON rendering is enabled. |
+| `ndjson_mode` | reader | Reports whether NDJSON envelope rendering is enabled. |
+| `VERSION` | constant | Current rune release version. |
+| `VersionCommand` | class | Returns rune, Ruby, platform, and optional-tool version information. |
+| `Commands` | module | Namespace containing concrete CLI command implementations. |
+| `usage` | class method | Declares the one-line invocation shape shown by `rune <cmd> --help`. |
+| `flag` | class method | Declares one command-specific flag (spec + description) for command help. |
+| `command_usage` | reader | Returns the subclass's declared usage line, or nil. |
+| `command_flags` | reader | Returns the subclass's declared flags, defaulting to an empty array. |
+| `subcommand` | class method | Declares one subcommand (name + summary) for command help. |
+| `command_subcommands` | reader | Returns the subclass's declared subcommands, defaulting to an empty array. |
+| `Help` | class | Builds and renders `rune --help`, `rune <cmd> --help`, and `rune help [cmd]`. Class method: `.extract_flag!(args)`. Instance: `#overview`, `#for_command(name)`, `#render(data, io)`. |
+| `FLAGS` | constant | Tokens (`--help`, `-h`) recognized as a help request before the first `--`. |
+| `GLOBAL_FLAGS` | constant | Flags that apply to every command, rendered under "Global flags" and returned in every help payload. |
+| `extract_flag!` | class method | Removes every help alias from the pre-separator argv in place and reports whether any were present. |
+| `overview` | instance method | Builds the all-commands help `Result`. |
+| `for_command` | instance method | Builds one command's help `Result`, or a structured failure for an unknown name. |
+| `render_command` | internal method | Renders one command's usage and flag list for a terminal. |
+| `render_flags` | internal method | Renders an aligned flag/description list. |
+
+
+### SPEC SECTION Invariants
+
+1. Commands never print directly to stdout — they return a `Result`
+2. `Result#to_h` always includes a `status` key ("ok" or "error")
+3. Non-TTY stdout automatically triggers JSON output (agent mode)
+4. `--json` flag forces JSON output regardless of TTY
+5. `--ndjson` forces a newline-delimited result envelope; successful final results use
+   `event: "result"` and failures use `event: "error"`. Live multi-event streaming is provided by
+   `rune watch`.
+6. `Result#exit_code` defaults to 0 for success / 1 for failure, but a command can override it via
+   `exit_code:` on `Result.success`/`.failure` — e.g. `RunCommand`/`WatchCommand` mirror the wrapped
+   command's own exit code, so `rune run -- false` composes correctly with shell `&&`/`||`/
+   `set -e` even though the `Result` itself is a success. The override affects only the
+   process-level exit status, never `Result#to_h`'s serialized JSON shape.
+7. A command registers synchronously when its `name` DSL declaration runs. Registration does not
+   install a `TracePoint`; unnamed subclasses remain unregistered without leaving global
+   instrumentation enabled. Calling `.name` without a DSL argument preserves Ruby's class-name
+   reflection.
+8. Unknown commands return a structured error, never crash
+9. `--json` and `--ndjson` are rune-global only before the first `--` separator. Identical tokens
+   after the separator are preserved as wrapped-command arguments.
+10. `Rune::VERSION`, `plugin.toml`, and the release tag identify the same semantic version before a
+    package can be published. The release ref is an exact Git tag whose commit is reachable from
+    `origin/main`.
+11. In agent mode, stdout carries the structured envelope and nothing else: the *complete* stdout of
+    any command parses as exactly one JSON document (or, under `--ndjson`, one JSON line per
+    emitted event). A command that also produces side-effect output while it runs — currently only
+    `rune watch`'s live passthrough — must route that output to stderr whenever `--json`/`--ndjson`
+    is set or stdout is not a TTY. This is enforced end-to-end against the real `bin/rune`
+    executable for every registered command in every agent output mode, asserting over whole
+    stdout rather than a substring, because a substring assertion passes against interleaved
+    output and previously did.
+12. `--help` and `-h` are accepted at the top level (`rune --help`) and per command
+    (`rune run --help`), and `rune help <command>` is equivalent. Command help never executes the
+    command — `rune run --help` previously spawned `--help` in a pty and reported exit 127.
+    Like `--json`/`--ndjson`, they are recognized only before the first `--`, so a wrapped
+    command's own `--help` is passed through untouched (invariant 9).
+13. Help is a normal `Result`, so it is available in agent mode: `rune <cmd> --help --json`
+    returns the command's `usage` string and `flags` list as data. Every flag a command parses is
+    declared on that command via the `flag` DSL, so the CLI surface is discoverable without
+    reading `specs/` or scraping the human rendering. A command that dispatches subcommands
+    declares them with the `subcommand` DSL, and its help payload then carries a `commands`
+    array of `{name, summary}` — the same key and entry shape `rune --help` uses for top-level
+    commands, so one parser reads both levels. A command with no subcommands emits no
+    `commands` key at all, leaving every existing payload's shape unchanged. This closes a gap
+    a field report hit while driving real agent CLIs: `rune --help --json` answered
+    structurally but `rune session --help --json` carried its subcommands only inside the
+    `usage` line as `<start|send|read|…>`, so structural discovery worked for exactly one level
+    and then required splitting a display string. The declared list is not the dispatched list —
+    `SessionCommand` keeps `SUBCOMMANDS` as its dispatch table — so the suite asserts the two are
+    equal; a subcommand that dispatches without being declared would otherwise be invisible here
+    while working on the command line.
+14. Help extraction removes every recognized alias before the first separator. Mixed and repeated
+    forms such as `rune --help -h` and `rune --help --help` remain help requests and do not leave
+    an alias behind to be resolved as a command.
+15. Rendering modes are invocation-local. Reusing one `CLI` instance for help and then a normal
+    command resets help, JSON, and NDJSON selection before the second dispatch; no help or output
+    flag from an earlier run may affect a later run.
+16. Rune writes its final rendered result to stdout for both success and failure. In agent mode this
+    keeps one structured channel; in human mode it means redirecting stdout also redirects
+    Rune-level errors. Stderr is reserved for operational announcements and live passthrough that
+    must not corrupt structured stdout.
+

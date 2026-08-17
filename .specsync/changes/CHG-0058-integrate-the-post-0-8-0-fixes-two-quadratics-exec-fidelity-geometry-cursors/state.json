@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors",
+  "slug": "integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors",
+  "title": "Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate",
+  "description": "Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "7041cb9163a91f82075fe50e1be202ceba717a09",
+  "created_at": 1786983669,
+  "updated_at": 1786999059,
+  "affected_specs": [
+    "cli",
+    "parsers",
+    "pty_runner",
+    "session",
+    "watch"
+  ],
+  "affected_paths": [
+    "fledge.toml",
+    "lib/rune.rb",
+    "lib/rune/command.rb",
+    "lib/rune/commands/run_command.rb",
+    "lib/rune/commands/session_command.rb",
+    "lib/rune/exec_argv.rb",
+    "lib/rune/output_limiter.rb",
+    "lib/rune/parsers/screen.rb",
+    "lib/rune/parsers/screen_renderer.rb",
+    "lib/rune/pty_runner.rb",
+    "lib/rune/pty_watcher.rb",
+    "rune.gemspec",
+    "scripts/check_docs_current.rb",
+    "spec/release_version_check_spec.rb",
+    "spec/rune/commands/run_command_spec.rb",
+    "spec/rune/output_limiter_spec.rb",
+    "spec/rune/parsers/screen_renderer_spec.rb",
+    "spec/rune/pty_runner_spec.rb",
+    "specs/cli/cli.spec.md",
+    "specs/parsers/parsers.spec.md",
+    "specs/pty_runner/pty_runner.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Every path this integration branch changed is covered by a change record, so spec-check passes. The branch carries: two quadratics in the send path removed, a one-element argv array exec'd rather than shelled, screen rendering at the child's real size, transcript cursors mapped through each dropped region, a hard ceiling keeping the transcript bound honest, the submit delay raised so every agent CLI submits, the render window sized against real TUI output, and a docs-check gate. 519 examples pass, lint and docs-check clean."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

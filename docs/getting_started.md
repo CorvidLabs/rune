@@ -50,7 +50,7 @@ require parsing the human rendering:
 
 ```sh
 $ rune run --help --json | jq -c '.data.flags'
-[{"flag":"--timeout=SECONDS","description":"Kill the wrapped command after N seconds (default 30). Before `--` only."},{"flag":"--max-output=BYTES","description":"Bound clean_output/raw_output to BYTES each, keeping head+tail. Mutually exclusive with --tail. Before `--` only."},{"flag":"--tail=N","description":"Keep only the last N lines of clean_output/raw_output. Mutually exclusive with --max-output. Before `--` only."},{"flag":"--separate-streams","description":"Adds clean_stdout/clean_stderr (stderr on a pipe, not the pty) alongside the merged view. Before `--` only."}]
+[{"flag":"--timeout=SECONDS","description":"Kill the wrapped command after N seconds (default 30). Before `--` only."},{"flag":"--max-output=BYTES","description":"Bound clean_output/raw_output to BYTES each, keeping head+tail and marking the join with a `[rune] ==== N bytes omitted by --max-output ====` line. Mutually exclusive with --tail. Before `--` only."},{"flag":"--tail=N","description":"Keep only the last N lines of clean_output/raw_output. Mutually exclusive with --max-output. Before `--` only."},{"flag":"--separate-streams","description":"Adds clean_stdout/clean_stderr (stderr on a pipe, not the pty) alongside the merged view. Before `--` only."}]
 ```
 
 Help flags follow the same separator rule as everything else (below): `rune run -- mytool --help`
@@ -69,7 +69,7 @@ colorized, human-formatted output:
 
 ```sh
 $ rune version
-rune v0.7.0
+rune v0.9.0
   Ruby 4.0.6 (arm64-darwin25)
   fledge:    ✓ available
   spec-sync: ✓ available
@@ -115,6 +115,12 @@ that must not corrupt structured stdout.
 Global output flags are recognized only before the first `--` separator. Tokens after it belong to
 the wrapped command and are preserved, so `rune run -- tool --json` passes `--json` to `tool`.
 
+A `--flag` rune does not know, in the position where rune's own flags go, is an error rather than
+something silently passed on: `rune run --tiemout=5 -- echo hi` used to try to *execute* the
+misspelled flag and answer `status: ok` with `exit_code: 127`. Only the tokens before the wrapped
+command are checked, so `rune run cargo clippy --tests` and `rune run -- mytool --tiemout=5` are
+untouched — once the command name has been seen, every later `--flag` belongs to it.
+
 ### 3. Agent NDJSON envelope mode (`--ndjson`)
 
 `--ndjson` wraps the same result in an `{"event": "result"|"error", ...}` envelope instead of the
@@ -157,12 +163,34 @@ $ ruby bin/rune run --json --timeout=1 -- sleep 3
 A timed-out command returns exit code `124` with a `[rune] Execution timed out after N seconds`
 message appended to the captured output — it's still a normal `Result`, not an exception.
 
+**Output captured before the kill is always returned**, so a child that printed and then hung shows
+what it printed. If the output is *empty*, the child genuinely printed nothing, and rune says so
+along with the most common reason.
+
+**`rune run` does not forward its own stdin to the child.** A tty belongs to the human — taking it
+is `rune watch`'s job — and forwarding a pipe would echo the caller's own input back through the pty
+and into `clean_output`. So `echo hi | rune run -- cat` times out: `cat` is waiting for input that
+never arrives. Put the redirect inside the command instead, where the shell performs it in the pty:
+
+```sh
+$ rune run -- sh -c 'claude -p --output-format text < prompt.md'
+```
+
+That works, and so does passing a multi-paragraph prompt as a single argument — newlines survive
+argv intact. The `command` field in the reply is a shell-escaped *display* reconstruction for
+humans, not what the child received; do not diagnose quoting from it.
+
 ### Bounding the output, and splitting the streams
 
 Three more flags, all before the `--` separator, all changing the *shape* of the result:
 
 - **`--max-output=BYTES`** bounds `clean_output` and `raw_output` to BYTES each, keeping the head
-  and the tail, and adds `truncated: true` with `omitted_bytes`.
+  and the tail, and adds `truncated: true` with `omitted_bytes`. The two halves are joined by a
+  `[rune] ==== N bytes omitted by --max-output ====` line rather than spliced, so the returned text
+  never reads as something the command printed: without it, a 201-byte transcript at
+  `--max-output=200` dropped exactly the byte that turned `chsh -s /bin/zsh` into
+  `chsh -s bin/zsh`. That marker is rune's annotation rather than the command's output, so it is
+  not charged against BYTES and a reply can run a little over the budget.
 - **`--tail=N`** keeps only the last N lines, adding `truncated: true` with `omitted_lines`.
   Mutually exclusive with `--max-output`; passing both is an error rather than a silent precedence.
 - **`--separate-streams`** adds `clean_stdout` and `clean_stderr` alongside the merged
@@ -246,6 +274,17 @@ are unit-tested, including a test that drives the arrow-key menu itself end-to-e
 object plus `IO.pipe`s drives a real interactive child process without needing an actual controlling
 terminal).
 
+
+### Bounding a watch
+
+Two independent limits, both before the `--` separator, both off by default:
+
+- **`--timeout=SECONDS`** kills the session after N seconds of wall clock, however busy it is.
+- **`--idle-timeout=SECONDS`** kills it after N seconds with **no output and no input** — the one
+  you want for "this agent has stopped doing anything", since a long build is not idle.
+
+Either gives exit code `124`, with `timed_out: true` and a `timeout_kind` of `"timeout"` or
+`"idle_timeout"` saying which fired.
 ## Parsing structured text
 
 `Rune::Parsers::TableParser` and `Rune::Parsers::KeyValueParser` turn unstructured terminal output

@@ -2,9 +2,71 @@
 
 require 'spec_helper'
 require 'rune/script'
+require 'timeout'
 require 'tmpdir'
 
 RSpec.describe Rune::PTYRunner do
+  # `--` is documented as the fence past which the wrapped command's argv passes
+  # through untouched. Ruby routes a spawn through /bin/sh whenever it gets a
+  # lone String with a metacharacter in it, and splatting a one-element array is
+  # exactly that — so the documented-safe path was a shell-injection sink.
+  describe 'a single-element argv array' do
+    around do |example|
+      Dir.mktmpdir('rune-exec') do |dir|
+        @dir = dir
+        File.write(File.join(dir, 'my'), "#!/bin/sh\necho DECOY\n")
+        File.write(File.join(dir, 'my program'), "#!/bin/sh\necho REAL\n")
+        FileUtils.chmod(0o755, [File.join(dir, 'my'), File.join(dir, 'my program')])
+        example.run
+      end
+    end
+
+    it 'execs the file whose name contains a space, not the prefix before it' do
+      result = described_class.new([File.join(@dir, 'my program')], timeout_seconds: 5).run
+
+      expect(result.data[:clean_output]).to include('REAL')
+      expect(result.data[:clean_output]).not_to include('DECOY')
+    end
+
+    it 'does not evaluate shell metacharacters in it' do
+      result = described_class.new(['echo A; echo B'], timeout_seconds: 5).run
+
+      # 127 is the whole point: nothing ran. The message echoes the command
+      # name, so assert on the outcome rather than on the absence of a letter.
+      expect(result.data[:exit_code]).to eq(127)
+      expect(result.data[:clean_output]).to start_with('Command not found')
+    end
+
+    # A String command is a different contract: it is documented as a command
+    # LINE, and every caller of that form depends on it being interpreted.
+    it 'still interprets a String command as a command line' do
+      result = described_class.new('echo hi', timeout_seconds: 5).run
+
+      expect(result.data[:clean_output]).to eq("hi\n")
+    end
+  end
+
+  # A timeout that captured nothing is the least actionable result rune
+  # produces. A field report spent three to five minutes per attempt on one and
+  # concluded rune was discarding the child's output; it is not, which is what
+  # the second example here pins.
+  describe 'a timeout that captured nothing' do
+    it 'says why, and names the stdin shape that causes it' do
+      result = described_class.new(['sh', '-c', 'sleep 5'], timeout_seconds: 1).run
+
+      expect(result.exit_code).to eq(124)
+      expect(result.data[:clean_output]).to include('produced no output')
+      expect(result.data[:clean_output]).to include('does not forward stdin')
+    end
+
+    it 'still returns whatever the child printed before it was killed, and adds no hint' do
+      result = described_class.new(['sh', '-c', 'echo SPOKE; sleep 5'], timeout_seconds: 1).run
+
+      expect(result.data[:clean_output]).to include('SPOKE')
+      expect(result.data[:clean_output]).not_to include('produced no output')
+    end
+  end
+
   describe '#run' do
     it 'executes command and captures clean output and exit code' do
       runner = described_class.new('echo "Hello World"')
@@ -275,15 +337,19 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data).not_to have_key(:omitted_lines)
     end
 
-    it 'bounds clean_output/raw_output to max_output_bytes, keeping head and tail' do
+    it 'bounds clean_output/raw_output to max_output_bytes, keeping head and tail and marking the join' do
       runner = described_class.new(['ruby', '-e', 'print "a" * 5000'], max_output_bytes: 200)
       result = runner.run
+      marker = Rune::OutputLimiter.elision_marker(result.data[:omitted_bytes])
 
       expect(result).to be_success
-      expect(result.data[:clean_output].bytesize).to be <= 200
-      expect(result.data[:raw_output].bytesize).to be <= 200
+      # 200 bytes of the child's output, plus rune's own annotation of the cut —
+      # which is not the child's output and so is not charged to the budget.
+      expect(result.data[:clean_output].sub(marker, '').bytesize).to eq(200)
+      expect(result.data[:raw_output].sub(marker, '').bytesize).to eq(200)
+      expect(result.data[:clean_output]).to match(Rune::OutputLimiter::ELISION_PATTERN)
       expect(result.data[:truncated]).to be true
-      expect(result.data[:omitted_bytes]).to be > 0
+      expect(result.data[:omitted_bytes]).to eq(4800)
     end
 
     it 'leaves output untouched when max_output_bytes is larger than the actual output' do
@@ -370,6 +436,46 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:exit_code]).to eq(130)
     end
 
+    # read_separate_streams has its own abort rescue (IO.select over two readers rather than
+    # read_pty_stream's single wait_readable), so the escalation ladder is covered here too.
+    it 'ends a separate_streams run on a second signal, reaping the child and keeping both ' \
+       'streams' do
+      Dir.mktmpdir do |dir|
+        pid_path = File.join(dir, 'child.pid')
+        ready = false
+        watch_ready = ->(chunk) { ready ||= chunk.include?('ready') }
+        runner = described_class.new(['ruby', '-e', <<~RUBY], separate_streams: true, timeout_seconds: 8,
+          Signal.trap('INT') { $stdout.puts 'out INT'; $stderr.puts 'err INT' }
+          $stdout.sync = true
+          $stderr.sync = true
+          File.write(#{pid_path.inspect}, Process.pid)
+          puts 'ready'
+          sleep 30
+        RUBY
+                                     &watch_ready)
+
+        signaller = Thread.new do
+          Timeout.timeout(10) { sleep 0.02 until ready }
+          Process.kill('INT', Process.pid)
+          sleep 0.4
+          Process.kill('INT', Process.pid)
+        end
+
+        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        result = runner.run
+        elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+        signaller.join(5)
+        child_pid = File.read(pid_path).strip.to_i
+
+        expect(result).to be_success
+        expect(result.data[:exit_code]).to eq(130)
+        expect(result.data[:clean_stdout].scan('out INT').size).to eq(2)
+        expect(result.data[:clean_stderr].scan('err INT').size).to eq(2)
+        expect(elapsed).to be < 6
+        expect { Process.kill(0, child_pid) }.to raise_error(Errno::ESRCH)
+      end
+    end
+
     it 'rejects combining separate_streams: true with script: (the interactive DSL only ' \
        'supports the merged single-stream view)' do
       script = Rune::Script.new { wait_for(/x/) }
@@ -402,6 +508,95 @@ RSpec.describe Rune::PTYRunner do
       expect(result).to be_success
       expect(elapsed).to be < 5
       expect(result.data[:exit_code]).to eq(130)
+    end
+
+    # A child that traps INT/TERM and keeps going is not hypothetical — it is
+    # every agent CLI that turns the first Ctrl-C into "interrupt this turn".
+    # Before the escalation ladder, rune latched after the first forward, so
+    # signals two onward were swallowed: rune neither passed them on nor died,
+    # and the only bound left was --timeout (with `rune watch`, nothing at all).
+    it 'gives up and returns a well-formed interrupted result when a second signal arrives, ' \
+       'instead of running on to --timeout' do
+      Dir.mktmpdir do |dir|
+        pid_path = File.join(dir, 'child.pid')
+        ready = false
+        # timeout_seconds is deliberately still generous: if the second signal
+        # were swallowed again this example would report 124 at ~8s, not 130.
+        # The handler *prints*, which is not incidental: a pty child that is
+        # SIGKILLed while bytes it wrote sit unread in the pty buffer wedges
+        # permanently in the macOS kernel exit path and can never be reaped
+        # again. A silent child hides that entirely — this example passed
+        # against an implementation that hung the real CLI for minutes.
+        watch_ready = ->(chunk) { ready ||= chunk.include?('ready') }
+        runner = described_class.new(['ruby', '-e', <<~RUBY], timeout_seconds: 8, &watch_ready)
+          Signal.trap('INT') { $stdout.puts 'child: caught INT' }
+          Signal.trap('TERM') { $stdout.puts 'child: caught TERM' }
+          $stdout.sync = true
+          File.write(#{pid_path.inspect}, Process.pid)
+          puts 'ready'
+          sleep 30
+        RUBY
+
+        signaller = Thread.new do
+          Timeout.timeout(10) { sleep 0.02 until ready }
+          Process.kill('INT', Process.pid)
+          sleep 0.4
+          Process.kill('INT', Process.pid)
+        end
+
+        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        result = runner.run
+        elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+        signaller.join(5)
+        child_pid = File.read(pid_path).strip.to_i
+
+        expect(result).to be_success
+        expect(result.data[:exit_code]).to eq(130)
+        expect(result.data[:clean_output]).to include('ready').and include('Interrupted by SIGINT')
+        # Both interrupts reached the child, and the second one's output was
+        # still drained into the result rather than lost with the teardown.
+        expect(result.data[:clean_output].scan('child: caught INT').size).to eq(2)
+        expect(result.data[:duration_ms]).to be_a(Numeric)
+        expect(elapsed).to be < 6
+        # Reaped, not orphaned: the whole reason rune traps at all is so the
+        # child is dealt with rather than left behind.
+        expect { Process.kill(0, child_pid) }.to raise_error(Errno::ESRCH)
+      end
+    end
+
+    # The case the fix must not lose: a lone signal is still the child's to
+    # handle, and rune keeps waiting on it. Escalation is about a *repeated*
+    # signal, not about rune bailing out the instant one arrives and orphaning
+    # the child — which is exactly why the traps were installed in the first
+    # place.
+    it 'still gives a signal-handling child its first signal and keeps waiting on it, rather than ' \
+       'aborting on the very first one' do
+      Dir.mktmpdir do |dir|
+        marker_path = File.join(dir, 'trapped')
+        ready = false
+        watch_ready = ->(chunk) { ready ||= chunk.include?('ready') }
+        runner = described_class.new(['ruby', '-e', <<~RUBY], timeout_seconds: 10, &watch_ready)
+          Signal.trap('INT') { File.write(#{marker_path.inspect}, 'trapped') }
+          $stdout.sync = true
+          puts 'ready'
+          sleep 0.05 until File.exist?(#{marker_path.inspect})
+          puts 'still here'
+          exit 7
+        RUBY
+
+        signaller = Thread.new do
+          Timeout.timeout(10) { sleep 0.02 until ready }
+          Process.kill('INT', Process.pid)
+        end
+
+        result = runner.run
+        signaller.join(5)
+
+        expect(result).to be_success
+        expect(File.exist?(marker_path)).to be true
+        expect(result.data[:clean_output]).to include('still here')
+        expect(result.data[:exit_code]).to eq(7)
+      end
     end
   end
 

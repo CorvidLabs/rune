@@ -53,6 +53,26 @@ module Rune
       CHILD_ENV = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }.freeze
       DEFAULT_ROWS = 40
       DEFAULT_COLUMNS = 120
+      # Ceiling on a winsize arriving over the control socket. A pty's winsize
+      # fields are 16-bit, so `{"op":"resize","rows":65535,"cols":65535}` is
+      # accepted by the kernel — and once that size is recorded in meta, every
+      # later `read --screen` allocates and drives a grid that big for the rest
+      # of the session's life. CHG-0056 clamped the renderer against a single
+      # hostile escape sequence in child output; leaving the recorded geometry
+      # unbounded would reinstate the same denial of service one layer up, with
+      # the amplification persisted to disk. Measured, one `read --screen` over
+      # a 683KB `\e[999L` transcript: 0.76s at 40x120, 3.41s at this ceiling,
+      # 17.72s at the 1000x2000 the renderer would clamp 65535 to.
+      #
+      # Well past any real terminal — a 6K panel at the smallest legible font is
+      # roughly 240 rows by 600 columns — so nothing a human can actually resize
+      # to is clamped, and a client that asks for more gets the largest size the
+      # renderer can be trusted to draw rather than a refusal. The residual cost
+      # at the ceiling is not eliminated, only bounded: line-insert and scroll
+      # cost the renderer per row, so a genuinely 300-row terminal pays the same
+      # 3.41s for the same hostile bytes.
+      MAX_ROWS = 300
+      MAX_COLUMNS = 1000
       # How much of the existing transcript an attaching terminal is replayed,
       # so it lands on a populated screen rather than a blank one.
       ATTACH_BACKLOG_BYTES = 64 * 1024
@@ -87,10 +107,43 @@ module Rune
       # How long after writing a send's text the terminating carriage return
       # is written, as its own write. Long enough that the child completes a read
       # in between, short enough to be invisible next to a model round trip.
-      SUBMIT_DELAY = 0.05
+      #
+      # 0.05 was tuned against Claude Code and silently failed against Kimi:
+      # measured 3 of 3 sends where the prompt landed in Kimi's composer and was
+      # never submitted, so `send` returned `settled: true` with only the echo
+      # and the child sat waiting for a keystroke that had already been written.
+      # Sending a bare carriage return afterwards submitted the queued text and
+      # the answer appeared, which is what identified the delay rather than the
+      # settle rule as the cause. At 0.30 and 0.80 it submits every time.
+      #
+      # 0.25 buys a 5x margin over the value that failed while staying an order
+      # of magnitude under a model round trip. It is a race either way: the child
+      # has to finish one read before the terminator arrives, and nothing here
+      # can observe whether it did. A TUI slower than this will fail the same way
+      # — which is why the failure now has a name in the docs instead of looking
+      # like the settle bug.
+      SUBMIT_DELAY = 0.25
       # Hard cap on a whole send, when the caller does not set one.
       DEFAULT_TIMEOUT_MS = 120_000
       UNDELIVERED_INPUT_ERROR = 'previous input is still being delivered to the child'
+      # How long a failed rotation waits before it is attempted again. Each
+      # attempt seeks and scans the tail it means to keep, and the condition
+      # that failed it (an unwritable directory, a full disk) lasts longer than
+      # one event, so retrying per event turns every log line into an 8MB scan.
+      ROTATE_RETRY_SECONDS = 30.0
+      # The point past which recording stops rather than growing. Reached only
+      # when rotation cannot succeed at all — an unwritable directory, a full
+      # disk that stays full — where the transcript would otherwise grow without
+      # limit for the life of the session.
+      HARD_LOG_CEILING = 2 * Store::MAX_LOG_BYTES
+      # Written ahead of the first record to follow a write that failed. A write
+      # that fails part-way leaves a fragment at the end of the file, and a
+      # fragment can be a *complete* JSON object that simply never got its
+      # newline — indistinguishable, once more text is appended, from a record
+      # that landed. This makes it distinguishable: appended to any dangling
+      # fragment it produces a line that cannot parse, so the reader skips it.
+      # That is what lets "recorded" mean exactly "its own write returned".
+      TORN_MARKER = "|torn\n"
       # Recorded as the session's exit code when the supervisor itself died
       # rather than the child. 70 is sysexits' EX_SOFTWARE: an internal fault,
       # distinct from any status the child could have returned.
@@ -113,6 +166,17 @@ module Rune
         # down. A persistent session is the entire feature, so unbounded growth
         # in the process that provides it is not a theoretical problem.
         @transcript = +''
+        # What the child has produced since the in-flight send was last given a
+        # tick. Accumulated as it arrives rather than sliced back out of the
+        # transcript, because `byteslice` on a mutable String marks that String
+        # *shared* — so the very next `<<` has to copy the whole buffer to make
+        # it independent again. One copy of the entire turn, per 4 KB read.
+        # Measured on a growing buffer: 16 MB costs 0.002s appended alone and
+        # 4.46s when each append is followed by a byteslice of it, and a sampled
+        # profile of a 24 MB turn put 85% of the supervisor inside that memmove.
+        # It is also why the drain starved — 11.46 MB of a 12.00 MB answer read
+        # in 90s — because the copy runs on the thread that pumps the pty.
+        @fresh = +''
         @window_start = 0
         @decoder = UTF8StreamDecoder.new
         @pending = nil
@@ -126,10 +190,14 @@ module Rune
         @accepted_at = {}
         @close_after_drain = []
         @stopping = false
-        @log_bytes = 0
         @submit_at = nil
         @exit_code = nil
         @finished = false
+        # Last winsize written to meta, so a repeated resize to the same shape
+        # costs nothing.
+        @rows = nil
+        @cols = nil
+        init_log_state
       end
 
       def run
@@ -137,7 +205,7 @@ module Rune
         @output_log = @store.open_output(@name)
         @log_bytes = @store.output_size(@name)
         server = build_server
-        reader, writer, pid = PTY.spawn(CHILD_ENV, *@command)
+        reader, writer, pid = PTY.spawn(CHILD_ENV, *ExecArgv.for_spawn(@command, argv: true))
         @child_pid = pid
         @writer = writer
         # Recorded before anything else that could fail. A supervisor that dies
@@ -146,6 +214,7 @@ module Rune
         # supervisor. The window cannot be closed entirely — the pid does not
         # exist until spawn returns — but it should contain nothing but this.
         record_running(pid)
+        record_child_identity(pid)
         apply_window_size(writer)
         log_event('start', command: Shellwords.join(@command), pid: pid)
         event_loop(server, reader, writer)
@@ -161,6 +230,19 @@ module Rune
       end
 
       private
+
+      # Bookkeeping for the transcript *file*, as opposed to the in-memory window
+      # set up above. `@rotate_retry_at` is when a rotation that failed may be
+      # attempted again; nil means no rotation has failed.
+      def init_log_state
+        @log_bytes = 0
+        @rotate_retry_at = nil
+        # Output bytes that never reached the transcript because a write failed,
+        # nil while there is nothing owed. Carried, not forgotten: it is what the
+        # next successful write records as a `truncated` event. Non-nil also
+        # means the file may end mid-record, which is what gates TORN_MARKER.
+        @log_gap = nil
+      end
 
       # Without setsid the supervisor stays in the launching shell's session
       # and dies with it (SIGHUP on terminal close), which would defeat the
@@ -203,6 +285,14 @@ module Rune
       # agent, whose entire first output was terminal setup and no UI.
       # PTYWatcher copies the human's real size; here a sane fixed default is
       # the closest equivalent.
+      #
+      # Deliberately does *not* record the size it applies. Recording it would
+      # write meta a second time immediately after `record_running`, widening a
+      # read-modify-write window against the parent's own `update_meta` during
+      # launch, and it buys nothing: an absent size renders at exactly these
+      # dimensions, so `read --screen` is already right for a session nobody has
+      # attached to. What it costs is the ability to tell "not recorded" from
+      # "recorded as 40x120", which `screen_size_recorded` reports.
       def apply_window_size(writer)
         writer.winsize = [DEFAULT_ROWS, DEFAULT_COLUMNS]
       rescue IOError, SystemCallError, NoMethodError
@@ -211,6 +301,21 @@ module Rune
 
       def record_running(pid)
         @store.update_meta(@name, state: 'running', child_pid: pid, supervisor_pid: Process.pid)
+      end
+
+      # The child's start time as the OS reports it, which is what makes the
+      # recorded pid identifiable later. Once this supervisor is gone, a bare
+      # child pid cannot be told apart from a stranger that recycled the number,
+      # and every question anyone asks of it afterwards — `list`, `archive` — is
+      # really a question about that pair.
+      #
+      # Deliberately a second write rather than part of `record_running`: this
+      # one shells out to `ps`, and the pid must reach disk before anything that
+      # slow. A supervisor that dies in between simply leaves the field absent,
+      # and an absent field is reported as "unknown", never as "orphaned".
+      def record_child_identity(pid)
+        started = Store.process_start_time(pid)
+        @store.update_meta(@name, child_started_at: started) if started
       end
 
       def event_loop(server, reader, writer)
@@ -268,6 +373,14 @@ module Rune
         return unless client_gone?(client)
 
         @pending = nil
+        # Defensive, and honestly labelled as such. A review claimed bytes
+        # stranded here are handed to the next send; three attempts to
+        # reproduce that failed, with and without the clear, so it is kept as
+        # an invariant rather than as a fix for a demonstrated bug: @fresh is
+        # meaningless once @pending is gone, and clearing it costs nothing.
+        # Cleared in `begin_pending` too, so no future `@pending = nil` has to
+        # remember.
+        @fresh = +''
         safe_close(client)
       end
 
@@ -387,6 +500,10 @@ module Rune
         return if text.nil? || text.empty?
 
         @transcript << text
+        # Only while a send is waiting, so nothing accumulates between turns:
+        # `resolve_pending` empties this on the same tick, and appends stop
+        # feeding it the moment that send is answered.
+        @fresh << text if @pending
         trim_transcript
         @last_output_at = monotonic
         log_event('output', bytes: text.bytesize, text: text)
@@ -425,24 +542,74 @@ module Rune
       # Sent over its own short-lived control connection rather than inline,
       # because after the attach ack the attachment socket is a raw byte pipe
       # to the pty — a control frame in that stream would be typed at the child.
+      # Reports what it did, not that it was asked. `resized: true` was a
+      # constant: `{"op":"resize"}` with no arguments, with negative values, and
+      # with `"tall"`/`"wide"` all answered `resized: true` while the session was
+      # correctly left alone. A socket client could not tell whether its resize
+      # took effect — reported from real use, and the kind of inconsistency that
+      # matters more than any single bug, because a client author generalises
+      # from whichever behaviour they meet first.
       def handle_resize(request, client, writer)
-        resize_child(writer, request[:rows], request[:cols])
-        respond(client, resized: true)
+        applied = resize_child(writer, request[:rows], request[:cols])
+        return respond(client, resized: true, rows: applied[0], cols: applied[1]) if applied
+
+        respond(client, resized: false,
+                        error: 'rows and cols must both be positive integers')
       end
 
+      # Returns the size actually applied, or nil when the request was unusable.
       def resize_child(writer, rows, cols)
         rows = Integer(rows)
         cols = Integer(cols)
-        return unless rows.positive? && cols.positive?
+        return nil unless rows.positive? && cols.positive?
 
+        # The child gets exactly the size it was given. Clamping before this
+        # line reached the *pty*: attaching from a 400-row terminal silently
+        # handed the child 300, so a TUI painted its top 300 rows forever and
+        # nothing in the ack or the reply said so. The ceiling exists to bound
+        # what rune later renders, which is rune's problem and not the child's.
         writer.winsize = [rows, cols]
         # SIGWINCH is what tells a TUI to re-lay-out; setting the size alone
         # leaves it drawing at the old geometry until something else repaints.
         # Skipped once the child is known gone: the pid may since belong to
         # something else entirely.
         Process.kill('WINCH', @child_pid) if @child_pid && !@child_finished
+        record_window_size(rows, cols)
+        [rows, cols]
       rescue TypeError, ArgumentError, IOError, SystemCallError, NoMethodError
         nil
+      end
+
+      # The geometry `read --screen` and `send --screen` must render at.
+      #
+      # Recorded in meta because those render in the *caller's* process, from
+      # the transcript file, with no access to this pty — and the transcript
+      # itself does not carry the size. Without this they rendered at a fixed
+      # 40x120 for the whole time a human was attached from a terminal of any
+      # other shape: measured through a real 30x100 attach, against the bytes
+      # that terminal itself received, 29 of 30 rendered rows differed from what
+      # the human was looking at, and 0 of 30 differ now.
+      #
+      # Written only when the size actually changes, and only cached once the
+      # write succeeded. A human dragging a window edge emits a SIGWINCH per
+      # frame, and each one would otherwise rewrite meta.json — a
+      # read-modify-write of the whole file, on the thread that also has to keep
+      # pumping the pty.
+      # Recorded, and clamped at the record — the one place a ceiling belongs,
+      # because rendering is the only thing it protects. A reduced value is
+      # marked so `screen_size_recorded` can report false, which the spec
+      # already promised and the code did not do: a supervisor-clamped size used
+      # to come back flagged as trustworthy.
+      def record_window_size(rows, cols)
+        bounded_rows = [rows, MAX_ROWS].min
+        bounded_cols = [cols, MAX_COLUMNS].min
+        reduced = bounded_rows != rows || bounded_cols != cols
+        return if @rows == bounded_rows && @cols == bounded_cols && @size_reduced == reduced
+        return unless @store.update_meta(@name, rows: bounded_rows, cols: bounded_cols, size_reduced: reduced)
+
+        @rows = bounded_rows
+        @cols = bounded_cols
+        @size_reduced = reduced
       end
 
       # Total bytes the child has ever produced. Cursors are offsets into that,
@@ -534,13 +701,36 @@ module Rune
         end
       end
 
-      def handle_send(request, client, writer)
-        return respond(client, error: 'a send is already in flight on this session') if @pending
-        return respond(client, error: 'session child has exited') if @child_finished
+      # The reason this send cannot be accepted, or nil to proceed. Grouped so
+      # each reason is one line and adding another does not push the handler past
+      # a complexity ceiling — the same shape `start_rejection` already uses.
+      def send_rejection(request)
+        return 'a send is already in flight on this session' if @pending
+        return 'session child has exited' if @child_finished
         # A --no-wait send sets no @pending, so a second send can arrive while
         # the first is still draining into a backpressured pty. Accepting it
         # would force the previous terminator out alongside undelivered text.
-        return respond(client, error: UNDELIVERED_INPUT_ERROR) if undelivered_input?
+        return UNDELIVERED_INPUT_ERROR if undelivered_input?
+        # A send with no `text` key is malformed, and the most obvious mistake a
+        # new socket client makes. It used to be accepted as an empty send, which
+        # writes a bare carriage return, produces no output from most children,
+        # and so waits out `timeout_ms` — 120 seconds by default. A client that
+        # gave up after five seconds reported it as a hang, 3 of 3, noting that
+        # every *other* malformed request got a clean error. That inconsistency
+        # is worse for a protocol than any single bug, because a client author
+        # generalises from whichever behaviour they meet first.
+        #
+        # `text: ""` stays valid: it is the documented way to deliver a bare
+        # carriage return to a TUI holding text it never submitted. Absent and
+        # empty are different requests.
+        return 'send requires a text field (use "" to send a bare carriage return)' unless request.key?(:text)
+
+        nil
+      end
+
+      def handle_send(request, client, writer)
+        rejection = send_rejection(request)
+        return respond(client, error: rejection) if rejection
 
         begin
           echo = write_to_child(writer, request)
@@ -559,7 +749,13 @@ module Rune
         # --no-wait has no such check, so it answered `sent: true` for bytes
         # that reached nothing.
         return respond(client, error: 'session child has exited') if @child_finished
-        return respond(client, sent: true, waited: false) if request[:no_wait]
+        # `cursor` because --no-wait exists for exactly one pattern — fire the
+        # task, then poll for output newer than the send — and it was the only
+        # send mode that withheld the position marker that pattern needs. The
+        # workaround was `read` for a cursor and then `send --no-wait`: two calls,
+        # with a window where the child's output lands after the cursor but
+        # before the task was sent. Reported from real use.
+        return respond(client, sent: true, waited: false, cursor: transcript_bytes) if request[:no_wait]
 
         begin_pending(request, client, echo)
       end
@@ -631,6 +827,7 @@ module Rune
       # what this send produced. Without it a banner or a previous command's
       # trailing output would be misattributed to this request.
       def begin_pending(request, client, echo)
+        @fresh = +''
         settle_ms = positive_int(request[:settle_ms], DEFAULT_SETTLE_MS)
         @pending = PendingSend.new(
           client: client, cursor: transcript_bytes, echo: echo, now: monotonic,
@@ -640,15 +837,24 @@ module Rune
         )
       end
 
+      # The send is fed what is *new* each tick, never everything it has
+      # produced — that was quadratic twice over, once in the copy that built
+      # the slice and once in `PendingSend` re-reading it. The full slice is
+      # still what settles the send; it is built once, here, on the tick that
+      # answers it.
+      #
+      # Fed even when nothing arrived: the echo grace window expiring is a
+      # decision in its own right, and a child that falls silent mid-echo has to
+      # reach it without waiting for a byte that is not coming.
       def resolve_pending
         return unless @pending
 
-        slice = slice_from(@pending.cursor)
         now = monotonic
-        @pending.observe(slice, now: now)
-        outcome = @pending.outcome(slice, now: now, child_finished: @child_finished,
-                                          submitted: @submit_at.nil?, last_output_at: @last_output_at)
-        settle_pending(slice, **outcome) if outcome
+        @pending.absorb(@fresh, now: now)
+        @fresh = +''
+        outcome = @pending.outcome(now: now, child_finished: @child_finished,
+                                   submitted: @submit_at.nil?, last_output_at: @last_output_at)
+        settle_pending(slice_from(@pending.cursor), **outcome) if outcome
       end
 
       # True when the child produced output within the settle window that is
@@ -668,8 +874,15 @@ module Rune
           cursor: transcript_bytes,
           prompt_detected: PromptScanner.prompt_at_end?(slice),
           busy_at_send: pending.busy_at_send
-        }.merge(flags))
+        }.merge(flags).merge(gap_field))
       end
+
+      # Present only while a hole is still owed, which is the one window in which
+      # `read` cannot report it: until a write succeeds there is nowhere on disk
+      # to record the gap, so the supervisor's memory is the only place the skew
+      # is known at all. On a send's reply because that is where the caller is
+      # handed the cursor the skew makes unresolvable.
+      def gap_field = @log_gap ? { transcript_gap_bytes: @log_gap } : {}
 
       def handle_stop(client)
         respond(client, stopping: true)
@@ -683,7 +896,7 @@ module Rune
           child_pid: @child_pid,
           supervisor_pid: Process.pid,
           cursor: transcript_bytes
-        }
+        }.merge(gap_field)
       end
 
       # Queued like everything else, then closed once it has drained. `puts` +
@@ -716,10 +929,18 @@ module Rune
       # for the life of the session and `archive` preserved it, so the cost
       # outlived the session that paid it.
       def rotate_log
+        return if @rotate_retry_at && monotonic < @rotate_retry_at
+
         @output_log = @store.rotate_output(@name, @output_log, transcript_bytes)
         @log_bytes = @store.output_size(@name)
+        @rotate_retry_at = nil
+      # Backed off rather than retried on the next event: @log_bytes stays over
+      # the ceiling while the condition lasts, and each attempt seeks and scans
+      # the tail it means to keep. Recording itself continues either way, into
+      # the oversized file — `writable_log` reopens the handle the failed
+      # rotation closed.
       rescue IOError, SystemCallError
-        nil
+        @rotate_retry_at = monotonic + ROTATE_RETRY_SECONDS
       end
 
       def crashed(error)
@@ -749,12 +970,24 @@ module Rune
         [
           -> { resolve_orphaned_pending },
           -> { drain_replies },
+          # The child goes first, and the record of its death second. The other
+          # order wrote `state: 'exited'` while the child was still running, so a
+          # supervisor that died in that window — the abnormal teardowns that
+          # reach here, where `conclude` never ran — left a concluded record next
+          # to a live process. Anything reading meta then believed a session was
+          # over while its child held a pty, and any check that trusted the state
+          # field was blind to exactly the case it existed for.
+          #
+          # `conclude` already kills before recording on the normal path, so this
+          # only aligns teardown with it; `terminate_child` is idempotent, and
+          # each step here has its own rescue, so a child that will not die still
+          # gets the record written after it.
+          -> { terminate_child },
           # Whatever brought us here, the session is over. Leaving meta saying
           # "running" makes every later command report a session that is not
           # there, with no exit code to explain it — and `list` then shows a
           # live session backed by nothing.
           -> { finish(EXIT_SUPERVISOR_CRASHED) unless @finished },
-          -> { terminate_child },
           -> { (@clients + @attached).each { |client| safe_close(client) } },
           -> { safe_close(server) },
           -> { FileUtils.rm_f(@store.socket_path(@name)) },
@@ -840,17 +1073,117 @@ module Rune
         nil
       end
 
+      # SystemCallError covers ENOSPC and friends: losing the transcript is bad,
+      # losing the running session because the disk filled is worse. But a write
+      # that fails is now *recorded*, not merely survived. The in-memory cursor
+      # has already advanced — those bytes really were produced — so a hole
+      # nothing accounts for makes every cursor `send` hands out unresolvable by
+      # `read`, permanently. Reproduced on a real full filesystem (RUNE_HOME on a
+      # 20MB ramdisk): 852_000 bytes of output went unrecorded, the transcript
+      # reported `dropped: 0`, and freeing the disk made it worse, because
+      # logging resumed over the hole without a word.
+      #
+      # The lost bytes are carried until a write succeeds and then emitted as a
+      # `truncated` event — the same vehicle rotation already uses to keep cursors
+      # absolute, so `read` resolves a pre-hole cursor again and reports
+      # `dropped_bytes` instead of silently returning less.
       def log_event(event, **fields)
-        return unless @output_log
+        # Checked before the record is generated, not inside `append_log`:
+        # serializing an `output` event materializes the child's text into a JSON
+        # string, which is the single most expensive thing on this path, and
+        # there is no point paying it for a write that cannot happen.
+        # `writable_log`, not the bare predicate: it is the same cheap check when
+        # the handle is open, and it is also the only path that reopens one that
+        # went away. Guarding on the predicate alone made recovery unreachable —
+        # once a rotation failed, every later event became gap forever.
+        return note_log_gap(event, fields) unless writable_log
+        # The documented bound has to survive a rotation that cannot succeed.
+        # Before gap recording, a failed rotation closed the handle and every
+        # later write was swallowed — ugly, but the cap held. Recording through
+        # the failure removed the swallowing and with it the bound: measured
+        # against an unwritable directory, the transcript reached 42,614,387
+        # bytes past a 32MB cap and was still climbing, while docs/sessions.md
+        # promised "a session left running for a day does not grow without
+        # limit". Past the hard ceiling the bytes become gap instead, so growth
+        # stops, the accounting stays exact, and the next rotation that does
+        # succeed emits them as `truncated`.
+        return note_log_gap(event, fields) if @log_bytes >= HARD_LOG_CEILING
 
         line = JSON.generate({ event: event, ts: Time.now.to_f }.merge(fields))
-        @output_log.puts line
-        @log_bytes += line.bytesize + 1
+        written = append_log(line)
+        return note_log_gap(event, fields) unless written
+
+        @log_bytes += written
         rotate_log if @log_bytes >= Store::MAX_LOG_BYTES
-      # SystemCallError covers ENOSPC and friends: losing the transcript is bad,
-      # losing the running session because the disk filled is worse.
+      end
+
+      def writable_log? = !(@output_log.nil? || @output_log.closed?)
+
+      # Bytes appended, or nil if the event did not reach the file. Any pending
+      # gap goes first and as its own write: one record per write is what makes
+      # "recorded" mean "its own write returned", because a write that fails
+      # part-way can leave at most the record it was writing unfinished — and
+      # TORN_MARKER then makes that leftover unreadable rather than letting it be
+      # counted a second time when the gap is retried.
+      def append_log(line)
+        log = @output_log
+        return nil unless log
+
+        gap = @log_gap ? write_record(log, gap_line) : 0
+        return nil unless gap
+
+        written = write_record(log, line)
+        written && (gap + written)
+      end
+
+      # One NDJSON record, preceded by the torn marker when the last write
+      # failed. Returns bytes written, or nil when nothing can be trusted to have
+      # landed.
+      def write_record(log, record)
+        payload = @log_gap ? "#{TORN_MARKER}#{record}\n" : "#{record}\n"
+        log.write(payload)
+        @log_gap = nil
+        payload.bytesize
       rescue IOError, SystemCallError
         nil
+      end
+
+      def gap_line = JSON.generate(event: 'truncated', ts: Time.now.to_f, dropped_bytes: @log_gap)
+
+      # Only `output` events carry stream bytes, so only they widen the hole. A
+      # lost `start`/`exit` still opens one, at zero bytes, because a reader must
+      # not inherit a transcript with events missing from the middle and no sign
+      # of it — and because a zero-byte gap is still the flag that says the file
+      # may end mid-record.
+      def note_log_gap(event, fields)
+        @log_gap = (@log_gap || 0) + (event == 'output' ? fields[:bytes].to_i : 0)
+        nil
+      end
+
+      # Recording must not stop for the life of a session because a handle went
+      # away: a rotation that fails after closing the old handle used to leave
+      # the supervisor writing to a closed file it had no idea was closed, and
+      # every later write was swallowed. Nothing is created out of nothing — the
+      # directory is gone once a session is archived, so this simply fails and
+      # the gap keeps accumulating.
+      # Only ever reopens the transcript this supervisor owns. Reopening by name
+      # is otherwise a door into a *successor*: a supervisor that outlived its
+      # session, or lost the race to a `start` reusing the name, would append its
+      # child's output into the new session's transcript, where it would read as
+      # that child's. The meta check costs one read on a recovery path that runs
+      # at most once per outage, and makes that impossible rather than unlikely.
+      def writable_log
+        return @output_log if @output_log && !@output_log.closed?
+
+        # Absent means this supervisor has not finished starting — its own pid is
+        # written once the pty exists — so an absent value is ours by default.
+        # Only a pid belonging to somebody else is a refusal.
+        owner = @store.read_meta(@name)&.dig(:supervisor_pid)
+        return nil if owner && owner != Process.pid
+
+        @output_log = @store.open_output(@name)
+      rescue IOError, SystemCallError
+        @output_log = nil
       end
 
       def positive_int(value, fallback)

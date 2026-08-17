@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and",
+  "slug": "second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and",
+  "title": "Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved",
+  "description": "Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "fe93c863bda8d91d977ba5d3f66928ea346502b6",
+  "created_at": 1786865187,
+  "updated_at": 1786900356,
+  "affected_specs": [
+    "parsers",
+    "session",
+    "cli"
+  ],
+  "affected_paths": [
+    "lib/rune/session/pending_send.rb",
+    "lib/rune/parsers/screen_renderer.rb",
+    "spec/rune/session_spec.rb",
+    "spec/rune/parsers/screen_renderer_spec.rb",
+    "docs/sessions.md",
+    "ROADMAP.md",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "wait-for-regex no longer matches the pty echo: 3/3 wait for real output against python3 where it previously matched the echo in 0.22s, 4/4. RIS and DECSTR reset the scroll region. Private-marker CSI sequences no longer run as their public namesakes. BEL, NUL, SO, SI and DEL no longer occupy cells. An oversize DECSTBM bottom is clamped rather than discarded. The settle path's remaining defect, and the rule that was measured and disproved, are documented rather than guessed at. 411 examples pass, lint clean."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

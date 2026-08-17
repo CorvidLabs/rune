@@ -3,6 +3,7 @@
 require 'spec_helper'
 require 'delegate'
 require 'timeout'
+require 'tmpdir'
 
 # A fake terminal: claims to be a tty (so PTYWatcher doesn't bail out with
 # "requires a real terminal"), but has no #raw method, so PTYWatcher skips
@@ -350,6 +351,54 @@ RSpec.describe Rune::PTYWatcher do
       result = result_thread.value
       expect(result).to be_success
       expect(result.data[:exit_code]).to eq(130)
+    end
+
+    # The worst case of the swallowed-signal bug: `rune watch` has no --timeout
+    # by default, so a child that traps INT/TERM left the whole session with no
+    # bound at all — measured surviving 5x SIGINT + 5x SIGTERM and needing
+    # SIGKILL. A second signal now ends the session on its own.
+    it 'ends an untimed session on a second signal even when the child traps INT/TERM, instead of ' \
+       'running unbounded' do
+      Dir.mktmpdir do |dir|
+        pid_path = File.join(dir, 'child.pid')
+        log_w = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen -- kept open past this line intentionally
+        output = +''
+        # Printing from the handler is load-bearing, not decoration: unread pty
+        # bytes at SIGKILL time are what wedge a child unreapably on macOS.
+        child_code = <<~RUBY
+          Signal.trap('INT') { $stdout.puts 'child: caught INT' }
+          Signal.trap('TERM') { $stdout.puts 'child: caught TERM' }
+          $stdout.sync = true
+          File.write(#{pid_path.inspect}, Process.pid)
+          puts 'ready'
+          sleep 60
+        RUBY
+
+        watcher = described_class.new(['ruby', '-e', child_code], log: log_w,
+                                                                  input: FakeTerminal.new(IO.pipe.first),
+                                                                  output: fake_writer(output))
+        result_thread = Thread.new { watcher.watch }
+
+        Timeout.timeout(10) { sleep 0.02 until output.include?('ready') }
+        Process.kill('INT', Process.pid)
+        sleep 0.4
+        Process.kill('INT', Process.pid)
+
+        joined = result_thread.join(8)
+        log_w.close
+        child_pid = File.read(pid_path).strip.to_i
+
+        expect(joined).not_to be_nil, 'watch survived a second SIGINT past the 8s join timeout'
+        result = result_thread.value
+        expect(result).to be_success
+        expect(result.data[:exit_code]).to eq(130)
+        expect { Process.kill(0, child_pid) }.to raise_error(Errno::ESRCH)
+      ensure
+        # Only reachable if the fix regressed and the session really did hang;
+        # keeps a broken run from leaking a 60s child into the rest of the suite.
+        result_thread&.kill
+        (Process.kill('KILL', child_pid) if child_pid&.positive?) rescue nil # rubocop:disable Style/RescueModifier
+      end
     end
 
     it 'does not crash on a wrapped command emitting non-UTF-8 bytes' do

@@ -59,14 +59,18 @@ module Rune
       return Result.failure("Unknown command: #{command_name}. Run 'rune help' for available commands.") unless
         command_class
 
-      Result.success({
-                       command: command_name,
-                       summary: command_class.command_summary,
-                       usage: command_class.command_usage || "rune #{command_name}",
-                       flags: command_class.command_flags,
-                       global_flags: GLOBAL_FLAGS,
-                       version: VERSION
-                     })
+      payload = {
+        command: command_name,
+        summary: command_class.command_summary,
+        usage: command_class.command_usage || "rune #{command_name}",
+        flags: command_class.command_flags,
+        global_flags: GLOBAL_FLAGS,
+        version: VERSION
+      }
+      subcommands = command_class.command_subcommands
+      # Same key and entry shape as `overview`, so one parser reads both levels.
+      payload[:commands] = subcommands unless subcommands.empty?
+      Result.success(payload)
     end
 
     def render(data, io)
@@ -95,6 +99,13 @@ module Rune
       io.puts ''
       io.puts 'Usage:'
       io.puts "  #{data[:usage]}"
+      if data[:commands]
+        io.puts ''
+        io.puts 'Subcommands:'
+        data[:commands].each do |cmd|
+          io.puts format("  \e[1m%-20<name>s\e[0m %<summary>s", name: cmd[:name], summary: cmd[:summary])
+        end
+      end
       return if data[:flags].empty?
 
       io.puts ''

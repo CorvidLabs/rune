@@ -104,6 +104,150 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # Gap recording removed the old bound as a side effect. Before it, a rotation
+  # that could not succeed closed the handle and every later write was silently
+  # swallowed — ugly, but the cap held. Recording through the failure removed
+  # the swallowing and with it the limit: measured against an unwritable
+  # directory the transcript passed 42MB against a 32MB cap and kept climbing,
+  # while the guide promised a session running for a day does not grow without
+  # limit.
+  describe 'the transcript bound when rotation cannot succeed' do
+    def supervisor_at(bytes)
+      supervisor = Rune::Session::Supervisor.allocate
+      supervisor.instance_variable_set(:@output_log, StringIO.new)
+      supervisor.instance_variable_set(:@name, 'ceiling')
+      supervisor.instance_variable_set(:@log_bytes, bytes)
+      supervisor.instance_variable_set(:@log_gap, nil)
+      supervisor
+    end
+
+    it 'stops writing at the hard ceiling and records the bytes as gap' do
+      supervisor = supervisor_at(Rune::Session::Supervisor::HARD_LOG_CEILING)
+
+      supervisor.send(:log_event, 'output', bytes: 200, text: 'x' * 200)
+
+      expect(supervisor.instance_variable_get(:@output_log).string).to be_empty
+      expect(supervisor.instance_variable_get(:@log_gap)).to eq(200)
+    end
+
+    it 'writes normally below the ceiling' do
+      supervisor = supervisor_at(0)
+
+      supervisor.send(:log_event, 'output', bytes: 200, text: 'x' * 200)
+
+      expect(supervisor.instance_variable_get(:@output_log).string).not_to be_empty
+      expect(supervisor.instance_variable_get(:@log_gap)).to be_nil
+    end
+  end
+
+  # Every one of these came from a field report driving grok and kimi through
+  # rune on real work. Each is one additive field; each existed because the
+  # information was already known and simply not said.
+  # A socket client's most obvious mistake used to look like a hang: a send with
+  # no text was accepted as an empty send, which writes a bare carriage return,
+  # produces no output from most children, and so waits out timeout_ms — 120s by
+  # default. Reported 3/3 against five-second client timeouts, alongside the
+  # observation that every other malformed request got a clean error.
+  describe 'a socket send with no text field' do
+    it 'is refused immediately rather than waiting out the timeout' do
+      start_session('sock', %w[cat])
+      client = Rune::Session::Client.new(store.socket_path('sock'))
+
+      reply = client.request({ op: 'send' })
+
+      expect(reply[:error]).to include('text field')
+    end
+
+    it 'still accepts an empty string, which is the documented bare carriage return' do
+      start_session('sock2', %w[cat])
+      client = Rune::Session::Client.new(store.socket_path('sock2'))
+
+      reply = client.request({ op: 'send', text: '', timeout_ms: 1500 })
+
+      expect(reply[:error]).to be_nil
+    end
+  end
+
+  describe 'saying what happened' do
+    it 'reports the project a session registered in' do
+      result = start_session('proj', %w[cat])
+
+      # A session's namespace is the cwd's basename plus a hash, so every git
+      # worktree is separate. Starting in a worktree and reading from the parent
+      # repo gave "No such session", and `list` — the remedy the error suggests
+      # — returned an empty array, confirming the wrong conclusion.
+      expect(result.data[:project]).to eq(store.project)
+    end
+
+    it 'reports liveness on a send, so a loop cannot drive a corpse' do
+      start_session('live', ['ruby', '-e', 'STDOUT.sync = true; STDIN.gets; exit 7'])
+
+      session('send', '--name=live', '--settle-ms=300', '--timeout-ms=8000', '--', 'go')
+      wait_until(reason: 'the child to exit') { session('list').data[:sessions].first[:state] == 'exited' }
+      result = session('read', '--name=live')
+
+      expect(result.data[:state]).to eq('exited')
+      expect(result.data[:exit_code]).to eq(7)
+    end
+
+    it 'returns a cursor from --no-wait, so fire-and-poll is one call' do
+      start_session('nw', %w[cat])
+
+      result = session('send', '--name=nw', '--no-wait', '--', 'queued')
+
+      expect(result.data[:cursor]).to be_a(Integer)
+      expect(result.data[:waited]).to be false
+    end
+
+    # `--max-output` and `--tail` were parsed for every subcommand but applied
+    # only by `read`. `send` is the call an agent makes most and the one whose
+    # output is least bounded — a single turn of a full-screen TUI is megabytes —
+    # so the flag that exists to bound it silently doing nothing there is the
+    # worst place for it to be missing.
+    it 'honours --max-output on send, not only on read' do
+      start_session('cap', %w[cat])
+
+      result = session('send', '--name=cap', '--settle-ms=300', '--timeout-ms=8000',
+                       '--max-output=120', '--', 'X' * 4000)
+
+      expect(result.data[:output].bytesize).to be <= 200
+      expect(result.data[:truncated]).to be true
+      expect(result.data[:omitted_bytes]).to be_positive
+      expect(result.data[:clean_output]).to include('omitted by --max-output')
+    end
+
+    it 'honours --tail on send' do
+      start_session('captail', %w[cat])
+
+      result = session('send', '--name=captail', '--settle-ms=300', '--timeout-ms=8000',
+                       '--tail=1', '--', 'one')
+
+      expect(result.data[:truncated]).to be true
+      expect(result.data[:omitted_lines]).to be_positive
+    end
+
+    # Bounding `output` and `clean_output` independently would let the two
+    # describe different windows of one reply, and leave `omitted_bytes` true of
+    # only one of them. `read` derives clean from the bounded raw; so does this.
+    it 'derives clean_output from the bounded raw output, as read does' do
+      start_session('capsame', %w[cat])
+
+      result = session('send', '--name=capsame', '--settle-ms=300', '--timeout-ms=8000',
+                       '--max-output=200', '--', 'Y' * 4000)
+
+      expect(result.data[:clean_output])
+        .to eq(Rune::Parsers::TextSanitizer.strip_ansi(result.data[:output]))
+    end
+
+    it 'refuses --max-output together with --tail, as rune run already does' do
+      start_session('capboth', %w[cat])
+
+      result = session('send', '--name=capboth', '--max-output=100', '--tail=3', '--', 'hi')
+
+      expect(result.error).to include('Cannot combine --max-output and --tail')
+    end
+  end
+
   describe 'send-and-settle' do
     # Regression for the defect that made the first working build subtly
     # useless: a pty echoes input straight back, so the echo alone satisfied
@@ -241,16 +385,23 @@ RSpec.describe Rune::Commands::SessionCommand do
       expect(result.data[:output]).to include('SUBMITTED:typed')
     end
 
+    # Reports on SIGWINCH as well as at startup: a child that reads its winsize
+    # before `apply_window_size` lands sees 0x0 and is corrected by the WINCH
+    # that follows. See the 'terminal size' group for why that race exists.
     it 'gives the child a usable window size instead of leaving the pty at 0x0' do
       reporter = ['ruby', '-e',
-                  "require 'io/console'; STDOUT.sync = true; puts 'SIZE:' + STDIN.winsize.inspect; STDIN.gets"]
+                  "require 'io/console'; STDOUT.sync = true; " \
+                  "Signal.trap('WINCH') { puts 'RESIZED:' + STDIN.winsize.inspect }; " \
+                  "puts 'SIZE:' + STDIN.winsize.inspect; STDIN.gets"]
       start_session('s22', reporter)
+      default = "[#{Rune::Session::Supervisor::DEFAULT_ROWS}, #{Rune::Session::Supervisor::DEFAULT_COLUMNS}]"
 
-      wait_until(reason: 'child to report its window size') do
-        session('read', '--name=s22').data[:output].include?('SIZE:')
+      wait_until(reason: 'child to report the default window size') do
+        session('read', '--name=s22').data[:output].include?(default)
       end
-      expect(session('read', '--name=s22').data[:output])
-        .to include("SIZE:[#{Rune::Session::Supervisor::DEFAULT_ROWS}, #{Rune::Session::Supervisor::DEFAULT_COLUMNS}]")
+
+      output = session('read', '--name=s22').data[:output]
+      expect(output).to include("SIZE:#{default}").or include("RESIZED:#{default}")
     end
   end
 
@@ -816,36 +967,42 @@ RSpec.describe Rune::Commands::SessionCommand do
                                      settle_ms: 800, timeout_ms: 15_000)
     end
 
+    # `absorb` takes what is *new*, so what a pattern would see is the window it
+    # has built up rather than a function of the slice handed in.
+    def beyond(send, *arrivals, now: 0)
+      arrivals.each { |text| send.absorb(text, now: now) }
+      send.matchable
+    end
+
     # Found by driving agy: the supervisor died reproducibly within a few turns,
     # taking the agent with it. An agent TUI paints spinners and box-drawing
     # rules, so multibyte output inside the echo grace window is the norm, not
     # an edge case.
     it 'does not raise when the arriving slice is multibyte' do
-      expect { pending(echo: 'run the command').beyond_echo('⣟', now: 0) }.not_to raise_error
+      expect { beyond(pending(echo: 'run the command'), '⣟') }.not_to raise_error
     end
 
-    # `observe` used to pass `now: nil`, and `beyond_echo`'s partial-echo guard
-    # reads `if now && ...` — so a nil clock skipped it and the half-arrived
-    # echo counted as a reply. @saw_output latches, so one such tick was enough:
-    # the send then settled on the caller's own words while the child was still
-    # thinking. A pty delivers a long line in several reads, so this fired for
-    # any input longer than one read.
+    # `observe` used to pass `now: nil`, and the partial-echo guard read `if now
+    # && ...` — so a nil clock skipped it and the half-arrived echo counted as a
+    # reply. @saw_output latches, so one such tick was enough: the send then
+    # settled on the caller's own words while the child was still thinking. A
+    # pty delivers a long line in several reads, so this fired for any input
+    # longer than one read.
     it 'does not count a partly-arrived echo as the child having answered' do
       send = pending(echo: 'sleep 3; printf DONE', now: 0)
 
-      send.observe('sleep 3; pri', now: 0.01)
+      send.absorb('sleep 3; pri', now: 0.01)
 
-      expect(send.outcome('sleep 3; pri', now: 1.0, child_finished: false,
-                                          submitted: true, last_output_at: 0.01)).to be_nil
+      expect(send.outcome(now: 1.0, child_finished: false,
+                          submitted: true, last_output_at: 0.01)).to be_nil
     end
 
     it 'still settles once something past the echo arrives' do
       send = pending(echo: 'sleep 3; printf DONE', now: 0)
 
-      slice = 'sleep 3; printf DONE\r\nDONE'
-      send.observe(slice, now: 0.01)
-      outcome = send.outcome(slice, now: 1.0, child_finished: false,
-                                    submitted: true, last_output_at: 0.01)
+      send.absorb('sleep 3; printf DONE\r\nDONE', now: 0.01)
+      outcome = send.outcome(now: 1.0, child_finished: false,
+                             submitted: true, last_output_at: 0.01)
 
       expect(outcome).to eq({ settled: true })
     end
@@ -854,18 +1011,234 @@ RSpec.describe Rune::Commands::SessionCommand do
     # be arriving, because a child drawing the input into a bordered composer
     # defeats the search and trips no partial test either — handing back the
     # whole slice there gave the pattern a screenful of the caller's own words.
-    # Past the window the slice is returned as before.
+    # Past the window it becomes ordinary output, which is why a tick with
+    # nothing new in it is still a tick the send has to be given.
     it 'does not mistake a multibyte slice for a partly-arrived echo' do
       send = pending(echo: 'hello')
 
-      expect(send.beyond_echo('⣟⣯⣷', now: 0)).to eq('')
-      expect(send.beyond_echo('⣟⣯⣷', now: 1.0)).to eq('⣟⣯⣷')
+      expect(beyond(send, '⣟⣯⣷', now: 0)).to eq('')
+      expect(beyond(send, '', now: 1.0)).to eq('⣟⣯⣷')
     end
 
     # Advancing past the echo by its byte length overshoots for non-ASCII, which
     # silently ate the first characters of the reply.
     it 'strips exactly the echo when the sent text was not ASCII' do
-      expect(pending(echo: 'héllo').beyond_echo('hélloANSWER', now: 0)).to eq('ANSWER')
+      expect(beyond(pending(echo: 'héllo'), 'hélloANSWER')).to eq('ANSWER')
+    end
+
+    # The echo does not arrive in one read either. Locating it against the
+    # accumulated arrivals rather than against each read is what keeps a prompt
+    # longer than one 4KB pty read from being handed to the pattern in pieces.
+    it 'locates an echo that arrived across several reads' do
+      send = pending(echo: 'run the long command')
+
+      expect(beyond(send, 'run the ', 'long com', 'mand>> ANSWER')).to eq('>> ANSWER')
+    end
+  end
+
+  # `--wait-for-regex` is only worth anything if the pattern cannot be satisfied
+  # by the caller's own input coming back. Locating the echo by substring is
+  # enough for a child that echoes verbatim and nothing else; every shape below
+  # is one a real child produced, and every one of them defeats it.
+  describe 'a pattern is never satisfied by the echo of the input' do
+    def waiting(echo:, regex:, settle_ms: 30_000)
+      Rune::Session::PendingSend.new(client: nil, cursor: 0, echo: echo, now: 0, settle_ms: settle_ms,
+                                     timeout_ms: 30_000,
+                                     regex: Rune::Session::PendingSend.compile_regex(regex))
+    end
+
+    # One tick per arrival, the way the supervisor drives it: absorb what came
+    # in, then ask. Stops at the first answer, because a settled send is not
+    # given any more.
+    def resolve(send, *arrivals, now: 1.0)
+      arrivals.each do |text|
+        send.absorb(text, now: now)
+        outcome = send.outcome(now: now, child_finished: false, submitted: true, last_output_at: now)
+        return outcome if outcome
+      end
+      nil
+    end
+
+    # python3 -q, captured verbatim: the REPL redraws the line on every
+    # keystroke and colours each token separately, so the input is on the wire
+    # dozens of times over and not once as the run of bytes being looked for.
+    it 'ignores a REPL that repaints the line on every keystroke' do
+      echo = "print('PYDONE')"
+      repaint = "\e[?25l\e[18D\e[1;35m>>> \e[0m\e[36mprint\e[0m\e[0m(\e[0m" \
+                "\e[32m'PYDONE'\e[0m\e[0m)\e[0m\e[19D\e[?12l\e[?25h\e[19C"
+
+      expect(repaint).not_to include(echo)
+      expect(resolve(waiting(echo: echo, regex: 'PYDONE'), repaint)).to be_nil
+      expect(resolve(waiting(echo: echo, regex: 'PYDONE'), "#{repaint}\e[19D\n\e[?2004l\e>PYDONE\n"))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # bash, captured at 120 columns: readline writes a space and a carriage
+    # return where the line wraps, which lands inside the echo. Measured
+    # boundary: 110 characters echo as one run, 111 do not.
+    it 'ignores an echo that readline split at the wrap' do
+      echo = "sleep 3; echo WRAPOK ##{'x' * 89}"
+      wrapped = "#{echo[0, 110]} \r#{echo[110..]}"
+
+      expect(resolve(waiting(echo: echo, regex: 'WRAPOK'), wrapped)).to be_nil
+      expect(resolve(waiting(echo: echo, regex: 'WRAPOK'), "#{wrapped}\r\nWRAPOK\r\nbash-3.2$ "))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # A full-screen agent puts the prompt in its transcript and then repaints
+    # the whole frame while it thinks, so the input reappears after wherever its
+    # first copy ended — which is why the boundary alone cannot be the whole
+    # answer, and why the last match is a candidate as well as the next one.
+    it 'ignores the input being repainted after the echo has been located' do
+      echo = 'handle the BOXDONE case'
+      frame = "\e[H\e[2J\e[1;36magent\e[0m\n  \e[35m>\e[0m #{echo}\n\e[90m+------+\e[0m"
+      thinking = frame * 12
+
+      expect(resolve(waiting(echo: echo, regex: 'BOXDONE'), thinking)).to be_nil
+      expect(resolve(waiting(echo: echo, regex: 'BOXDONE'), "#{thinking}#{frame}\n  reply: BOXDONE\n"))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # The other half of the same rule: a child that quotes the request back
+    # after answering must not push the answer out of reach, which is exactly
+    # what taking the *last* copy of the echo as the boundary would do.
+    it 'still matches an answer a child follows with a quote of the request' do
+      echo = 'summarise the log'
+
+      expect(resolve(waiting(echo: echo, regex: 'QUOTEOK'), "#{echo}\r\nQUOTEOK: finished\r\n(you asked: #{echo})\r\n"))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # A child with ECHO off puts nothing of the input on the wire at all, so
+    # nothing can be located — and refusing to match until something is would
+    # hang every send to one of them.
+    it 'still matches when the child never echoes anything' do
+      expect(resolve(waiting(echo: 'SECRET', regex: 'TERCES'), "answer: TERCES\r\n"))
+        .to eq({ settled: true, matched: true })
+    end
+
+    # An echo a second late is not an echo that never came. Giving up on the
+    # search when the grace window closes — rather than merely starting to offer
+    # what has arrived — was measured end to end to settle this send 0.8s after
+    # the echo landed and a second before the child said anything of its own,
+    # handing back a reply consisting entirely of the caller's words.
+    it 'still recognises an echo that arrived after the grace window closed' do
+      send = waiting(echo: 'please ANSWER now', regex: 'NOTHINGMATCHES', settle_ms: 800)
+
+      send.absorb('', now: 0.8)
+      send.absorb("please ANSWER now\n", now: 1.6)
+
+      expect(send.matchable).to eq("\n")
+      expect(send.outcome(now: 2.6, child_finished: false, submitted: true, last_output_at: 1.6)).to be_nil
+
+      send.absorb("done\n", now: 3.0)
+
+      # A pattern that has not matched is not answered by quiet — the send runs
+      # on to its timeout. That is the rule that makes --wait-for-regex usable
+      # at the default settle window; before it, this same shape returned
+      # `settled: true, matched: nil` while the child was still working.
+      expect(send.outcome(now: 4.0, child_finished: false, submitted: true, last_output_at: 3.0)).to be_nil
+      expect(send.outcome(now: 31.0, child_finished: false, submitted: true, last_output_at: 3.0))
+        .to eq({ settled: false, timed_out: true })
+    end
+
+    # The same scenario without a pattern still settles on quiet, which is what
+    # keeps the change scoped to the regex path.
+    it 'settles on quiet when no pattern was given' do
+      send = waiting(echo: 'please ANSWER now', regex: nil, settle_ms: 800)
+
+      send.absorb("please ANSWER now\n", now: 1.6)
+      send.absorb("done\n", now: 3.0)
+
+      expect(send.outcome(now: 4.0, child_finished: false, submitted: true, last_output_at: 3.0))
+        .to eq({ settled: true })
+    end
+  end
+
+  # What a `--wait-for-regex` pattern is matched against, and what that bound
+  # costs. Matching the whole turn every tick is quadratic in the turn: a 12 MB
+  # answer timed out at 90.51s holding 11.46 MB of itself, where the same turn
+  # with no pattern settled in 7.38s.
+  describe 'how much output a --wait-for-regex pattern is matched against' do
+    def waiting(regex)
+      Rune::Session::PendingSend.new(client: nil, cursor: 0, echo: 'go', now: 0, settle_ms: 30_000,
+                                     timeout_ms: 30_000,
+                                     regex: Rune::Session::PendingSend.compile_regex(regex))
+    end
+
+    def feed(send, *arrivals, now: 1.0)
+      arrivals.each do |text|
+        send.absorb(text, now: now)
+        outcome = send.outcome(now: now, child_finished: false, submitted: true, last_output_at: now)
+        return outcome if outcome
+      end
+      nil
+    end
+
+    def filler(char = 'y') = "#{char * 4095}\n"
+
+    # The scan resumes where the last one stopped, so a marker is matched on the
+    # tick it arrives however much the child goes on to print afterwards.
+    it 'matches a marker as it arrives rather than waiting for the turn to end' do
+      send = waiting('MARKER')
+
+      expect(feed(send, "go\n", *Array.new(3) { filler })).to be_nil
+      expect(feed(send, "MARKER\n")).to eq({ settled: true, matched: true })
+    end
+
+    # ...and resumes far enough back that a match completed by this read is
+    # still seen whole, rather than only from wherever the read began.
+    it 'finds a match that straddles several reads' do
+      send = waiting('BEGIN[\s\S]*END')
+
+      expect(feed(send, "go\n", *Array.new(30) { filler })).to be_nil
+      expect(feed(send, "BEGIN#{'y' * 4090}\n", filler, filler)).to be_nil
+      expect(feed(send, "#{'y' * 4092}END\n")).to eq({ settled: true, matched: true })
+    end
+
+    # The bound, stated as the thing a caller loses: one match longer than
+    # MATCH_SPAN cannot be seen whole by any single scan, so it is never found.
+    # Everything shorter always is, whatever the turn grows to.
+    it 'does not find a single match longer than the span it re-reads' do
+      send = waiting('BEGIN[\s\S]*END')
+      chunks = (Rune::Session::PendingSend::MATCH_SPAN / 4096) + 4
+
+      expect(feed(send, "go\n", "BEGIN\n", *Array.new(chunks) { filler })).to be_nil
+      expect(feed(send, "END\n")).to be_nil
+    end
+
+    # `\A` means the start of the child's answer, not the start of whatever the
+    # window happens to hold — which is why the scan is resumed with a position
+    # rather than run against a substring. Ruby refuses `\A` at any position
+    # past zero, and that is the whole guarantee.
+    it 'does not let an anchored pattern match wherever the window now begins' do
+      send = waiting('\Ayyy')
+      chunks = ((Rune::Session::PendingSend::MATCH_WINDOW_BYTES +
+                 Rune::Session::PendingSend::MATCH_WINDOW_SLACK) / 4096) + 20
+
+      expect(feed(send, "go\n", *Array.new(chunks) { filler })).to be_nil
+    end
+
+    it 'keeps what it matches against bounded however much the child prints' do
+      send = waiting('NEVERMATCHES')
+
+      feed(send, "go\n", *Array.new(400) { filler })
+
+      expect(send.matchable.bytesize)
+        .to be <= (Rune::Session::PendingSend::MATCH_WINDOW_BYTES +
+                   Rune::Session::PendingSend::MATCH_WINDOW_SLACK)
+    end
+
+    # The window is trimmed by bytes on text that is UTF-8 by construction, so
+    # the cut has to be moved off a continuation byte — otherwise a sliding
+    # window would hand the pattern half a character.
+    it 'never cuts a character in half when the window slides' do
+      send = waiting('NEVERMATCHES')
+
+      feed(send, "go\n", *Array.new(200) { "#{'⣿' * 1365}\n" })
+
+      expect(send.matchable).to be_valid_encoding
+      expect(send.matchable).not_to include('�')
     end
   end
 
@@ -922,6 +1295,385 @@ RSpec.describe Rune::Commands::SessionCommand do
       loaded = Rune::Session::Transcript.load(store.output_path('disk4'))
 
       expect(loaded.from(1).bytesize).to eq(loaded.text.bytesize)
+    end
+  end
+
+  # `from` used to compute `since - dropped` against one global accumulator,
+  # which is right only while the dropped region is a *prefix* of the stream —
+  # true for rotation, and false the moment a failed write records a hole in the
+  # middle of a stream that continues afterwards. Every cursor issued before such
+  # a hole then resolved |hole| bytes early: already-delivered output, handed back
+  # as new, which re-fires prompt detection and every "did my command finish"
+  # check built on it.
+  describe 'a cursor that spans a hole in the middle of the stream' do
+    # A transcript laid out byte by byte, so an example can put a hole exactly
+    # where it means to: `[:out, n, marker]` is output the log still holds,
+    # `[:gap, n]` bytes the stream lost. Rotation writes one gap, at the head; a
+    # write that fails writes one wherever the failure happened.
+    def transcript_of(ops)
+      path = File.join(@home, "transcript-#{ops.hash.abs}.ndjson")
+      File.open(path, 'wb') do |file|
+        ops.each do |kind, bytes, marker|
+          file.puts(case kind
+                    when :out then JSON.generate(event: 'output', ts: 1.0, bytes: bytes,
+                                                 text: (marker || 'a') * bytes)
+                    when :gap then JSON.generate(event: 'truncated', ts: 1.0, dropped_bytes: bytes)
+                    end)
+        end
+      end
+      Rune::Session::Transcript.load(path)
+    end
+
+    # The shipped arithmetic, so "unchanged" can be asserted rather than assumed.
+    def single_accumulator(loaded, since)
+      offset = since - loaded.dropped
+      return loaded.text.dup if offset.negative?
+
+      loaded.text.byteslice(offset..) || +''
+    end
+
+    # Everything at or after `since` that the log still holds, taken from the
+    # layout the example built rather than from anything under test. Bytes before
+    # `since` are never part of the answer: the caller already has them.
+    def oracle(ops, since)
+      abs = 0
+      ops.filter_map do |kind, bytes, marker|
+        text = (marker || 'a') * bytes
+        start = abs
+        abs += bytes
+        next if kind != :out || start + bytes <= since
+
+        since <= start ? text : text.byteslice(since - start, bytes)
+      end.join
+    end
+
+    def probe_points(ops)
+      abs = 0
+      ops.flat_map do |_kind, bytes, _marker|
+        start = abs
+        abs += bytes
+        [start, start + 1, start + (bytes / 2), start + bytes - 1]
+      end.push(abs, abs - 1, 0).reject(&:negative?).uniq.sort
+    end
+
+    it 'answers exactly as it always did when nothing was ever dropped' do
+      ops = [[:out, 4_000, 'a'], [:out, 4_000, 'b'], [:out, 4_000, 'c']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([])
+      expect(loaded.cursor).to eq(12_000)
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(single_accumulator(loaded, since)), "at since=#{since}"
+      end
+    end
+
+    it 'answers exactly as it always did when a rotation dropped a prefix' do
+      ops = [[:gap, 48_000], [:out, 4_000, 'a'], [:out, 4_000, 'b']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([[0, 48_000]])
+      expect(loaded.cursor).to eq(56_000)
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(single_accumulator(loaded, since)), "at since=#{since}"
+      end
+    end
+
+    # The reproduction: 25 chunks, a 48_000-byte hole, 25 more. A cursor from
+    # before the hole resolved 48_000 bytes early and replayed the whole first
+    # half of the stream.
+    it 'does not replay output it has already delivered before the hole' do
+      loaded = transcript_of((1..25).map { [:out, 4_000, 'a'] } + [[:gap, 48_000]] +
+                             (1..25).map { [:out, 4_000, 'b'] })
+
+      expect(loaded.cursor).to eq(248_000)
+      expect(loaded.dropped).to eq(48_000)
+      expect(loaded.from(100_000).bytesize).to eq(100_000)
+      expect(loaded.from(100_000)[0, 4]).to eq('bbbb')
+      expect(loaded.from(148_000).bytesize).to eq(100_000)
+      expect(loaded.from(228_000).bytesize).to eq(20_000)
+    end
+
+    # Those bytes are gone whichever way the cursor is bent, so it is bent
+    # forward: later output is honest where earlier output is not.
+    it 'clamps a cursor that lands inside the hole forward to its end' do
+      loaded = transcript_of((1..25).map { [:out, 4_000, 'a'] } + [[:gap, 48_000]] +
+                             (1..25).map { [:out, 4_000, 'b'] })
+
+      expect(loaded.from(124_000)).to eq(loaded.from(148_000))
+      expect(loaded.from(124_000)[0, 4]).to eq('bbbb')
+    end
+
+    it 'resolves a cursor before, inside and after each of several holes' do
+      ops = [[:out, 4_000, 'a'], [:gap, 12_000], [:out, 4_000, 'b'], [:gap, 8_000],
+             [:out, 4_000, 'c'], [:gap, 100_000], [:out, 4_000, 'd']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([[4_000, 12_000], [8_000, 20_000], [12_000, 120_000]])
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(oracle(ops, since)), "at since=#{since}"
+      end
+    end
+
+    # A rotation drops a prefix that may already contain a hole, and the head
+    # event it writes covers both — so the whole thing collapses back to the one
+    # shape the old arithmetic could describe.
+    it 'collapses to a single prefix when a rotation drops a region holding a hole' do
+      ops = [[:gap, 60_000], [:out, 4_000, 'a'], [:out, 4_000, 'b']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([[0, 60_000]])
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(single_accumulator(loaded, since)), "at since=#{since}"
+      end
+    end
+
+    # And a rotation whose *kept* tail still holds one leaves two, in order.
+    it 'keeps a hole that survived inside the tail a rotation kept' do
+      ops = [[:gap, 60_000], [:out, 4_000, 'a'], [:gap, 9_000], [:out, 4_000, 'b']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([[0, 60_000], [4_000, 69_000]])
+      expect(loaded.cursor).to eq(77_000)
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(oracle(ops, since)), "at since=#{since}"
+      end
+    end
+  end
+
+  # A transcript write that fails is *recorded*, not merely survived. The
+  # in-memory cursor has already advanced — those bytes really were produced —
+  # so a hole nothing accounts for makes every cursor `send` hands out
+  # unresolvable by `read`, permanently and without a word: reproduced on a full
+  # filesystem, where `send` answered `cursor: 1849946` while `read` reported
+  # 187221 with no `dropped_bytes`, and `read --since=1849946` returned "" for
+  # the rest of the session's life.
+  describe 'a transcript write that fails' do
+    # A handle that can be told to fail, and to fail *part-way*, which is what a
+    # filesystem running out of room actually does: it writes what fits and then
+    # raises, leaving a fragment at the end of the file.
+    def tearing_log(file)
+      log = Object.new
+      log.instance_variable_set(:@file, file)
+      log.instance_variable_set(:@mode, :ok)
+      log.instance_variable_set(:@tear, 0)
+      log.define_singleton_method(:closed?) { @file.closed? }
+      log.define_singleton_method(:close) { @file.close }
+      log.define_singleton_method(:mode=) { |value| @mode = value }
+      log.define_singleton_method(:tear=) { |value| @tear = value }
+      log.define_singleton_method(:write) do |payload|
+        case @mode
+        when :ok then @file.write(payload)
+        when :dead then raise Errno::ENOSPC
+        else
+          # A write(2) that transferred every byte returns the full count and
+          # does not error, so only a strictly short transfer raises.
+          next @file.write(payload) if @tear >= payload.bytesize
+
+          @file.write(payload.byteslice(0, @tear)) if @tear.positive?
+          raise Errno::ENOSPC
+        end
+      end
+      log
+    end
+
+    def breakable_session(name)
+      disk = store
+      disk.create(name)
+      disk.write_meta(name, name: name, state: 'running')
+      log = tearing_log(disk.open_output(name))
+      supervisor = Rune::Session::Supervisor.new(name: name, command: ['true'], store: disk)
+      supervisor.instance_variable_set(:@output_log, log)
+      supervisor.instance_variable_set(:@log_bytes, 0)
+      [supervisor, log]
+    end
+
+    # `append` is the real path: it advances the transcript window rotation's
+    # accounting reads from, then logs.
+    def emit(supervisor, chunks) = chunks.times { supervisor.send(:append, 'z' * chunk_bytes) }
+
+    def cursor_of(supervisor) = supervisor.send(:transcript_bytes)
+
+    def chunk_bytes = 3_000
+
+    def small_log_bounds
+      stub_const('Rune::Session::Store::MAX_LOG_BYTES', 300_000)
+      stub_const('Rune::Session::Store::LOG_KEEP_BYTES', 250_000)
+    end
+
+    it 'carries what it could not write and records it as soon as writing resumes' do
+      supervisor, log = breakable_session('gap1')
+      emit(supervisor, 2)
+      log.mode = :dead
+      emit(supervisor, 4)
+      log.mode = :ok
+      emit(supervisor, 1)
+
+      loaded = Rune::Session::Transcript.load(store.output_path('gap1'))
+
+      expect(loaded.dropped).to eq(4 * chunk_bytes)
+      expect(loaded.cursor).to eq(cursor_of(supervisor))
+      expect(loaded.from(cursor_of(supervisor) - 1_000).bytesize).to eq(1_000)
+    end
+
+    # The hole is in the *middle* — output was recorded before it and after it —
+    # which is the shape rotation never produced and `from` was never taught.
+    it 'leaves a cursor from before the hole resolving to what followed it, not to the whole log' do
+      supervisor, log = breakable_session('gap3')
+      emit(supervisor, 2)
+      log.mode = :dead
+      emit(supervisor, 4)
+      log.mode = :ok
+      emit(supervisor, 3)
+
+      loaded = Rune::Session::Transcript.load(store.output_path('gap3'))
+
+      expect(loaded.gaps).to eq([[2 * chunk_bytes, 4 * chunk_bytes]])
+      # A cursor taken after the first two chunks: everything since is one chunk
+      # of recorded output before the hole plus three after it — never the four
+      # in between, which nothing holds.
+      expect(loaded.from(chunk_bytes).bytesize).to eq(4 * chunk_bytes)
+      expect(loaded.from(cursor_of(supervisor) - 1).bytesize).to eq(1)
+    end
+
+    # Until a write succeeds there is nowhere on disk to record the hole, so the
+    # supervisor's own memory is the only place the skew is known at all.
+    it 'reports the skew while there is still nowhere to record it' do
+      supervisor, log = breakable_session('gap2')
+      emit(supervisor, 2)
+      log.mode = :dead
+      emit(supervisor, 3)
+
+      expect(supervisor.send(:status_payload)[:transcript_gap_bytes]).to eq(3 * chunk_bytes)
+
+      log.mode = :ok
+      emit(supervisor, 1)
+
+      expect(supervisor.send(:status_payload)).not_to have_key(:transcript_gap_bytes)
+    end
+
+    # The hazard the torn marker exists for: a partial write can leave a
+    # *complete* JSON record that merely never got its newline, which a later
+    # append would silently terminate — counting the gap a second time. Swept
+    # across every split point of the record that carries it.
+    it 'never counts a gap twice, wherever the write recording it is torn' do
+      deltas = (0..90).map do |tear|
+        name = "torn#{tear}"
+        supervisor, log = breakable_session(name)
+        emit(supervisor, 2)
+        log.mode = :dead
+        emit(supervisor, 2)
+        log.mode = :torn
+        log.tear = tear
+        emit(supervisor, 1)
+        log.mode = :ok
+        emit(supervisor, 2)
+        Rune::Session::Transcript.load(store.output_path(name)).cursor - cursor_of(supervisor)
+      end
+
+      expect(deltas.uniq).to eq([0])
+    end
+
+    # A rotation keeps a tail, and a hole recorded mid-stream can land inside it.
+    # Counting only `output` there put every later cursor past the end of the
+    # stream: measured as a 400_000-byte overshoot, with `from(cursor - 1234)`
+    # returning 401_234 bytes.
+    it 'does not count a mid-stream hole twice when a rotation keeps it' do
+      small_log_bounds
+      supervisor, log = breakable_session('rot2')
+      emit(supervisor, 60)
+      log.mode = :dead
+      emit(supervisor, 4)
+      log.mode = :ok
+      emit(supervisor, 41)
+
+      loaded = Rune::Session::Transcript.load(store.output_path('rot2'))
+
+      expect(loaded.dropped).to be > 4 * chunk_bytes
+      expect(loaded.gaps.length).to eq(2)
+      expect(loaded.cursor).to eq(cursor_of(supervisor))
+      expect(loaded.from(cursor_of(supervisor) - 1_234).bytesize).to eq(1_234)
+    end
+
+    # The fragment an *output* write leaves is the dangerous one, because it
+    # still reads as an output record to the rotation scanner: it carries
+    # `"event":"output"` and `"bytes":N` while `Transcript.load` cannot parse it
+    # and skips it. Counting it credits the kept region with output no reader
+    # will see, and the head event a rotation writes is `total_output - kept`, so
+    # every later cursor sits N low — permanently, with no `truncated` event and
+    # no warning. Worse than doing nothing at all, because the torn marker
+    # terminates each fragment into a countable line of its own: measured on a
+    # 12MB transcript with 1/4/10 torn writes buried in the kept tail,
+    # -4096/-16384/-40960 bytes of skew, against a flat -4096 without the marker.
+    it 'does not count the fragment a torn output write leaves, wherever it is torn' do
+      small_log_bounds
+      deltas = [0, 20, 44, 48, 60, 120, 900, 2_500].to_h do |tear|
+        name = "outputtorn#{tear}"
+        supervisor, log = breakable_session(name)
+        emit(supervisor, 60)
+        log.mode = :torn
+        log.tear = tear
+        emit(supervisor, 1)
+        log.mode = :ok
+        emit(supervisor, 45)
+        loaded = Rune::Session::Transcript.load(store.output_path(name))
+        # A rotation has to have happened, or the assertion is vacuous.
+        expect(loaded.dropped).to be_positive
+        [tear, loaded.cursor - cursor_of(supervisor)]
+      end
+
+      expect(deltas.reject { |_tear, delta| delta.zero? }).to eq({})
+    end
+
+    # The other face. The whole-record guard must not start dropping the records
+    # a healthy transcript is made of, which would push cursors the other way.
+    it 'still accounts for every byte of a transcript with no torn write in it' do
+      small_log_bounds
+      supervisor, = breakable_session('healthy')
+      emit(supervisor, 110)
+
+      loaded = Rune::Session::Transcript.load(store.output_path('healthy'))
+
+      expect(loaded.dropped).to be_positive
+      expect(loaded.cursor).to eq(cursor_of(supervisor))
+      expect(loaded.from(cursor_of(supervisor) - 1_234).bytesize).to eq(1_234)
+    end
+
+    # `output_bytes_from` decides on a line's last byte rather than by parsing
+    # it, because parsing every line of the kept region cost 96MB per rotation.
+    # That is only sound if it accepts exactly what `Transcript.load` parses, so
+    # the two are swept against each other over every split point of every shape
+    # the supervisor writes — with braces, quotes, escapes and the marker's own
+    # bytes inside the payload, which is where a byte test can be fooled.
+    #
+    # Two shapes, because those are the two a transcript can hold: a fragment a
+    # live supervisor left, which its next write terminated with `TORN_MARKER`,
+    # and a fragment the file simply ends on because the supervisor was killed
+    # mid-write. The second is the one the byte test cannot decide — a cut inside
+    # a `text` field holding a `}` ends on `}` without being a record — which is
+    # why a line with no trailing newline is parsed outright.
+    it 'counts exactly the lines the transcript reader parses' do
+      texts = ['x' * 8, '}}}}', 'a}b{c}d', '|torn|torn', 'brace }', '{"event":"output","bytes":9}',
+               "\e[1;31mred\e[0m}", '"quoted}"']
+      records = texts.flat_map do |text|
+        [JSON.generate(event: 'output', ts: 1.5, bytes: text.bytesize, text: text),
+         JSON.generate(event: 'truncated', ts: 1.5, dropped_bytes: text.bytesize)]
+      end
+      parses = lambda do |line|
+        !JSON.parse(line).nil?
+      rescue JSON::ParserError
+        false
+      end
+
+      lines = records.flat_map do |record|
+        (0..record.bytesize).flat_map do |split|
+          fragment = record.byteslice(0, split)
+          ["#{fragment}#{Rune::Session::Supervisor::TORN_MARKER}", fragment].reject(&:empty?)
+        end
+      end
+      disagreements = lines.reject { |line| store.whole_record?(line) == parses.call(line) }
+
+      expect(disagreements).to eq([])
+      expect(records).to all(satisfy { |record| store.whole_record?("#{record}\n") })
     end
   end
 
@@ -1006,6 +1758,131 @@ RSpec.describe Rune::Commands::SessionCommand do
 
       expect(result).to be_success
       expect(result.data[:grep_error]).to include('invalid --grep pattern')
+    end
+
+    # It used to return the whole transcript under `status: ok` — the exact
+    # opposite of what the same read does for a valid pattern that matches
+    # nothing. A caller that did not read `grep_error` saw every line as though
+    # it had matched, at the maximum possible cost.
+    it 'returns no output at all for a pattern that will not compile' do
+      seeded('gr5', turns: 1)
+
+      broken = session('read', '--name=gr5', '--grep=[unclosed')
+      unmatched = session('read', '--name=gr5', '--grep=NOTHING-MATCHES-THIS')
+
+      expect(broken.data[:output]).to eq('')
+      expect(broken.data[:clean_output]).to eq('')
+      expect(broken.data[:output]).to eq(unmatched.data[:output])
+    end
+
+    # `grep_matches: 0` would claim a search happened. Absent says it did not.
+    it 'omits grep_matches when the pattern never compiled, and says why' do
+      seeded('gr6', turns: 1)
+
+      result = session('read', '--name=gr6', '--grep=[unclosed')
+
+      expect(result.data).not_to have_key(:grep_matches)
+      expect(result.data[:grep]).to eq('[unclosed')
+      expect(result.data[:grep_error]).to include('premature end of char-class')
+      expect(result.data[:grep_error]).to include('returned no output')
+    end
+
+    # The read still succeeds, which is the whole reason grep_error exists: the
+    # cursor and the liveness fields have nothing to do with the pattern, and a
+    # failure would take them down with it.
+    it 'still reports the cursor and liveness fields when the pattern is broken' do
+      seeded('gr7', turns: 1)
+
+      result = session('read', '--name=gr7', '--grep=[unclosed')
+
+      expect(result).to be_success
+      expect(result.data[:cursor]).to be > 0
+      expect(result.data).to have_key(:child_busy)
+    end
+
+    # In a terminal the reply renders as its text, which is now empty. A blank
+    # line with no reason for it would be a worse answer than the transcript
+    # this used to print.
+    it 'shows the reason in human mode, where the text alone would be a blank line' do
+      rendered = StringIO.new
+      Rune::Commands::SessionCommand.new.human_render(
+        { action: 'read', clean_output: '',
+          grep_error: 'invalid --grep pattern: premature end of char-class' }, rendered
+      )
+
+      expect(rendered.string).to include('invalid --grep pattern')
+    end
+  end
+
+  # `rune session frobnicate` has always been rejected; a mistyped *flag* was
+  # not. `send --name=x --settle_ms 500 'echo HELLO'` joined the flag, its value
+  # and the input with spaces and typed the lot at the child, answering
+  # `status: ok`.
+  describe 'a mistyped flag before the first operand' do
+    def parsed(*argv, operand_owns_flags: false)
+      Rune::Commands::SessionCommand.new
+                                    .send(:extract_options, argv, operand_owns_flags: operand_owns_flags)
+    end
+
+    it 'refuses the underscored spelling and names the flag that was meant' do
+      _options, _rest, message = parsed('--name=x', '--settle_ms', '500', 'echo HELLO')
+
+      expect(message).to include('Unknown option: --settle_ms')
+      expect(message).to include('Did you mean --settle-ms?')
+    end
+
+    it 'refuses a flag it has no suggestion for, and says how to send it as input' do
+      _options, _rest, message = parsed('--name=x', '--frobnicate', 'hi')
+
+      expect(message).to include('Unknown option: --frobnicate')
+      expect(message).not_to include('Did you mean')
+      expect(message).to include('-- --frobnicate')
+    end
+
+    it 'still passes a flag-shaped token through untouched after a separator' do
+      _options, rest, message = parsed('--name=x', '--', '--settle_ms')
+
+      expect(message).to be_nil
+      expect(rest).to eq(['--', '--settle_ms'])
+    end
+
+    it 'does not mistake --- section --- for a flag, quoted or not' do
+      _options, rest, message = parsed('--name=x', '---', 'section', '---')
+      _options2, _rest2, quoted = parsed('--name=x', '--- section ---')
+
+      expect(message).to be_nil
+      expect(quoted).to be_nil
+      expect(rest).to eq(['---', 'section', '---'])
+    end
+
+    # The rule is per-subcommand, because the operand means different things.
+    #
+    # `start`'s operand is a program followed by that program's own argv, so a
+    # flag after it belongs to the child: `start --name=x claude --resume` and
+    # `start --name=x claude --dangerously-skip-permissions` must keep working.
+    it 'leaves flag-shaped tokens after the program name alone, for start' do
+      _options, rest, message = parsed('--name=x', 'claude', '--resume', operand_owns_flags: true)
+
+      expect(message).to be_nil
+      expect(rest).to eq(%w[claude --resume])
+    end
+
+    # `send`'s operand is literal text, and rune *consumes* a correctly-spelled
+    # flag after it — `send 'echo hi' --settle-ms 600` really does have its flag
+    # eaten. So a mistyped one there has to be an error rather than input, or
+    # the parser permutes for consumption and not for validation.
+    it 'rejects a mistyped flag after the operand, for everything else' do
+      _options, _rest, message = parsed('--name=x', 'echo hi', '--settle_ms', '600')
+
+      expect(message).to include('--settle_ms')
+      expect(message).to include('--settle-ms')
+    end
+
+    it 'still passes anything after a -- separator through untouched' do
+      _options, rest, message = parsed('--name=x', '--', 'git', 'log', '--oneline')
+
+      expect(message).to be_nil
+      expect(rest).to eq(%w[-- git log --oneline])
     end
   end
 
@@ -1264,6 +2141,230 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # `attach` resizes the child to whatever terminal took it over, so a fixed
+  # 40x120 render is wrong for the whole time a human is attached from a window
+  # of any other shape. Measured end to end against two independent emulators
+  # before this: all 40 rendered rows differed from what a real 30x100 attach
+  # was showing; after, none did.
+  describe 'the screen renders at the size the child is actually running at' do
+    # Lays its output out against the pty three ways at once — how many lines it
+    # emits (so a shorter terminal scrolls and a taller one does not), how wide
+    # each line is (so a narrower terminal wraps it), and what it prints — and
+    # repaints all of it on SIGWINCH, as every full-screen agent CLI does.
+    def size_painting_child
+      script = <<~CHILD
+        require 'io/console'
+        STDOUT.sync = true
+        def paint
+          rows, cols = STDOUT.winsize
+          print "\\e[H\\e[2J"
+          (1..(rows + 3)).each { |line| print format('N%02d', line) + "\\n" }
+          print('x' * (cols + 5))
+          print "\\nsize \#{rows}x\#{cols}\\n"
+        end
+        Signal.trap('WINCH') { paint }
+        paint
+        sleep
+      CHILD
+      ['ruby', '-e', script]
+    end
+
+    # Exactly the frame `Attachment#forward_resize` sends, over its own
+    # short-lived control connection.
+    def resize(name, rows, cols)
+      Rune::Session::Client.new(store.socket_path(name)).request({ op: 'resize', rows: rows, cols: cols })
+    end
+
+    def wait_for_repaint(name, marker)
+      wait_until(reason: "a repaint at #{marker}") do
+        session('read', "--name=#{name}", '--screen').data[:screen].to_s.include?(marker)
+      end
+    end
+
+    it 'follows the child to a new terminal size instead of rendering at the default' do
+      start_session('win1', size_painting_child)
+      wait_for_repaint('win1', 'size 40x120')
+      resize('win1', 24, 80)
+      wait_for_repaint('win1', 'size 24x80')
+
+      screen = session('read', '--name=win1', '--screen').data[:screen]
+
+      # Rows: 27 lines fit in a 40-row grid, so the old render kept N01. A real
+      # 24-row terminal scrolled it away.
+      expect(screen).not_to include('N01')
+      expect(screen).to include('N27')
+      # Columns: 85 characters is one line at 120 columns and two at 80.
+      expect(screen.lines.map(&:chomp)).to include('x' * 80, 'x' * 5)
+    end
+
+    it 'reports the size it rendered at, so a caller can tell a real geometry from the fallback' do
+      start_session('win2', size_painting_child)
+      wait_for_repaint('win2', 'size 40x120')
+      resize('win2', 30, 100)
+      wait_for_repaint('win2', 'size 30x100')
+
+      result = session('read', '--name=win2', '--screen')
+
+      expect(result.data[:screen_rows]).to eq(30)
+      expect(result.data[:screen_cols]).to eq(100)
+      expect(store.read_meta('win2')).to include(rows: 30, cols: 100)
+    end
+
+    it 'renders send --screen at the same size as read --screen' do
+      start_session('win3', ['bash', '--norc', '-i'])
+      resize('win3', 12, 40)
+      wait_until(reason: 'the resize to be recorded') { store.read_meta('win3')[:rows] == 12 }
+
+      result = session('send', '--name=win3', '--screen', '--settle-ms=400', '--timeout-ms=15000',
+                       '--', 'printf "y%.0s" $(seq 1 45); echo')
+
+      expect(result.data[:screen_rows]).to eq(12)
+      expect(result.data[:screen_cols]).to eq(40)
+      expect(result.data[:screen].lines.map(&:chomp)).to include('y' * 40)
+    end
+
+    # A session directory written before the size was recorded, which is every
+    # session that predates this. The fallback is the previous behaviour, so
+    # such a transcript renders exactly as it always did rather than failing.
+    it 'falls back to the documented default when no size was ever recorded' do
+      start_session('win4', size_painting_child)
+      wait_for_repaint('win4', 'size 40x120')
+      session('stop', '--name=win4')
+      store.write_meta('win4', store.read_meta('win4').except(:rows, :cols))
+
+      result = session('read', '--name=win4', '--screen')
+
+      expect(result.data[:screen_rows]).to eq(Rune::Parsers::ScreenRenderer::DEFAULT_ROWS)
+      expect(result.data[:screen_cols]).to eq(Rune::Parsers::ScreenRenderer::DEFAULT_COLUMNS)
+      expect(result.data[:screen]).to include('size 40x120')
+    end
+
+    # meta.json is a file on disk. A hand-edited or truncated one must not be
+    # able to turn `read --screen` into a crash or an arbitrary allocation.
+    it 'ignores a recorded size that is not a usable terminal' do
+      start_session('win5', size_painting_child)
+      wait_for_repaint('win5', 'size 40x120')
+      session('stop', '--name=win5')
+      store.update_meta('win5', rows: 10**12, cols: 'wide')
+
+      result = session('read', '--name=win5', '--screen')
+
+      expect(result).to be_success
+      expect(result.data[:screen_rows]).to eq(Rune::Parsers::ScreenRenderer::MAX_ROWS)
+      expect(result.data[:screen_cols]).to eq(Rune::Parsers::ScreenRenderer::DEFAULT_COLUMNS)
+      expect(result.data[:screen_size_recorded]).to be(false)
+    end
+
+    # The size pair alone cannot answer this: a session attached from a 40-row
+    # terminal records exactly the fallback numbers. Nothing distinguished the
+    # two until `screen_size_recorded`, so the docs could not honestly claim a
+    # caller was able to tell.
+    it 'distinguishes a recorded 40x120 from the 40x120 default' do
+      start_session('win6', size_painting_child)
+      wait_for_repaint('win6', 'size 40x120')
+      before = session('read', '--name=win6', '--screen').data
+
+      resize('win6', Rune::Parsers::ScreenRenderer::DEFAULT_ROWS, Rune::Parsers::ScreenRenderer::DEFAULT_COLUMNS)
+      wait_until(reason: 'the resize to be recorded') { store.read_meta('win6')[:rows] == 40 }
+      after = session('read', '--name=win6', '--screen').data
+
+      expect(before.values_at(:screen_rows, :screen_cols)).to eq(after.values_at(:screen_rows, :screen_cols))
+      expect(before[:screen_size_recorded]).to be(false)
+      expect(after[:screen_size_recorded]).to be(true)
+    end
+
+    # The supervisor sets the pty to the default and deliberately does not
+    # record it: recording would write meta a second time during launch, against
+    # the parent's own update, and an absent size already renders at exactly
+    # those dimensions.
+    it 'records nothing until the child is actually resized' do
+      start_session('win7', size_painting_child)
+      wait_for_repaint('win7', 'size 40x120')
+
+      expect(store.read_meta('win7')).not_to include(:rows, :cols)
+      expect(session('read', '--name=win7', '--screen').data[:screen]).to include('size 40x120')
+    end
+
+    # A pty's winsize fields are 16-bit, so the control socket can be handed
+    # 65535x65535 and the kernel will take it. Rendering is what pays: the
+    # recorded size drives an eagerly allocated grid on every later `--screen`,
+    # for the rest of the session's life, which is the denial of service
+    # CHG-0056 clamped one layer down.
+    it 'clamps an absurd resize where it is recorded, not where it is rendered' do
+      start_session('win8', size_painting_child)
+      wait_for_repaint('win8', 'size 40x120')
+      resize('win8', 65_535, 65_535)
+      # The CHILD gets what it asked for. Clamping the pty as well silently
+      # handed a 400-row terminal's child 300 rows, so a TUI painted its top 300
+      # forever with nothing in the ack saying so. The ceiling protects rune's
+      # renderer, which is rune's problem and not the child's.
+      wait_for_repaint('win8', 'size 65535x65535')
+
+      result = session('read', '--name=win8', '--screen')
+
+      expect(store.read_meta('win8')).to include(rows: Rune::Session::Supervisor::MAX_ROWS,
+                                                 cols: Rune::Session::Supervisor::MAX_COLUMNS)
+      expect(result.data.values_at(:screen_rows, :screen_cols))
+        .to eq([Rune::Session::Supervisor::MAX_ROWS, Rune::Session::Supervisor::MAX_COLUMNS])
+      # A size rune had to reduce is not the child's geometry, so it is not
+      # "recorded" either — which is what the spec promised before the code did.
+      expect(result.data[:screen_size_recorded]).to be false
+    end
+  end
+
+  # Recording the winsize turned meta.json from a file written a handful of
+  # times per session into one written per resize, and a human dragging a window
+  # edge emits a SIGWINCH per frame. Every other rune process answers "does this
+  # session exist, and is it alive?" out of this file.
+  describe 'meta.json is replaced, never truncated in place' do
+    it 'swaps a new file in rather than emptying the one readers are holding' do
+      store.create('meta1')
+      store.write_meta('meta1', name: 'meta1', state: 'running')
+      before = File.stat(store.meta_path('meta1')).ino
+
+      store.write_meta('meta1', name: 'meta1', state: 'running', rows: 30, cols: 100)
+
+      # A different inode is the observable difference between `rename` and
+      # O_TRUNC: truncating keeps the file a concurrent reader already opened
+      # and empties it under them, which is exactly the window where `send`
+      # answered "No such session".
+      expect(File.stat(store.meta_path('meta1')).ino).not_to eq(before)
+      expect(store.read_meta('meta1')).to include(rows: 30, cols: 100)
+    end
+
+    it 'leaves the replacement owner-only and drops its temp file' do
+      store.create('meta2')
+      store.write_meta('meta2', name: 'meta2', state: 'running')
+
+      expect(File.stat(store.meta_path('meta2')).mode & 0o777).to eq(Rune::Session::Store::FILE_MODE)
+      expect(Dir.children(store.session_dir('meta2')).grep(/writing/)).to be_empty
+    end
+
+    # The window an O_TRUNC write leaves open is proportional to how long the
+    # write takes, so the padding is what makes this deterministic rather than a
+    # 0.02%-per-read coin flip: with it, the unpatched store leaves the file
+    # short for most of every write and this fails on the first few reads.
+    #
+    # How many times the reader got round its loop is deliberately not asserted.
+    # It counts scheduler turns, not anything about atomicity — the property is
+    # that no read ever saw a partial file — and on a loaded machine the same
+    # correct code came round only 88 times and failed a `> 100` floor.
+    it 'never shows a reader a partial file, however many writes it races' do
+      store.create('meta3')
+      store.write_meta('meta3', name: 'meta3', state: 'running', pad: 'p' * 200_000)
+      writer = fork do
+        200.times { |i| store.update_meta('meta3', rows: 20 + (i % 40), cols: 80 + (i % 40)) }
+        exit!(0)
+      end
+      unreadable = 0
+      until Process.waitpid(writer, Process::WNOHANG)
+        unreadable += 1 unless store.read_meta('meta3')
+      end
+
+      expect(unreadable).to eq(0)
+    end
+  end
+
   describe 'a send that lands while the child is still talking' do
     # The characteristic failure measured against a real agent CLI is not a
     # truncated answer: it is the *previous* turn's answer, whole and
@@ -1336,6 +2437,423 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  describe 'a rotation that cannot be written' do
+    # `rotate_output` closed the caller's handle before it had a replacement to
+    # hand back, so any later failure left the supervisor holding a closed handle
+    # it had no idea was closed. `log_event`'s rescue then swallowed every write
+    # for the rest of the session's life, silently.
+    def unwritable(name)
+      session_store = store
+      session_store.create(name)
+      session_store.write_meta(name, name: name, state: 'running')
+      handle = session_store.open_output(name)
+      handle.write("#{JSON.generate(event: 'output', ts: 1.0, bytes: 3, text: 'abc')}\n")
+      File.chmod(0o500, session_store.session_dir(name))
+      [session_store, handle]
+    end
+
+    it 'leaves the caller a handle it can still write to' do
+      session_store, handle = unwritable('rotfail1')
+
+      begin
+        expect { session_store.rotate_output('rotfail1', handle, 3) }.to raise_error(SystemCallError)
+
+        expect(handle).not_to be_closed
+        expect { handle.write("still here\n") }.not_to raise_error
+      ensure
+        File.chmod(0o700, session_store.session_dir('rotfail1'))
+      end
+    end
+
+    it 'leaves no half-written replacement behind' do
+      session_store, handle = unwritable('rotfail2')
+
+      begin
+        expect { session_store.rotate_output('rotfail2', handle, 3) }.to raise_error(SystemCallError)
+
+        expect(Dir.children(session_store.session_dir('rotfail2')).grep(/rotating/)).to be_empty
+      ensure
+        File.chmod(0o700, session_store.session_dir('rotfail2'))
+      end
+    end
+
+    # The property that actually matters: the cursor `send` hands out has to stay
+    # resolvable by `read`. Constants are shrunk so a rotation is reached in a few
+    # hundred events rather than 32MB of them.
+    it 'keeps the transcript level with the cursor right through the outage' do
+      stub_const('Rune::Session::Store::MAX_LOG_BYTES', 300_000)
+      stub_const('Rune::Session::Store::LOG_KEEP_BYTES', 250_000)
+      session_store = store
+      session_store.create('rotfail3')
+      session_store.write_meta('rotfail3', name: 'rotfail3', state: 'running')
+      supervisor = Rune::Session::Supervisor.new(name: 'rotfail3', command: ['true'], store: session_store)
+      supervisor.instance_variable_set(:@output_log, session_store.open_output('rotfail3'))
+      supervisor.instance_variable_set(:@log_bytes, 0)
+      emit = ->(count) { count.times { supervisor.send(:append, 'z' * 3_000) } }
+      on_disk = -> { Rune::Session::Transcript.load(session_store.output_path('rotfail3')).cursor }
+
+      emit.call(120)
+      File.chmod(0o500, session_store.session_dir('rotfail3'))
+      begin
+        emit.call(200)
+
+        expect(on_disk.call).to eq(supervisor.send(:transcript_bytes))
+      ensure
+        File.chmod(0o700, session_store.session_dir('rotfail3'))
+      end
+
+      # And recording resumes rather than staying dead once the cause clears.
+      emit.call(30)
+      expect(on_disk.call).to eq(supervisor.send(:transcript_bytes))
+    end
+
+    # With the handle surviving, @log_bytes stays over the ceiling and every
+    # further event would retry — and each retry seeks and scans the tail it
+    # means to keep before discovering it cannot write (8_388_576 bytes, 4.8ms,
+    # at the real constants) on the one thread that also drains the pty.
+    it 'backs off instead of retrying on every event' do
+      session_store = store
+      session_store.create('rotfail4')
+      session_store.write_meta('rotfail4', name: 'rotfail4', state: 'running')
+      supervisor = Rune::Session::Supervisor.new(name: 'rotfail4', command: ['true'], store: session_store)
+      supervisor.instance_variable_set(:@output_log, session_store.open_output('rotfail4'))
+      attempts = 0
+      allow(session_store).to receive(:rotate_output) do
+        attempts += 1
+        raise Errno::EACCES
+      end
+
+      10.times { supervisor.send(:rotate_log) }
+
+      expect(attempts).to eq(1)
+    end
+  end
+
+  describe 'a transcript write that fails outright' do
+    # Distinct from a rotation that fails: the handle is fine, the filesystem
+    # refuses. The in-memory cursor has already advanced, so a hole nothing
+    # accounts for makes every cursor `send` hands out unresolvable by `read`,
+    # permanently. Reproduced on a real full filesystem (RUNE_HOME on a 20MB
+    # ramdisk): 852_000 bytes went unrecorded under `dropped: 0`, and freeing the
+    # disk resumed logging over the hole without a word.
+    #
+    # `refusals` writes fail, then recover — the shape of a disk filling and
+    # being freed — without needing a ramdisk to run in CI.
+    def refusing_log(path, refusals:)
+      # rubocop:disable Style/FileOpen -- handed to a supervisor that writes for
+      # the rest of the example; the block form would close it first.
+      real = File.open(path, File::WRONLY | File::CREAT | File::APPEND, 0o600)
+      # rubocop:enable Style/FileOpen
+      real.sync = true
+      handle = Object.new
+      handle.define_singleton_method(:closed?) { false }
+      handle.define_singleton_method(:close) { real.close }
+      handle.define_singleton_method(:write) do |payload|
+        raise Errno::ENOSPC if (refusals -= 1) >= 0
+
+        real.write(payload)
+      end
+      handle
+    end
+
+    def gapped_supervisor(name, refusals:)
+      session_store = store
+      session_store.create(name)
+      session_store.write_meta(name, name: name, state: 'running')
+      supervisor = Rune::Session::Supervisor.new(name: name, command: ['true'], store: session_store)
+      log = refusing_log(session_store.output_path(name), refusals: refusals)
+      supervisor.instance_variable_set(:@output_log, log)
+      [supervisor, session_store]
+    end
+
+    it 'accounts for every byte the outage lost, once a write succeeds again' do
+      supervisor, session_store = gapped_supervisor('gap1', refusals: 20)
+
+      30.times { supervisor.send(:append, 'z' * 1_000) }
+
+      loaded = Rune::Session::Transcript.load(session_store.output_path('gap1'))
+      expect(loaded.cursor).to eq(supervisor.send(:transcript_bytes))
+      expect(loaded.dropped).to eq(20_000)
+    end
+
+    it 'reports the hole in-band while it is still owed' do
+      supervisor, = gapped_supervisor('gap2', refusals: 500)
+
+      3.times { supervisor.send(:append, 'z' * 1_000) }
+
+      expect(supervisor.send(:gap_field)).to eq(transcript_gap_bytes: 3_000)
+    end
+
+    it 'says nothing about a gap when there is none' do
+      supervisor, = gapped_supervisor('gap3', refusals: 0)
+
+      3.times { supervisor.send(:append, 'z' * 1_000) }
+
+      expect(supervisor.send(:gap_field)).to eq({})
+    end
+
+    # A write that fails part-way leaves a fragment, and a fragment can be a
+    # complete JSON object that merely never got its newline — which, once more
+    # text is appended, silently swallows the next good record too. Measured on a
+    # real full filesystem: one 4_938-byte line that parses as neither.
+    it 'keeps a torn fragment from swallowing the record that follows it' do
+      session_store = store
+      session_store.create('gap4')
+      session_store.write_meta('gap4', name: 'gap4', state: 'running')
+      path = session_store.output_path('gap4')
+      supervisor = Rune::Session::Supervisor.new(name: 'gap4', command: ['true'], store: session_store)
+      # rubocop:disable Style/FileOpen -- as above.
+      real = File.open(path, File::WRONLY | File::CREAT | File::APPEND, 0o600)
+      # rubocop:enable Style/FileOpen
+      real.sync = true
+      torn = false
+      handle = Object.new
+      handle.define_singleton_method(:closed?) { false }
+      handle.define_singleton_method(:write) do |payload|
+        next real.write(payload) if torn
+
+        torn = true
+        # Half a record lands, then the write fails: exactly what ENOSPC does.
+        real.write(payload.byteslice(0, payload.bytesize / 2))
+        raise Errno::ENOSPC
+      end
+      supervisor.instance_variable_set(:@output_log, handle)
+
+      supervisor.send(:append, 'a' * 1_000)
+      supervisor.send(:append, 'b' * 1_000)
+
+      loaded = Rune::Session::Transcript.load(path)
+      # The second append survives whole; only the torn first one is lost, and
+      # its bytes are accounted for rather than vanishing.
+      expect(loaded.text).to include('b' * 1_000)
+      expect(loaded.cursor).to eq(supervisor.send(:transcript_bytes))
+    end
+
+    # Rotation's head event is `total_output - kept`, so anything the kept region
+    # accounts for and `output_bytes_from` does not gets counted twice.
+    it 'counts a truncated event inside the kept region' do
+      session_store = store
+      session_store.create('gap5')
+      path = session_store.output_path('gap5')
+      lines = [JSON.generate(event: 'output', ts: 1.0, bytes: 10, text: 'x' * 10),
+               JSON.generate(event: 'truncated', ts: 1.0, dropped_bytes: 400_000),
+               JSON.generate(event: 'output', ts: 1.0, bytes: 10, text: 'y' * 10)]
+      File.write(path, lines.map { |line| "#{line}\n" }.join)
+
+      expect(session_store.output_bytes_from(path, 0)).to eq(400_020)
+    end
+
+    it 'does not count a torn fragment the reader will skip' do
+      session_store = store
+      session_store.create('gap6')
+      path = session_store.output_path('gap6')
+      fragment = JSON.generate(event: 'output', ts: 1.0, bytes: 999, text: 'z' * 999).byteslice(0, 40)
+      File.binwrite(path, "#{fragment}#{Rune::Session::Supervisor::TORN_MARKER}" \
+                          "#{JSON.generate(event: 'output', ts: 1.0, bytes: 10, text: 'y' * 10)}\n")
+
+      expect(session_store.output_bytes_from(path, 0)).to eq(10)
+    end
+  end
+
+  describe 'teardown records the child as gone only once it is' do
+    # `cleanup` wrote `state: 'exited'` before it terminated the child, so a
+    # supervisor dying in that window left a concluded record beside a live
+    # process — and any check that trusted the state field was blind to exactly
+    # the case it existed for. `conclude` already kills first on the normal path;
+    # this is the abnormal one, reached when no rescue in `run` did.
+    it 'has already reaped the child when "exited" reaches meta' do
+      session_store = store
+      session_store.create('order1')
+      session_store.write_meta('order1', name: 'order1', state: 'running')
+      reader, writer, pid = PTY.spawn('ruby', '-e', 'Signal.trap("HUP","IGNORE"); loop { sleep 1 }')
+      supervisor = Rune::Session::Supervisor.new(name: 'order1', command: ['true'], store: session_store)
+      supervisor.instance_variable_set(:@child_pid, pid)
+      supervisor.instance_variable_set(:@output_log, session_store.open_output('order1'))
+      alive_when_recorded = nil
+      recorder = session_store.method(:update_meta)
+      allow(session_store).to receive(:update_meta) do |name, fields|
+        alive_when_recorded = Rune::Session::Store.alive?(pid) if fields[:state] == 'exited'
+        recorder.call(name, fields)
+      end
+
+      begin
+        supervisor.send(:cleanup, nil)
+      ensure
+        [reader, writer].each { |io| io.close unless io.closed? }
+      end
+
+      expect(alive_when_recorded).to be false
+      expect(session_store.read_meta('order1')[:state]).to eq('exited')
+      expect(Rune::Session::Store.alive?(pid)).to be false
+    end
+  end
+
+  describe 'a child that outlived its supervisor' do
+    # Reported, never refused. An earlier attempt refused the archive and sent
+    # the caller to `rune session stop`, which SIGKILLs the recorded pid's whole
+    # process group — so whenever its liveness test was wrong about a recycled
+    # pid, the remedy killed a stranger. It asked the process *group* on the
+    # premise that a recycled pid sits in its parent's group; measured here,
+    # 87.9% of live processes lead their own group.
+    def survivor = ['ruby', '-e', 'Signal.trap("HUP","IGNORE"); loop { sleep 1 }']
+
+    # A pid that is certainly dead: spawned and reaped, so nothing of ours holds
+    # it and nothing has had the chance to reuse it yet.
+    def reaped_pid
+      pid = Process.spawn('true', out: File::NULL, err: File::NULL)
+      Process.wait(pid)
+      pid
+    end
+
+    # A session whose supervisor is gone, pointed at `child` as its child.
+    def orphaned_session(name, child, started: nil)
+      session_store = store
+      session_store.create(name)
+      session_store.write_meta(name, name: name, command: ['x'], state: 'running',
+                                     child_pid: child, supervisor_pid: reaped_pid,
+                                     child_started_at: started || Rune::Session::Store.process_start_time(child))
+      session_store
+    end
+
+    def listed(name)
+      session('list').data[:sessions].find { |entry| entry[:name] == name }
+    end
+
+    it 'names the live child in list' do
+      child = Process.spawn(*survivor, out: File::NULL, err: File::NULL)
+      orphaned_session('orph1', child)
+
+      begin
+        expect(listed('orph1')[:orphaned_child_pid]).to eq(child)
+      ensure
+        Process.kill('KILL', child)
+        Process.wait(child)
+      end
+    end
+
+    # The blind spot of the check this replaces: it skipped any session recorded
+    # exited/stopped/failed, which is precisely where a supervisor that died
+    # mid-teardown leaves its record.
+    it 'names it even when meta claims the session already exited' do
+      child = Process.spawn(*survivor, out: File::NULL, err: File::NULL)
+      session_store = orphaned_session('orph2', child)
+      session_store.update_meta('orph2', state: 'exited', exit_code: 0)
+
+      begin
+        expect(listed('orph2')[:orphaned_child_pid]).to eq(child)
+      ensure
+        Process.kill('KILL', child)
+        Process.wait(child)
+      end
+    end
+
+    it 'names it on the archive reply and archives anyway' do
+      child = Process.spawn(*survivor, out: File::NULL, err: File::NULL)
+      orphaned_session('orph3', child)
+
+      begin
+        result = session('archive', '--name=orph3')
+
+        expect(result).to be_success
+        expect(result.data[:orphaned_child_pid]).to eq(child)
+        expect(result.data[:archived_to]).to include('orph3')
+        expect(Rune::Session::Store.alive?(child)).to be true
+      ensure
+        Process.kill('KILL', child)
+        Process.wait(child)
+      end
+    end
+
+    # The case the abandoned group check got wrong. A live process that merely
+    # wears the recorded number is not this session's child, and saying it is
+    # would point an operator at a stranger.
+    it 'says nothing about a live process that only wears the recorded number' do
+      stranger = Process.spawn(*survivor, out: File::NULL, err: File::NULL, pgroup: true)
+      orphaned_session('recyc1', stranger, started: 'Thu Jan  1 00:00:00 1970')
+
+      begin
+        expect(Process.getpgid(stranger)).to eq(stranger)
+        expect(listed('recyc1')[:orphaned_child_pid]).to be_nil
+        expect(session('archive', '--name=recyc1').data[:orphaned_child_pid]).to be_nil
+        expect(Rune::Session::Store.alive?(stranger)).to be true
+      ensure
+        Process.kill('KILL', stranger)
+        Process.wait(stranger)
+      end
+    end
+
+    # No recorded identity is not evidence of an orphan. Sessions started before
+    # the field existed, and any supervisor that died before writing it, answer
+    # "unknown" — which is silence, not a guess from the bare pid.
+    it 'says nothing when the child identity was never recorded' do
+      child = Process.spawn(*survivor, out: File::NULL, err: File::NULL)
+      session_store = store
+      session_store.create('legacy1')
+      session_store.write_meta('legacy1', name: 'legacy1', command: ['x'], state: 'running',
+                                          child_pid: child, supervisor_pid: reaped_pid)
+
+      begin
+        expect(listed('legacy1')[:orphaned_child_pid]).to be_nil
+      ensure
+        Process.kill('KILL', child)
+        Process.wait(child)
+      end
+    end
+
+    # A human on a TTY gets the warning as a line of its own. Folded into the
+    # archive envelope it would be one key in a JSON blob, which is exactly where
+    # a person skimming a successful archive would not look.
+    it 'warns a human archiving a session that still has a live child' do
+      io = StringIO.new
+      session_command.human_render({ action: 'archive', name: 'x', archived_to: 'y',
+                                     orphaned_child_pid: 4242 }, io)
+
+      expect(io.string).to include('child pid 4242 is still running')
+      expect(io.string).to include('"archived_to":"y"')
+    end
+
+    it 'says nothing extra when an archive leaves nothing behind' do
+      io = StringIO.new
+      session_command.human_render({ action: 'archive', name: 'x', archived_to: 'y' }, io)
+
+      expect(io.string).to eq(%({"name":"x","archived_to":"y"}\n))
+    end
+
+    it 'marks the orphan in a human session list' do
+      io = StringIO.new
+      session_command.human_render({ action: 'list',
+                                     sessions: [{ name: 's', state: 'dead', command: ['x'],
+                                                  orphaned_child_pid: 4242 }] }, io)
+
+      expect(io.string).to include('child pid 4242 is still running with no supervisor')
+    end
+
+    it 'says nothing about a session whose supervisor is alive and well' do
+      start_session('healthy1', survivor)
+
+      expect(listed('healthy1')[:state]).to eq('running')
+      expect(listed('healthy1')[:orphaned_child_pid]).to be_nil
+    end
+
+    # End to end, with a real supervisor really killed. `start` returns before
+    # the child's interpreter has installed its trap, so the pty hangup would
+    # otherwise kill the child and there would be no orphan to find.
+    it 'reports a child left behind by a SIGKILLed supervisor' do
+      result = start_session('orph4', survivor)
+      child = result.data[:child_pid]
+      supervisor = result.data[:supervisor_pid]
+      wait_until(reason: 'the child to install its HUP trap') do
+        (store.read_meta('orph4') || {})[:child_started_at]
+      end
+      sleep 0.8
+      Process.kill('KILL', supervisor)
+      wait_until(reason: 'the supervisor to die') { !Rune::Session::Store.alive?(supervisor) }
+
+      expect(Rune::Session::Store.alive?(child)).to be true
+      expect(listed('orph4')[:orphaned_child_pid]).to eq(child)
+    end
+  end
+
   describe 'a start without --name' do
     # The lock serialises one name, but the name was picked before it: two
     # `start -- grok` racing each other both landed on the same codename, and
@@ -1383,14 +2901,24 @@ RSpec.describe Rune::Commands::SessionCommand do
       ['ruby', '-e', script]
     end
 
+    # The child ends up at the default, but may observe 0x0 first. `PTY.spawn`
+    # returns the master only once the child is already running, so
+    # `apply_window_size` cannot land before a child that reads its winsize
+    # immediately — it gets the size via the SIGWINCH that follows instead. Seen
+    # on a Ruby 3.1 CI runner as `SIZE:[0, 0]` followed by `RESIZED:[40, 120]`,
+    # where every other version won the race. Asserting only the first line
+    # asserted the scheduler, so this asserts the guarantee rune actually makes:
+    # the child is at the default, by whichever of the two paths delivered it.
     it 'starts headless at the documented default' do
       start_session('s35', size_reporter)
+      default = "[#{Rune::Session::Supervisor::DEFAULT_ROWS}, #{Rune::Session::Supervisor::DEFAULT_COLUMNS}]"
 
-      wait_until(reason: 'the child to report its size') do
-        session('read', '--name=s35').data[:output].include?('SIZE:')
+      wait_until(reason: 'the child to report the default size') do
+        session('read', '--name=s35').data[:output].include?(default)
       end
-      expect(session('read', '--name=s35').data[:output])
-        .to include("SIZE:[#{Rune::Session::Supervisor::DEFAULT_ROWS}, #{Rune::Session::Supervisor::DEFAULT_COLUMNS}]")
+
+      output = session('read', '--name=s35').data[:output]
+      expect(output).to include("SIZE:#{default}").or include("RESIZED:#{default}")
     end
 
     it 'adopts an attaching terminal\'s size and restores the default on detach' do

@@ -1,0 +1,126 @@
+{
+  "timestamp": 1786994944,
+  "commit": "05aa9661a7dbc4444ca61cbff7936c0a40b4ce4b",
+  "contract_digest": "965b4fd105fd931078e8b56f9f62338fb4868548354a8227e39db2f59a604121",
+  "workspace_digest": "a48e5158f63c6483b1475c055842a33776cf2ad6d956700ccd38db63a1aebb03",
+  "acceptance_input_digest": "b693b2df246763e537c3d9aada9a22a31175d545330c2bc2cb2263de4ba7be76",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2a2bd5005707df6b480a1b0677b5c3dd152c2cefdea4b7f6d9170e910f1896c0",
+        "entry_digest": "eca0a93d1b6818301d0614180ecf8843dcba412bc5d3a531bfa5d778b55882d6",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "CHANGELOG.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e1856b58ee0caf83d09d690800f8e0bcb9a125e6413d55500ffe2d7fa83348aa",
+        "entry_digest": "8d25a7b2beb6926d49d4b47b4a57e92319affa6864c29540505da1c832019182",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Gemfile.lock",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6113b85e65d4760416001ef7c136ed55e0237d87fe9c74312a8a293bb9572164",
+        "entry_digest": "b95e1a4d2fefd9bc60fe6e3e0770d5c7b856ed3f7a051242af13e541b50760df",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "ROADMAP.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4fa1737de4a420eb456ea674deeddae77394ab5644fe0d721961289692a562e9",
+        "entry_digest": "3905ffb0c8e9352eba898563f0199cee16c11a0640c61b5982d90fe643968806",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/getting_started.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "849a4464e10d2701991fc0856dfd3d7b6be472ef49bbb36db1970a45b801db36",
+        "entry_digest": "745b4d9772f68e39705046f927e840a526e11312b38ca512d22c2a87b519918f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "lib/rune/version.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "78ee93687e4744aa68f7769c7d6791327da288eb48a59c7853f47f8f2ce3c7c8",
+        "entry_digest": "56bac8d877a226b3e1a8c80ee30715bca9f62639d133a1ea43e4b6a7123d8fd6",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "plugin.toml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5e0d0d6255a485eb901dde72bb3aebc4d1b44c4754ff708789d18899ca8a92f4",
+        "entry_digest": "861bbdac5be6c1a40d53aec21732e8c22c79e7ad72b2b771cfb1a8d79adfbea3",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/cli/cli.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "685078f51b6c3a24623617e145507dcc30d84f16da77a53053d72f4730ab0cb8",
+        "entry_digest": "f869b955d407663d6c81bb387618df2da2f5b075cdca33693bd16675fe45b0f6",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "specs/cli/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+        "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+        "owners": [
+          "cli"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

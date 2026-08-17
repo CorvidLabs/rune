@@ -1,6 +1,291 @@
 # Changelog
 
-## [Unreleased]
+## [v0.9.0] - 2026-08-17
+
+### Fixed
+
+- **A cursor issued before a gap in the middle of the transcript replayed output already
+  delivered.** `Transcript#from` mapped a cursor by subtracting one global dropped total, which is
+  correct only while the dropped region is a *prefix* of the stream — true for rotation, and false
+  for a write that fails mid-session and leaves a hole with output on both sides of it. Every cursor
+  from before such a hole resolved |hole| bytes too early. Measured on 25 chunks x 4000B, a
+  48_000-byte hole and 25 more: `read --since=100000` returned 148_000 bytes starting at the
+  beginning of the stream, 48_000 of which the caller already had — arriving, for an agent polling
+  `read --since=<last cursor>`, as new output for the current turn, which re-fires prompt detection
+  and every "did my command finish" check built on it. Each dropped region is now recorded as
+  `(retained offset, cumulative dropped)` and a cursor is walked through the list; one that lands
+  *inside* a region clamps forward to its end, because those bytes are gone either way and later
+  output is honest where replaying earlier output is not. A single prefix — every rotation — is byte
+  for byte the arithmetic it always was.
+
+- **A transcript write that failed was survived, not recorded.** The in-memory cursor advanced over
+  bytes nothing on disk accounted for, so every cursor `send` handed out was unresolvable by `read`
+  for the rest of the session, and logging that resumed over the hole never mentioned it. Output no
+  write could record is now carried and emitted as a `truncated` event by the next write that
+  succeeds, each record is written on its own, and the first record after a failure is preceded by a
+  marker that makes any fragment the failed write left unparseable — so "recorded" means exactly
+  "its own write returned". While the hole is still owed, `status` and the `send` reply carry
+  `transcript_gap_bytes`, the only place it is known at all.
+
+- **Rotation counted bytes the reader does not, in both directions.** A rotation's head event is
+  `total_output - kept`, so the scan of the kept region has to count exactly what `Transcript.load`
+  reconstructs from it. It counted neither a `truncated` event already inside the kept tail — a hole
+  then counted twice, putting every later cursor 400_000 bytes past the end of the stream in the
+  measured case — nor did it exclude the fragment a torn write leaves, which still reads as an
+  output record while the reader skips it: -4096/-16384/-40960 bytes of permanent, silent shortfall
+  for 1/4/10 torn writes, scaling with the outage because each fragment becomes a countable line of
+  its own. (That this is *worse* than 0.8.0's flat -4096, where a fragment and the record after it
+  merged into one unparseable line, is carried over from the prototype's measurement and was not
+  re-derived here.) A real outage moves both dials and they do not cancel: +16384 measured
+  for a torn write plus the gap it opened. All of those, and a healthy transcript that must not
+  move, measure 0.
+- **A rotation that failed silently stopped a session recording, permanently.** `rotate_output`
+  closed the caller's handle before it had a replacement to hand back, so any later failure left the
+  supervisor holding a closed handle it had no idea was closed — and `log_event`'s own rescue then
+  swallowed every subsequent write for the rest of the session's life, while the cursor `send` hands
+  out kept advancing over a transcript that had stopped growing. Reproduced on a real EACCES session
+  directory (`harnesses/rotation_eacces.rb`): 200 further events left the transcript 564,000 bytes
+  behind the cursor, and restoring write permission did not resume recording, it widened the gap to
+  654,000. The handle is now closed only once the replacement is renamed into place, and a
+  half-written temp file is removed on the way out. With the handle surviving, `@log_bytes` stays
+  over the ceiling and every further event would retry the rotation, so a failure is now backed off
+  30s: one failed attempt seeks and scans the 8,388,576-byte tail it means to keep before it
+  discovers it cannot write, 4.8ms each, on the single thread that also drains the pty — 189
+  attempts over 200 events before the backoff, 1 after.
+
+- **A transcript write that failed left every later cursor unresolvable, silently and for good.**
+  `log_event` swallowed the error while the in-memory cursor kept advancing, so `send` handed out
+  positions `read` could never resolve and nothing anywhere said so. Reproduced with RUNE_HOME on a
+  full 20MB ramdisk: 852,000 bytes of output went unrecorded under `dropped: 0`, and freeing the
+  disk made it worse, because logging resumed over the hole without a word. The lost byte count is
+  now carried and emitted as a `truncated` event by the next write that succeeds — the same vehicle
+  rotation already uses to keep cursors absolute. Re-measured on the same ramdisk: skew −873,000
+  during the outage, 0 after recovery, with `dropped` reporting the hole exactly. While the hole is
+  still owed there is nowhere on disk to put it, so `send` replies and `status` carry
+  `transcript_gap_bytes`.
+
+  A write that fails part-way also leaves a fragment, and a fragment can be a complete JSON object
+  that merely never got its newline — which then swallows the next good record into one unparseable
+  line. Measured on that ramdisk: 280 of 300 writes failed and one produced exactly that, 4,938
+  bytes parsing as neither. A `|torn` marker now precedes the first record after any failure, so
+  only the fragment is lost. `Store#whole_record?` decides the same question for rotation's
+  accounting on a byte comparison rather than by parsing the kept region — which was twice measured
+  to cost 96MB+ per rotation — and the two must agree exactly or the skew is permanent: swept over
+  every split point of 36 record shapes with braces, quotes, escapes, raw newlines and the marker's
+  own bytes in the payload, 8,832 lines compared, 0 disagreements.
+
+- **Teardown recorded the child as exited while it was still running.** `Supervisor#cleanup` wrote
+  `state: 'exited'` and only then terminated the child, so a supervisor dying inside that window
+  left a concluded record on disk beside a live process still holding a pty. `conclude` already
+  killed before recording on the normal path; the abnormal teardown now matches it. `terminate_child`
+  is idempotent and each teardown step keeps its own rescue, so a child that will not die still gets
+  the record written after it.
+
+- **`rune run --timeout` never returned when the child was still printing.** The flag that exists to
+  bound a run did not bound it: on macOS a pty child SIGKILLed while bytes it wrote sit unread in
+  the pty buffer wedges permanently in the kernel exit path (`ps` shows `?Es`), so the blocking
+  `Process.wait2` after the kill never returned. Reproduced independently against the released
+  0.8.0 with a hard 40 s ceiling and rune's own output redirected to a file, so "rune has not
+  exited" could not be confused with a blocked reader — the rune process itself sat in state `S`:
+
+      rune run --timeout=3 -- sh -c '<case>'         v0.8.0      after
+      child ignores TERM, prints constantly          HUNG 40s+   124 in 5.5s
+      child ignores TERM, silent                     124 in 3.1s 124 in 3.2s
+      child handles TERM, prints constantly          HUNG 40s+   124 in 5.5s
+      child handles TERM, one burst then idle        124 in 3.2s 124 in 3.2s
+
+  Note the second and fourth rows: ignoring TERM was never the trigger, and a child that has
+  stopped printing exits cleanly. The discriminator is whether the child is *actively producing
+  output at the moment of the kill*, which is why every earlier fixture missed it — a silent test
+  child leaves nothing unread and never wedges. `SignalHandler.reap` is now bounded at every step
+  and takes a drain block, and the abort is caught inside the read loops where the pty reader is
+  still open, because reading the master is the only thing that clears the wedge. The
+  `--timeout`/`--idle-timeout`/EPIPE kill paths are bounded too, but cannot drain — Ruby's internal
+  timeout exception is not a `StandardError`, so it cannot be caught while the reader is open. A
+  child wedged on those paths is given up on rather than waited for: strictly better than an
+  unbounded wait, and a documented limitation rather than a fix.
+
+- **A second INT/TERM to rune now stops it, instead of only being forwarded.** Signals are enqueued
+  on a `Thread::Queue` and drained by the poll callable, so two arriving inside one 0.2 s poll no
+  longer overwrite each other and every signal reaches the child. The second signal within a 5 s
+  burst window is forwarded to the child *first*, then unwinds to a well-formed result at
+  `128 + signo` rather than killing rune mid-render; the window is what keeps two legitimate
+  interrupts ten minutes apart from counting as an escalation, and the traps are restored to
+  `DEFAULT` afterwards so a third signal is the last escape hatch. This is the `timeout`/`docker
+  run`/`ssh` ladder, and it is a deliberate trade-off: two signals to the *rune process* end the run
+  even if the child would have carried on. Under `rune watch` it is moot — raw mode clears `ISIG`,
+  so a human's Ctrl-C reaches the child as a `0x03` byte and never becomes a signal to rune at all,
+  verified through a real controlling terminal. Agent-CLI turn-interrupts are untouched.
+
+- **`send` accepted `--max-output` and `--tail` and silently ignored both.** They were parsed for
+  every session subcommand and applied only by `read`, so a caller that asked for a bound was told
+  `status: ok` and handed everything: measured against `python3 -q`, `send --max-output=120` and
+  `send --tail=3` each returned the same 4187 bytes as no flag at all, while `read --max-output=120`
+  correctly returned 65. `send` is the worst place for that gap — it is the call an agent makes most
+  and one turn of a full-screen TUI is megabytes, which is exactly how a driving loop pages a whole
+  transcript into its context believing it set a limit. `clean_output` is derived from the *bounded*
+  raw text rather than bounded separately, so the two fields cannot describe different windows of
+  one reply with a single `omitted_bytes` true of only one of them. Bounding stays in the command,
+  not the supervisor: the transcript, the cursor, and every attached client still see the whole
+  stream. Separately, `--max-output` together with `--tail` is now refused on every session
+  subcommand with the message `rune run` has always used — accepting both applied whichever was
+  tested first and silently gave the caller the other one.
+
+### Added
+
+- **Subcommands are structured data in per-command help.** `rune --help --json` answered with
+  `commands: [{name, summary}, …]` while `rune session --help --json` had no `commands` key at all:
+  its seven subcommands appeared only inside the `usage` line as `<start|send|read|…>`. Discovering
+  the CLI therefore worked structurally for exactly one level and then required splitting a
+  display string, which a field report hit while driving real agent CLIs. Per-command help now
+  carries the same key and the same entry shape as the top-level list, so one parser reads both
+  levels. A command with no subcommands emits no `commands` key, leaving every existing payload
+  unchanged. The declared list and the dispatch table are separate on purpose — declaring carries
+  the summaries — so the suite asserts they are equal, since a subcommand that dispatches without
+  being declared would otherwise work on the command line while being invisible to discovery.
+
+- **`orphaned_child_pid` on `list` and on the `archive` reply.** A supervisor killed with SIGKILL
+  leaves its child running, reparented to pid 1 and still holding the pty, and nothing said so:
+  `list` showed the session `dead` and `archive` filed it away, after which no rune command could
+  name the process at all. Both now report the pid when a session's supervisor is gone and its
+  recorded child is provably still running. Nothing is blocked and nothing is signalled — the
+  operator is told the number while it is still reachable.
+
+  "Provably" is the pair (pid, start time), recorded by the supervisor at spawn and compared against
+  the live process, under `LC_ALL=C` because `lstart` is formatted through the locale
+  (`Fri Aug 14 13:41:13 2026` under C, `ven. 14 août 13:41:13 2026` under fr_FR). It is deliberately
+  not the bare pid, which any recycled number satisfies, and deliberately not the process *group*:
+  measured on the development machine, 1,222 of 1,390 live processes (87.9%) lead their own group
+  and 130 of the 200 most recently allocated pids (65.0%), so a group question answers "alive" for a
+  stranger about as often as a bare pid does — and misses a real child that is not a group leader.
+  The recorded `state` is not consulted either, because a check that skipped sessions recorded
+  `exited`/`stopped`/`failed` would be blind to exactly the teardown bug fixed above.
+
+  Where the question cannot be asked soundly the answer is silence: a session with no recorded
+  `child_started_at` reports nothing even when its child is alive, and so does every session if `ps`
+  is unavailable. `lstart` resolves to one second, so two processes wearing one pid inside a single
+  second are indistinguishable — the pid space has to wrap first, measured at ~40s of sustained
+  spawning here, but that is a bound and not a proof. `harnesses/orphan_report.rb` drives all of it
+  against a real SIGKILLed supervisor.
+
+- **`--max-output` returned text the child never printed.** The head and tail were spliced with
+  nothing between them, so the join reads as continuous output. Measured, a 201-byte transcript at
+  `--max-output=200` dropped exactly the byte that turned `chsh -s /bin/zsh` into
+  `chsh -s bin/zsh` — a different and still-plausible path — under `status: ok`. The metadata was
+  honest throughout; the text was a fabrication, and a caller reading only `clean_output` had no
+  in-band signal at all. The join now carries a
+  `[rune] ==== N bytes omitted by --max-output ====` line. It is rune's annotation rather than the
+  child's output, so it is not charged against BYTES and a reply can exceed the budget by its
+  length — which is not a new kind of overshoot: `scrub` has returned 62 bytes for a budget of 60
+  since the flag shipped, whenever both cuts split a multi-byte character. `truncated` and
+  `omitted_bytes` stay authoritative, because a child can print any string, this one included.
+
+- **Both `--max-output` cut boundaries could land inside an escape sequence.** A head that kept an
+  OSC introducer and lost its terminator makes `strip_ansi` swallow the marker *and* the start of
+  the tail; a tail that begins mid-CSI prints its remainder as text. Both are now pulled to a
+  sequence boundary — the head back to the ESC that opened the one it split, the tail forward past
+  that sequence's final byte — and the bytes that costs are counted in `omitted_bytes`. Censused
+  over all 14,029 cut points of a real vim transcript: 2,306 head cuts and 4,399 tail cuts fell
+  inside a sequence and every one emitted the orphaned remainder; now none do, and the marker
+  survives `strip_ansi` at all 14,029 (previously 0). Confirmed on two independent oracles: GNU
+  screen and pyte both display `A31mBBB` for the remainder of a sliced `\e[1;31m`, and both
+  swallow everything after an OSC introducer that never terminates.
+
+- **An unparseable `--grep` returned the entire transcript under `status: ok`.** The exact opposite
+  of the same read with a valid pattern that matches nothing, which returns zero — so a caller that
+  did not read `grep_error` saw every line as though it had matched, at the maximum possible cost.
+  A filter that cannot run now fails closed: no output, `grep_matches` absent rather than `0`
+  (nothing was searched), and `grep_error` carrying Ruby's own reason instead of just echoing the
+  pattern. The read itself still succeeds, because `cursor`, `dropped_bytes`, `prompt_detected`,
+  `idle_ms`/`child_busy` and `screen` have no bearing on the pattern, and human mode now prints the
+  reason above what would otherwise be a bare blank line.
+
+- **A mistyped flag was typed at the child, or exec'd as a program.**
+  `session send --name=x --settle_ms 500 'echo HELLO'` (underscore for dash) matched nothing, so
+  the flag, its value and the input were joined with spaces and written to the child, answering
+  `status: ok`; against an agent CLI that is a garbage prompt to a paid model. `rune run
+  --tiemout=5 -- echo hi` gave `status: ok` with `exit_code: 127` and
+  `Command not found: --tiemout\=5 -- echo hi`. Both now refuse a flag-shaped token that matches no
+  rune flag, with a dash-for-underscore suggestion where one applies exactly. Two limits keep the
+  refusal from catching anything that works today: nothing after the first `--` is examined, and
+  nothing after the first operand is examined — so `session start --name=x claude --resume`,
+  `run cargo clippy --tests`, `send --name=x -- --settle_ms` and `--- section ---` are all
+  untouched.
+- **`--screen` rendered at a hardcoded 40x120 while the child ran at whatever size a human's
+  terminal was.** `attach` resizes the child to the terminal that took it over and follows it as
+  that terminal is resized, so for the entire time anyone was attached from a window that was not
+  40 rows tall, rune's distinguishing output described a screen the child never drew. The supervisor
+  now records the child's winsize in `meta.json` whenever it changes it, and both `read --screen`
+  and `send --screen` render at it and report it as `screen_rows`/`screen_cols`.
+
+  Measured end to end against a child that lays its output out against its winsize three ways at
+  once, with pyte 0.8.2 and GNU screen 4.00.03 replaying the same bytes as independent oracles that
+  agreed with each other exactly. Driven over the control socket: **36/37 rows wrong before and 0/31
+  after** at 30x100, 30/31 → 0/25 at 24x80, 18/19 → 0/13 at 12x40, 50/51 → 0/51 at 50x200, and 0/41
+  both ways at 40x120 where the sizes coincide. Driven through a real `rune session attach` in a
+  real 30x100 pty, against the bytes that terminal itself received: **29/30 before, 0/30 after** —
+  and that with a child that ignores SIGWINCH entirely, because the supervisor replays its backlog
+  into the attaching terminal at that terminal's size.
+
+  **`screen_size_recorded` is what tells a recorded size from the fallback.** The numbers cannot: a
+  session attached from a 40-row terminal records exactly the fallback's 40x120. It is false for a
+  session nobody has resized (where 40x120 is not a guess — it is the size the supervisor gave the
+  pty), for a session directory predating this, and for a recorded size that is not a usable
+  terminal, which is discarded or clamped rather than allocated.
+
+  A resize arriving over the control socket is clamped to 300x1000, past any real terminal, and the
+  clamp lands on the pty as well as on the record so the child, the record and the render always
+  agree. A pty's winsize fields are 16-bit, and a recorded 65535x65535 would have made every later
+  `--screen` drive a grid that size for the rest of the session's life — the denial of service
+  v0.8.0 clamped inside the renderer, reappearing one layer up with the amplification persisted to
+  disk. One `read --screen` over a hostile 683KB `\e[999L` transcript: 0.76s at 40x120, 3.41s at the
+  ceiling, 17.72s without it.
+
+  **One case is documented rather than fixed.** The whole retained transcript is rendered at the
+  child's *current* size, so output painted before a resize is re-flowed at the new one. For a
+  full-screen agent that is right, and for an attaching terminal it is exactly right (the 0/30 above
+  is that case). It is unresolved for a child that never repaints *and* whose pty is resized under
+  an already-attached terminal, where that terminal reflows glyphs it has already drawn and there is
+  no reference answer to match: shrunk from 40x120 to 24x80 mid-stream, GNU screen kept only the
+  cursor row, pyte kept nothing, and the two disagreed with each other on one row of what remained.
+  rune keeps the content and re-flows it, differing from both; the old fixed size scored better
+  there on raw row counts (15 wrong against 24) only because a mostly blank screen coincidentally
+  matches a mostly blank oracle.
+
+- **`meta.json` was truncated in place while other processes were reading it.** Every rune process
+  answers "does this session exist, and is it alive?" out of that file with no lock to take, so an
+  instant where it was short was an instant where `send` said "No such session", `list` reported
+  `state: dead`, and `read --screen` fell back to the default geometry. Rare while meta was written
+  a handful of times per session; not rare once the child's winsize is recorded there, because a
+  human dragging a window edge emits a SIGWINCH per frame. It is now serialised first, written whole
+  to a private per-pid temp file, and renamed over the target, the same shape transcript rotation
+  already used. Measured through a real `rune session attach` dragged across 250 window shapes in
+  7.5 seconds, with another process doing exactly what `alive_session` does: **90 of 294,728 reads
+  came back unreadable before, 0 of 312,582 after**. Amplified by padding meta and rewriting it 200
+  times against a concurrent reader: 303 unreadable reads before, 0 after.
+
+### Verified, not changed
+
+Two durability claims had been specified and unit-tested but never observed end to end. Both were
+run against a live session for this release, and neither needed a change — recorded because "we
+believe it holds" and "we watched it hold" are different statements.
+
+- **A transcript rotation, observed.** A field report noted "no rotation observed" over ~50 minutes,
+  which is the one thing a reporter cannot manufacture on demand. Driving 41.7 MB through a single
+  `python3 -q` session crosses `MAX_LOG_BYTES` (32 MB): the rotation fired between 20 and 30 MB,
+  dropped 22,843,377 bytes, and left the transcript at 9.2 MB and growing. The cursor stayed
+  monotonic across it (1,604 → 41,695,634 → 41,697,712), a `read --since=<pre-rotation cursor>`
+  still answered and reported `dropped_bytes: 22843377` rather than silently renumbering, and the
+  session took further sends afterwards. This is the path CHG-0057's cursor-gap arithmetic exists
+  for, exercised by a real rotation rather than a synthesised one.
+
+- **A stalled attach client cannot wedge the supervisor.** The event loop is single-threaded and
+  `attach` is a push stream, so a client that attaches and stops reading is the shape most likely to
+  stall the loop that also drains the pty. Non-blocking writes were built for this in 0.7.0; the
+  guarantee had not been watched under load. With three clients attached and one deliberately never
+  reading again, 4.1 MB was driven through the session: the control plane kept answering `status`,
+  `read` kept working, a healthy attacher kept receiving, backlog replay had reached all three
+  identically (1,990 bytes each), and the supervisor survived every client disconnecting at once.
 
 ## [v0.8.0] - 2026-08-16
 

@@ -116,6 +116,53 @@ module Rune
         true
       end
 
+      # Start times for the pids that still exist, keyed by pid. Pids that have
+      # gone are simply absent — `ps` omits them and exits non-zero, which is why
+      # the status is not consulted.
+      #
+      # `alive?` cannot answer "is this still *my* process": a pid is reused, and
+      # the pair (pid, start time) is the only identity the OS offers that
+      # outlives the parent which spawned it. Asking the process *group* instead
+      # is not a substitute and was measured to be actively wrong — on this
+      # machine 1_222 of 1_390 live processes (87.9%) lead their own group, and
+      # 130 of the 200 most recently allocated pids (65.0%), so a group question
+      # answers "alive" for a stranger about as often as a bare pid does.
+      #
+      # LC_ALL=C is not decoration: `lstart` is formatted through the locale, and
+      # the same process reads `Fri Aug 14 13:41:13 2026` under C and
+      # `ven. 14 août 13:41:13 2026` under fr_FR. The recorder and the comparer
+      # are different processes with different environments, so without pinning
+      # the locale a match would depend on them happening to agree.
+      def self.process_start_times(pids)
+        wanted = Array(pids).filter_map { |pid| positive_pid(pid) }.uniq
+        return {} if wanted.empty?
+
+        out = IO.popen([{ 'LC_ALL' => 'C' }, 'ps', '-o', 'pid=,lstart=', '-p', wanted.join(','),
+                        { err: File::NULL }], &:read)
+        parse_start_times(out)
+      rescue SystemCallError, IOError, NotImplementedError
+        {}
+      end
+
+      def self.process_start_time(pid) = process_start_times([pid])[positive_pid(pid)]
+
+      def self.parse_start_times(output)
+        output.to_s.each_line.with_object({}) do |line, map|
+          pid, started = line.strip.split(/\s+/, 2)
+          next if started.nil? || started.empty?
+
+          key = positive_pid(pid)
+          map[key] = started if key
+        end
+      end
+
+      def self.positive_pid(value)
+        pid = Integer(value)
+        pid.positive? ? pid : nil
+      rescue TypeError, ArgumentError
+        nil
+      end
+
       # sockaddr_un caps a Unix socket path at 104 bytes on macOS / 108 on
       # Linux — short enough that an ordinary deep RUNE_HOME (or any
       # Dir.mktmpdir under a long temp root, which is every test) blows it.
@@ -134,6 +181,10 @@ module Rune
       # an attach backlog actually reach for.
       MAX_LOG_BYTES = 32 * 1024 * 1024
       LOG_KEEP_BYTES = 8 * 1024 * 1024
+      # The two bytes `whole_record?` decides on. Compared as bytes rather than
+      # characters because the transcript is scanned in binary mode.
+      NEWLINE_BYTE = 0x0A
+      CLOSE_BRACE_BYTE = 0x7D
 
       def self.with_bindable_path(path)
         return yield(path) if path.bytesize < SOCKET_PATH_LIMIT
@@ -230,8 +281,28 @@ module Rune
       # whose byte offsets match the new supervisor's cursors.
       def reset_transcript(name) = FileUtils.rm_f(output_path(name))
 
+      # Written to a temp file and renamed, never truncated in place.
+      #
+      # Every other rune process answers "does this session exist, and is it
+      # alive?" by reading this file, so any instant where it is short or empty
+      # is an instant where `send` says "No such session", `list` reports
+      # `state: dead`, and `read --screen` loses the recorded geometry and falls
+      # back to the default. That used to be rare because meta was written a
+      # handful of times per session; recording the child's winsize made it a
+      # per-resize write, and a human dragging a window edge emits one per
+      # frame. Measured through a real attach dragged across 250 shapes in 7.5s,
+      # with another process doing what `alive_session` does: 90 of 294,728
+      # reads came back unreadable, and 0 of 312,582 once this landed. `rename`
+      # is atomic within a directory, so a reader sees either the whole previous
+      # file or the whole new one.
+      #
+      # The temp name carries the writer's pid because two processes do write
+      # this file — the CLI records `state`/`supervisor_pid` while the
+      # supervisor records `state`/`child_pid`/winsize — and a shared temp path
+      # would let them interleave into one corrupt file that then gets renamed
+      # into place, which is worse than the torn read it replaces.
       def write_meta(name, meta)
-        write_private(meta_path(name)) { |file| file.write(JSON.generate(meta)) }
+        write_atomic(meta_path(name), JSON.generate(meta))
         meta
       end
 
@@ -267,19 +338,43 @@ module Rune
       # ran during a 45-minute soak, and streaming the lines but still parsing
       # them still cost 96MB per rotation. `total_output` comes from the caller,
       # which already tracks it, so the dropped region is never read at all.
+      #
+      # The caller's handle is closed only once the replacement is in place. It
+      # used to be closed first, so any later failure left the supervisor holding
+      # a *closed* handle it had no idea was closed, and `log_event`'s own rescue
+      # then swallowed every subsequent write — recording stopped silently and
+      # permanently for the rest of the session's life. Reproduced with EACCES on
+      # the session directory (`harnesses/rotation_eacces.rb`): 200 further events
+      # left the transcript 564_000 bytes behind the cursor, and making the
+      # directory writable again did not resume recording, it widened the gap to
+      # 654_000. A rotation that cannot happen must cost nothing but the rotation.
       def rotate_output(name, file, total_output)
         path = output_path(name)
+        temp = "#{path}.rotating"
+        begin
+          prepare_rotation(path, temp, total_output)
+          File.rename(temp, path)
+        rescue IOError, SystemCallError
+          # A half-written replacement is garbage the size of the tail, and
+          # leaving it behind would also make the next attempt open it O_TRUNC.
+          FileUtils.rm_f(temp)
+          raise
+        end
         file&.close
+        open_output(name)
+      end
+
+      # Writes the replacement transcript — the `truncated` event accounting for
+      # what is being dropped, then the tail being kept — without touching the
+      # file the caller is still writing to.
+      def prepare_rotation(path, temp, total_output)
         offset = tail_offset(path)
         kept = output_bytes_from(path, offset)
-        temp = "#{path}.rotating"
         write_private(temp) do |handle|
           handle.puts JSON.generate(event: 'truncated', ts: Time.now.to_f,
                                     dropped_bytes: total_output - kept)
           File.open(path, 'rb') { |src| IO.copy_stream(src, handle, nil, offset) }
         end
-        File.rename(temp, path)
-        open_output(name)
       end
 
       # The byte offset of the first whole line within LOG_KEEP_BYTES of the
@@ -296,18 +391,63 @@ module Rune
         end
       end
 
-      # Output bytes carried by the region being kept. Reads the `bytes` field
+      # Stream bytes the region being kept accounts for. Reads the `bytes` field
       # each event already records rather than parsing the event, so a line's
       # text is never materialized.
+      #
+      # This must count exactly what `Transcript.load` counts over the same
+      # region, because the head event a rotation writes is `total_output -
+      # kept`: anything the kept region accounts for and this does not is
+      # counted twice, and anything this counts that the reader will not is a
+      # permanent shortfall in every cursor after the rotation.
+      #
+      # Two things it therefore counts that a bare `"event":"output"` scan did
+      # not. A `truncated` event inside the kept tail accounts for bytes — the
+      # ones a failed write could not record — so leaving it out double-counts
+      # the hole. And a fragment left by a torn write is *not* counted, because
+      # the reader cannot parse it and skips it: it still carries
+      # `"event":"output"` and `"bytes":N`, so counting it credits the kept
+      # region with output nothing will ever return.
       def output_bytes_from(path, offset)
         total = 0
         File.open(path, 'rb') do |handle|
           handle.seek(offset)
           while (line = handle.gets)
-            total += line[/"bytes":(\d+)/, 1].to_i if line.include?('"event":"output"')
+            next unless whole_record?(line)
+
+            if line.include?('"event":"output"')
+              total += line[/"bytes":(\d+)/, 1].to_i
+            elsif line.include?('"event":"truncated"')
+              total += line[/"dropped_bytes":(\d+)/, 1].to_i
+            end
           end
         end
         total
+      end
+
+      # Whether a transcript line is a record `Transcript.load` will parse,
+      # decided on its last byte rather than by parsing it. Parsing the kept
+      # region was already rejected on cost — 96MB of resident memory per
+      # rotation — and the byte test is exact because of `TORN_MARKER`: a
+      # fragment the marker terminated ends in `n`, never `}`, and parses
+      # nowhere either, since `|torn` closes no string.
+      #
+      # A line with no trailing newline is the file's last, so there is at most
+      # one per scan and it is parsed outright. That is the one shape the byte
+      # test cannot decide: a write cut inside a `text` field that happens to
+      # hold a `}` ends on `}` without being a record, and nothing follows it to
+      # append a marker.
+      def whole_record?(line)
+        size = line.bytesize
+        return parseable?(line) unless line.getbyte(size - 1) == NEWLINE_BYTE
+
+        size > 1 && line.getbyte(size - 2) == CLOSE_BRACE_BYTE
+      end
+
+      def parseable?(line)
+        !JSON.parse(line).nil?
+      rescue JSON::ParserError
+        false
       end
 
       def output_bytes(line)
@@ -345,6 +485,26 @@ module Rune
       def write_private(path, &block)
         File.open(path, File::WRONLY | File::CREAT | File::TRUNC, FILE_MODE, &block)
         File.chmod(FILE_MODE, path)
+        path
+      end
+
+      # Serialise first, write the whole thing to a private temp file, then
+      # rename over the target — the same shape `rotate_output` already uses for
+      # the transcript, and for the same reason: readers of these files are
+      # other processes with no lock to take.
+      #
+      # `rename` preserves the temp file's inode, so the 0600 mode
+      # `write_private` set survives; the target's own previous mode is
+      # irrelevant because it is unlinked by the rename.
+      def write_atomic(path, contents)
+        temp = "#{path}.#{Process.pid}.writing"
+        begin
+          write_private(temp) { |file| file.write(contents) }
+          File.rename(temp, path)
+        rescue StandardError
+          FileUtils.rm_f(temp)
+          raise
+        end
         path
       end
     end

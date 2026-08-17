@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0050-extract-the-transcript-out-of-sessioncommand-reconstruction-cursors-search-an",
+  "slug": "extract-the-transcript-out-of-sessioncommand-reconstruction-cursors-search-an",
+  "title": "Extract the transcript out of SessionCommand: reconstruction, cursors, search and rendering are one subject",
+  "description": "Extract the transcript out of SessionCommand: reconstruction, cursors, search and rendering are one subject",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "896813d4a8029c914d0b40ad5d3638a8cd364526",
+  "created_at": 1786836886,
+  "updated_at": 1786900289,
+  "affected_specs": [
+    "session",
+    "cli"
+  ],
+  "affected_paths": [
+    "lib/rune/session/transcript.rb",
+    "lib/rune/commands/session_command.rb",
+    "lib/rune.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Session::Transcript owns reading the NDJSON log, cursor arithmetic across rotation, search and screen rendering, and is exercised without constructing a SessionCommand. session_command.rb drops from 930 to about 853 lines. Behaviour is unchanged: the full suite passes, including every regression test for rotation accounting and grep."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

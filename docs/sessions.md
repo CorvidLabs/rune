@@ -10,6 +10,20 @@ started it, and `send` blocks until the child has actually answered.
 
 ## Naming: every session has one, you rarely have to pick it
 
+Sessions are namespaced per **directory**: a project is the working directory's basename plus a hash
+of its path, so two git worktrees of the same repository are two separate namespaces. `start` reports
+the one it registered in, and reading that field is the difference between a five-minute detour and
+an hour:
+
+```console
+$ rune session start --name reviewer -- grok
+{"name":"reviewer","project":"myrepo-0a922f34","command":["grok"],"state":"running",...}
+```
+
+`read` from the wrong directory answers *"No such session"*, and `list` — which that error suggests
+— shows an empty array, which reads as confirmation the session died rather than that you are
+standing somewhere else.
+
 ```console
 $ rune session start -- grok
 {"name":"grok-amber","command":["grok"],"child_pid":68012,"supervisor_pid":67926,"state":"running"}
@@ -49,6 +63,13 @@ $ rune session send --name grok --settle-ms 2500 "reply with exactly the word PO
 
 `send` writes the prompt, waits for grok to stop producing output for 2.5s, and returns **only what
 that send produced**. State persists between calls, because it is the same child every time:
+
+A misspelled flag is refused rather than typed at the child. `send --name grok --settle_ms 500
+'echo HELLO'` (underscore, not dash) used to match no flag, so the flag, its value and the prompt
+were joined into one line and written to the agent — `status: ok`, and a paid model answering
+`--settle_ms 500 echo HELLO`. The check only looks at tokens before the first operand and before
+any `--`, so `start --name x claude --resume` still starts an agent with its own flags, and
+`send --name x -- --settle_ms` still types `--settle_ms` as literal input.
 
 ```console
 $ rune session send --name s --settle-ms 300 "MEMORY=persisted"
@@ -110,6 +131,15 @@ primary signal. The settle clock only starts once output arrives that isn't the 
 own input, so an agent that echoes your prompt and then thinks before answering returns the answer
 rather than your words back.
 
+> **A prompt that never submits looks exactly like this too, and is a different bug.** rune writes a
+> send's text and then its carriage return as a *separate* write a moment later, because a TUI that
+> reads them together treats the return as part of the text and never submits. That delay is a race
+> nothing can observe: measured against Kimi, the old 0.05s lost 3 of 3 sends — the prompt sat in the
+> composer, `send` returned `settled: true` with only the echo, and the child waited for a keystroke
+> that had already been written. It is 0.25s now, and Claude Code, grok and Kimi all submit. If you
+> meet a TUI slower still, the tell is that `read --screen` shows your text sitting in the input box:
+> send an empty string to deliver a bare carriage return, and it will go.
+
 > **Known limitation, and the sharpest one in rune today: a child that *redraws* your input can
 > still settle on it.** The rule above holds when the echo arrives once. A line editor that repaints
 > the line on submit sends your input a second time, and that second copy counts as the child having
@@ -140,7 +170,41 @@ $ rune session send --name s --wait-for-regex '\$ $' "ls"
 >
 > The honest claim is *every echo shape we could capture from a real child is excluded*, not
 > *cannot happen*. If your pattern is a literal you also sent, a child that quotes your request back
-> verbatim can still satisfy it.
+> verbatim can still satisfy it. The veto also needs to *see* the copy: a repaint that a pty read
+> tore in half — the frame ends mid-redraw and the rest arrives in the next read — is not yet
+> recognisable as a copy, and a pattern that only appears inside your own input can be satisfied by
+> that half. Reproduced deterministically by splitting a frame immediately after the token. So a
+> pattern that also occurs in what you sent is still the shape to avoid.
+
+> **How much output the pattern is matched against: the most recent 256 KB past the echo, re-read
+> 32768 characters back on every read.** This is a deliberate bound with two consequences.
+>
+> - **A single match up to 32768 characters long is always found**, however large the turn grows,
+>   because each scan resumes that far behind where the last one stopped. Anything you would
+>   sensibly wait for — a marker, a prompt, a closing fence — is far inside that.
+> - **A single match that has to span more than 32768 characters is never found.**
+>   `OPEN[\s\S]*CLOSE` across half a megabyte used to match and now does not; the send runs on to
+>   `--settle-ms` or `--timeout-ms` instead. Wait for `CLOSE` on its own and use `read` if you need
+>   the span between them.
+>
+> `\A` still anchors to the start of the child's answer, not to the start of the window — an
+> anchored pattern cannot be satisfied by wherever the window happens to begin. `^`, `$` and `\z`
+> are unaffected. **The reply is not bounded by any of this:** `output` is still everything the
+> child produced for the turn.
+>
+> The bound is what makes a large answer reachable at all. The pattern used to be matched against
+> the whole turn on every 4 KB read, which is quadratic in the turn — and on the supervisor's only
+> thread, so it starved the pty drain as well. Measured against a child that emits N MB and then
+> prints a marker, with the same marker as the pattern:
+>
+> | output | before | after |
+> | --- | --- | --- |
+> | 4 MB | 11.85s, matched | 0.53s, matched |
+> | 12 MB | 90.51s, `timed_out: true`, 11.46 MB of 12.00 read | 0.98s, matched, 12.15 MB read |
+> | 48 MB | 112.43s, matched | 3.37s, matched |
+>
+> At 12 MB the send reported a timeout while holding 96% of an answer whose marker the child had
+> already printed.
 
 **`--timeout-ms N` (default 120000)** — a hard cap. On expiry you get what was captured plus
 `settled: false, timed_out: true` — a result, not a failure. Set this deliberately: the default is
@@ -169,9 +233,18 @@ line in pieces or driving a TUI that reads keystrokes.
   the previous question.
 - `regex_timed_out: true` — the `--wait-for-regex` pattern exceeded its match budget and was
   abandoned. Almost always a catastrophically backtracking pattern; simplify it.
-- `dropped_bytes` — a count of earlier output rotated away before this read. It does **not**
-  invalidate a `--since` cursor: cursors stay absolute, so one from before the rotation returns
-  everything still held rather than an error.
+- `dropped_bytes` — a count of earlier output the log no longer holds: rotated away, or lost
+  because a transcript write failed. It does **not** invalidate a `--since` cursor: cursors stay
+  absolute, so one from before a drop returns everything still held *after* it rather than an error.
+  A cursor that lands inside a dropped region resolves to the output that followed the region —
+  never to output already delivered, which would arrive looking like new output for the current
+  turn.
+- `transcript_gap_bytes` — on `status` and on a `send` reply only, and only while output that no
+  write could record is still owed. It is the one window in which the skew is not on disk: the next
+  successful write records it and `read` reports it as `dropped_bytes` instead.
+- `screen_rows`, `screen_cols`, `screen_size_recorded` — only with `--screen`: the geometry the
+  screen was rendered at, and whether that geometry is the child's recorded winsize or the fallback.
+  See [It renders at the size the child is actually running at](#it-renders-at-the-size-the-child-is-actually-running-at).
 
 ### `child_busy` and `idle_ms` are on `read`, not on `send`
 
@@ -205,8 +278,14 @@ $ rune session read --name grok --grep 'THE BOARD' --context 2
 
 It matches the *cleaned* text rather than the raw stream, because a full-screen agent's repaint
 frames split words across escape sequences — a pattern you can plainly see on screen will not match
-the bytes. The reply carries `grep_matches`, and an unparseable pattern comes back as `grep_error`
-rather than an exception.
+the bytes. The reply carries `grep_matches`.
+
+A pattern that will not compile comes back as `grep_error` rather than an exception, and **selects
+nothing**: `output` and `clean_output` are empty and `grep_matches` is absent, which is how you tell
+"the filter never ran" from "the filter found nothing". The read itself still succeeds, so `cursor`,
+`prompt_detected` and `child_busy` are all still there — none of them depend on the pattern, and you
+need the cursor to make progress. (`send --wait-for-regex` is different: there the pattern decides
+when to return, so a bad one is refused outright.)
 
 ### `prompt_detected` is advisory only
 
@@ -243,6 +322,21 @@ $ tail -f ~/.rune/projects/<project>/sessions/grok/output.ndjson
 Full-screen TUI agents generate a lot of ANSI repaint traffic, so prefer `--tail`/`--max-output`
 over reading a whole transcript.
 
+`--max-output=BYTES` keeps a head and a tail and marks the join in the text itself:
+
+```
+...the last line before the cut
+[rune] ==== 41233 bytes omitted by --max-output ====
+the first line after it...
+```
+
+Without that line the reply reads as continuous output the child never printed — measured, a
+201-byte transcript at `--max-output=200` dropped the one byte that turned `chsh -s /bin/zsh` into
+`chsh -s bin/zsh`, a different and still-plausible path. The marker is rune's annotation rather than
+transcript, so it is not charged against BYTES and a reply can run a little over the budget;
+`truncated` and `omitted_bytes` remain the authoritative answer, since a child can print anything,
+including a line that looks like the marker.
+
 ### `--screen`: what the terminal shows, not what arrived
 
 For a full-screen agent this is usually the field you want. The byte stream contains every frame of
@@ -261,7 +355,65 @@ Two things it is not. It is the *end state*, so anything scrolled away is gone �
 remains the record of what happened. And it is opt-in because it is only meaningful for a child that
 paints a screen: for a cooked-mode shell the byte stream already is the answer.
 
-**It is rendered from the last 256KB, and for some agents that has a visible cost.** A census of
+### It renders at the size the child is actually running at
+
+A session's child starts at 40x120, and `attach` resizes it to whatever terminal took it over — so
+the size is not a constant, and rendering at a fixed one produces a screen nobody ever saw. The
+supervisor records the child's current winsize in `meta.json` whenever it changes it, and `--screen`
+renders at that size and reports it back:
+
+```console
+$ rune session read --name grok --screen --json | jq '{screen_rows, screen_cols, screen_size_recorded}'
+{ "screen_rows": 30, "screen_cols": 100, "screen_size_recorded": true }
+```
+
+Measured end to end, with pyte 0.8.2 and GNU screen 4.00.03 replaying the same bytes as independent
+oracles (they agreed with each other exactly at every shape):
+
+| what was driven | rows wrong before | rows wrong after |
+|---|---|---|
+| control-socket resize to 30x100, child repaints on WINCH | 36/37 | **0/31** |
+| the same at 24x80 | 30/31 | **0/25** |
+| the same at 12x40 | 18/19 | **0/13** |
+| the same at 50x200 | 50/51 | **0/51** |
+| the same at 40x120 (the sizes coincide) | 0/41 | 0/41 |
+| a real `rune session attach` from a 30x100 pty, child ignores WINCH | 29/30 | **0/30** |
+
+In the attach row the oracles were fed the bytes that terminal itself received, so "0 of 30" means
+rune's rendered screen matched, row for row, what the human was looking at.
+
+**`screen_size_recorded` is how you tell a real geometry from the fallback — not the numbers.** A
+session attached from a 40-row terminal records exactly the same 40x120 the fallback uses, so the
+pair alone cannot carry the distinction. `screen_size_recorded` is true only when the reported size
+is what `meta.json` actually held. It is false in three cases, all of which report 40x120:
+
+- a session nobody has resized. The supervisor sets the pty to 40x120 and does not record it, so the
+  fallback here is not a guess — it is the size the child is genuinely running at.
+- a session directory written before rune recorded a size at all.
+- a recorded size that is not a usable terminal, which is discarded or clamped rather than allocated:
+  `meta.json` is a file on disk and the grid is built eagerly.
+
+A resize arriving over the control socket is clamped to 300x1000 — past any real terminal — and the
+clamp is applied to the pty as well as to the record, so the child, the record and the render always
+agree. A pty's winsize fields are 16-bit, and a recorded 65535x65535 would have made every later
+`--screen` drive a grid that size: on a deliberately hostile 683KB transcript, one `read --screen`
+costs 0.76s at 40x120, 3.41s at the ceiling, and 17.72s without the clamp.
+
+**One resize case is unresolved.** The whole retained transcript is rendered at the child's *current*
+size, so if the geometry changed partway through, output painted before the change is re-flowed at
+the new one. For a full-screen agent this is right, and provably so: a TUI repaints on SIGWINCH, and
+on attach the supervisor replays its backlog into the terminal at the terminal's size, which is
+exactly what rendering the whole transcript at that size reproduces — the 0-of-30 attach row above
+holds even for a child that ignores SIGWINCH entirely. It is unresolved for a child that paints once
+and never repaints *and* whose pty is then resized under an already-attached terminal, because that
+terminal is reflowing glyphs it has already drawn and there is no reference answer to match. Shrunk
+mid-stream from 40x120 to 24x80 on such a stream, GNU screen kept only the cursor row, pyte kept
+nothing at all, and the two disagreed with each other on one row of the little they retained. rune
+keeps the content and re-flows it, so it differs from both. Rendering at the old fixed size scored
+better on raw row counts there (15 wrong against 24), but only because a mostly blank screen
+coincidentally matches a mostly blank oracle — not because it showed anyone anything truer.
+
+**It is rendered from the last 512KB, and for some agents that has a visible cost.** A census of
 grok's output over 4.5MB found 109,364 absolute cursor moves, 31,798 synchronised-update brackets,
 and **zero** erases of any kind — no `\e[K`, no `\e[2K`, no `\e[2J`, no scroll regions. An agent
 that repaints purely by positioning and overwriting depends on the terminal remembering every cell
@@ -301,9 +453,19 @@ agent erases anything at all.
 ### The transcript is bounded
 
 Both the file and the supervisor's memory are capped, so a session left running for a day does not
-grow without limit. When rotation drops older output, `read` reports `dropped_bytes` and cursors
+grow without limit. The file's cap is enforced twice: normally by rotation, and — when rotation
+cannot succeed at all, because the directory became unwritable or a disk stayed full — by a hard
+ceiling at twice the cap, past which output is recorded as dropped rather than written. Either way
+`read` reports `dropped_bytes` and cursors stay absolute. When rotation drops older output, `read` reports `dropped_bytes` and cursors
 stay absolute — a cursor still names the same position in the stream, it just points at output no
 longer held.
+
+A transcript write that fails — a full disk, an unwritable directory — drops output the same way,
+except in the *middle* of a stream that continues afterwards. Those bytes are carried and recorded
+as soon as writing resumes, and a cursor is mapped through each dropped region rather than past one
+running total, so output before a hole is not re-delivered as though it were new. Until a write
+succeeds there is nowhere on disk to record the hole, which is what `transcript_gap_bytes` on
+`status` reports.
 
 ## What to know before driving a real agent
 
@@ -312,6 +474,9 @@ longer held.
   `read`, or make the first `send` a `--wait-for-regex` — before driving a freshly started session.
 - **Settle is a heuristic.** A child that pauses mid-answer for longer than `--settle-ms` returns a
   truncated response. Raise it, or use `--wait-for-regex`.
+- **`--wait-for-regex` sees the most recent 256 KB, not the whole turn.** Any one match up to 32768
+  characters long is always found; a match that has to span more than that never is. Wait for a
+  marker, not for a pattern that brackets megabytes.
 - **A single line of 1024+ bytes vanishes into a cooked-mode child.** That is `MAX_CANON`, a
   terminal limit, not rune's: the line discipline cannot assemble a longer canonical line and drops
   it silently — 1023 bytes arrive, 1024 do not. Most agent CLIs run their terminal in raw mode and
@@ -322,7 +487,10 @@ longer held.
 - Enter is sent as a carriage return, which is what a real terminal sends, so raw-mode TUIs receive
   it. Cooked-mode shells are unaffected.
 - The child's pty gets an explicit window size, because a detached session has no terminal to copy
-  one from and an unset pty is 0x0 — which leaves full-screen agents rendering into nothing.
+  one from and an unset pty is 0x0 — which leaves full-screen agents rendering into nothing. It
+  starts at 40x120, follows an attached terminal for as long as one is attached (up to a 300x1000
+  ceiling), and returns to 40x120 when the last one leaves. `--screen` renders at whichever of those
+  is current.
 
 ## Where state lives
 
@@ -331,7 +499,7 @@ longer held.
 ```
 $RUNE_HOME/projects/<project>/
   sessions/<name>/
-    meta.json        0600   pid, supervisor pid, command, state
+    meta.json        0600   pid, supervisor pid, command, state, child terminal size
     output.ndjson    0600   full transcript
     supervisor.log   0600   supervisor stderr, for when something goes wrong
     control.sock     0600   the supervisor's control socket
@@ -339,6 +507,14 @@ $RUNE_HOME/projects/<project>/
 ```
 
 Set `RUNE_HOME` to keep sessions isolated (tests, sandboxes, parallel work).
+
+`meta.json` is replaced by rename, never truncated in place, because every other rune process reads
+it to answer "does this session exist, and is it alive?" with no lock to take. A window where it was
+short was a window where `send` answered "No such session" and `list` reported `state: dead`;
+recording the child's winsize made it a per-resize write, and a human dragging a window edge emits
+one per frame. Measured through a real attach dragged across 250 window shapes in 7.5 seconds, with
+another process reading meta in a tight loop: 90 of 294,728 reads came back unreadable before, 0 of
+312,582 after.
 
 ## What running many at once costs
 

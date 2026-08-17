@@ -137,6 +137,48 @@ RSpec.describe Rune::Commands::RunCommand do
 
       expect(Rune::PTYRunner).to have_received(:new).with(%w[echo hi])
     end
+
+    # `rune run --tiemout=5 -- echo hi` used to exec the flag as a program name:
+    # `status: ok`, `exit_code: 127`, `Command not found: --tiemout\=5 -- echo
+    # hi`. An `ok` envelope carrying a shell's 127 is hard to notice from a
+    # script, and the flag the caller asked for silently did nothing.
+    it 'rejects a mistyped rune flag instead of exec-ing it as the command' do
+      result = described_class.new.call(%w[--tiemout=5 -- echo hi], {})
+
+      expect(result).to be_failure
+      expect(result.error).to include('Unknown option: --tiemout')
+    end
+
+    it 'rejects a mistyped flag even without a separator, before spawning anything' do
+      allow(Rune::PTYRunner).to receive(:new)
+
+      result = described_class.new.call(%w[--tiemout=5 echo hi], {})
+
+      expect(result).to be_failure
+      expect(Rune::PTYRunner).not_to have_received(:new)
+    end
+
+    # Only the tokens before the first operand are rune's to claim. Once a
+    # program name has been seen every later `--flag` belongs to it, which is
+    # what keeps `rune run cargo --version` and `rune run npm test --watch`
+    # working without a separator.
+    it "leaves the wrapped command's own long flags alone when it comes first" do
+      runner = instance_double(Rune::PTYRunner, run: Rune::Result.success({}))
+      allow(Rune::PTYRunner).to receive(:new).and_return(runner)
+
+      described_class.new.call(%w[cargo clippy --tests], {})
+
+      expect(Rune::PTYRunner).to have_received(:new).with(%w[cargo clippy --tests])
+    end
+
+    it 'leaves everything after a separator alone, mistyped or not' do
+      runner = instance_double(Rune::PTYRunner, run: Rune::Result.success({}))
+      allow(Rune::PTYRunner).to receive(:new).and_return(runner)
+
+      described_class.new.call(%w[-- mytool --tiemout=5], {})
+
+      expect(Rune::PTYRunner).to have_received(:new).with(%w[mytool --tiemout=5])
+    end
   end
 
   describe '#human_render' do
