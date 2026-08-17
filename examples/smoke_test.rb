@@ -254,12 +254,18 @@ section('Signal forwarding') do
   # interpreter had not reached `Signal.trap` yet — so the signal killed the
   # child before it could report, and the check blamed rune for the harness's
   # race. There is no sleep long enough to be correct on an unknown machine.
+  # Passed as argv, not as a shell string. With a string, rune spawns `sh -c`
+  # and signals whatever pid that produced — which is the child only if the
+  # shell exec-optimizes into it. macOS's does and Linux's did not, so this
+  # passed locally and timed out on CI with rune signalling a shell that had
+  # inherited SIG_IGN while the real child slept on. Shell semantics for string
+  # commands are documented and deliberate; a test of signal *forwarding* should
+  # simply not put a shell in the middle.
   check('one SIGINT reaches the child, and rune reports the child\'s own exit rather than aborting') do
     Dir.mktmpdir do |dir|
       ready = File.join(dir, 'ready')
-      child = "#{RbConfig.ruby} -e 'Signal.trap(\"INT\") { exit 42 }; " \
-              "File.write(#{ready.inspect}, \"1\"); sleep 30'"
-      runner = Rune::PTYRunner.new(child, timeout_seconds: 20)
+      script = "Signal.trap('INT') { exit 42 }; File.write(#{ready.inspect}, '1'); sleep 30"
+      runner = Rune::PTYRunner.new([RbConfig.ruby, '-e', script], timeout_seconds: 20)
       signaller = Thread.new do
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 15
         sleep 0.05 until File.exist?(ready) || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
