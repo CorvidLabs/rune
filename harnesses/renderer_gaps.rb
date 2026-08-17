@@ -102,3 +102,24 @@ probe('cursor positioning still works',
       "#{ESC}[2;3HXY",
       'XY at row 2, column 3',
       'baseline') { |out| out.lines[1].to_s.start_with?('  XY') }
+
+# The double-width gap has had one attempt, reverted. These are the cases that
+# killed it: a cell model that stores a wide glyph as base + continuation works
+# until any other grid operation touches the row, because they all manipulate
+# the String directly and know nothing about the pair. Kept as the acceptance
+# test for the next attempt, which needs a grid of cells rather than a String.
+puts "\nWhat a wide-character cell model has to survive (see parsers.spec.md invariant 17):\n\n"
+puts "  These print the CURRENT one-column behaviour, the baseline to beat. The reverted cell\n"
+puts "  model changed two of them, both for the worse: 'erase one cell inside a pair' became\n"
+puts "  \"東 京AB\" and 'repaint over the left half' became \"h 京AB\" — an orphan continuation\n"
+puts "  cell rendering as a space. The other three were identical, so they are baseline only.\n\n"
+
+{
+  'delete a char before a wide pair' => "#{ESC}[H東京AB#{ESC}[1;1H#{ESC}[P",
+  'insert a blank before a pair' => "#{ESC}[H東京AB#{ESC}[1;1H#{ESC}[@",
+  'erase one cell inside a pair' => "#{ESC}[H東京AB#{ESC}[1;2H#{ESC}[X",
+  'repaint over the left half' => "#{ESC}[H東京AB#{ESC}[1;1Hh",
+  'erase to end from mid-pair' => "#{ESC}[H東京AB#{ESC}[1;2H#{ESC}[K"
+}.each do |name, input|
+  puts format('  %-34s -> %s', name, render(input, rows: 3, columns: 12).inspect)
+end

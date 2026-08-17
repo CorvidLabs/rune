@@ -1,6 +1,6 @@
 ---
 module: parsers
-version: 12
+version: 13
 status: active
 files:
   - lib/rune/parsers/table_parser.rb
@@ -193,12 +193,42 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
     what an escape is and the sanitizer was the one that was wrong. Verified against a live Claude
     Code session: 2 escapes in `clean_output` before, 0 after.
 
-17. **Double-width characters are still counted as one column.** A CJK or emoji glyph occupies
-    two cells in a terminal; here it occupies one, so an absolute column after a wide run lands
-    early — `\e[H日本語\e[1;7HX` renders `日本語   X` where a terminal renders `日本語X`. This is a
-    known limitation rather than an oversight: closing it means a cell model where one glyph spans
-    two columns and a width table for East Asian Width, which is real work and is not being
-    hurried in alongside the four above.
+17. **Double-width characters are still counted as one column, and the obvious fix was measured
+    and rejected.** A CJK or emoji glyph occupies two cells in a terminal; here it occupies one, so
+    an absolute column after a wide run lands early — `\e[H日本語\e[1;7HX` renders `日本語   X`
+    where a terminal renders `日本語X`.
+
+    A cell model was built and reverted the same session, because it made real output *worse*. A
+    row is a String whose index is its column, so a wide glyph was stored as its base character
+    plus a continuation cell removed at render time. That works in isolation — wide glyphs advanced
+    two columns, wrapped rather than splitting at the margin, and blanked their partner when
+    overwritten, 8/8 on a probe. It fails as soon as anything else touches the row, because every
+    other grid operation manipulates the String directly and knows nothing about continuation
+    cells. Against a live grok session that had emitted `東京 / 大阪 / 京都`:
+
+        one-column (shipped)   "東京  Tokyo"     "大阪  Osaka"
+        cell model (reverted)  "東 京  Tokyo"    "東h京   Tokyo"
+
+    A space appears between the halves and a stray character lands inside them, because an
+    operation that splits a pair leaves the continuation cell behind and it renders as a space. The
+    same shapes reproduce synthetically — `\e[H東京AB\e[1;2H\e[X` gives `東 京AB` under the cell
+    model against `東 AB` without it, and `\e[H東京AB\e[1;1Hh` gives `h 京AB` against `h京AB`. A
+    TUI repaints constantly, so the operations that break pairs are the ones it uses most.
+
+    Not every probe distinguishes them: `\e[H東京AB\e[1;1H\e[P` gives `京AB` either way, so it is
+    a baseline rather than evidence. `harnesses/renderer_gaps.rb` prints the current behaviour for
+    all five and says which the cell model changed.
+
+    Zero-width characters have the same root cause and a smaller blast radius: appending a
+    combining mark to its base cell puts every later index in that row off by one, so the next
+    graphic overwrites the mark. Measured: a decomposed `é` rendered `e`. They are dropped instead,
+    which costs a ZWJ emoji sequence its joins.
+
+    So the fix is not a width table — that part was correct and is not what failed. It is a grid of
+    cells rather than a String per row, where a cell holds a base character plus its marks and the
+    column index is the array index, with every operation rewritten against it. That is the same
+    change a retained per-session `Screen` needs, and it should be done once, deliberately, with
+    the reproduction above as its acceptance test.
 
 ## Behavioral Examples
 
@@ -256,3 +286,4 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |
 | 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
 | 2026-08-17 | CHG-0064-honour-the-modes-and-charsets-that-decide-what-the-screen-contains-and-strip-th: Honour the modes and charsets that decide what the screen contains, and strip the escapes the sanitizer missed |
+| 2026-08-17 | CHG-0065-record-that-the-wide-character-cell-model-was-built-and-measured-worse-than-the: Record that the wide-character cell model was built and measured worse than the gap |
