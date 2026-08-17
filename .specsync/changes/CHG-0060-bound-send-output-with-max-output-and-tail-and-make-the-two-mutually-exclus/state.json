@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0060-bound-send-output-with-max-output-and-tail-and-make-the-two-mutually-exclus",
+  "slug": "bound-send-output-with-max-output-and-tail-and-make-the-two-mutually-exclus",
+  "title": "Bound send output with --max-output and --tail, and make the two mutually exclusive",
+  "description": "Bound send output with --max-output and --tail, and make the two mutually exclusive",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "7041cb9163a91f82075fe50e1be202ceba717a09",
+  "created_at": 1786986947,
+  "updated_at": 1786987145,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/commands/session_command.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    "ROADMAP.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "rune session send honours --max-output and --tail, which it previously parsed and ignored while returning status ok. clean_output is derived from the bounded raw text so the two fields describe the same window and one omitted count is true of both. --max-output combined with --tail is refused on every session subcommand with the same message rune run already uses. Four tests cover these, each verified to fail against deliberately unfixed code. ROADMAP.md's 0.8.0 review table is re-measured against the tree: seven of eight closed, and the oversized-send entry corrected because measurement contradicted it."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

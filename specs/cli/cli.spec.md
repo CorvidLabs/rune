@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 23
+version: 26
 status: active
 files:
   - lib/rune.rb
@@ -60,6 +60,8 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | `flag` | class method | Declares one command-specific flag (spec + description) for command help. |
 | `command_usage` | reader | Returns the subclass's declared usage line, or nil. |
 | `command_flags` | reader | Returns the subclass's declared flags, defaulting to an empty array. |
+| `subcommand` | class method | Declares one subcommand (name + summary) for command help. |
+| `command_subcommands` | reader | Returns the subclass's declared subcommands, defaulting to an empty array. |
 | `Help` | class | Builds and renders `rune --help`, `rune <cmd> --help`, and `rune help [cmd]`. Class method: `.extract_flag!(args)`. Instance: `#overview`, `#for_command(name)`, `#render(data, io)`. |
 | `FLAGS` | constant | Tokens (`--help`, `-h`) recognized as a help request before the first `--`. |
 | `GLOBAL_FLAGS` | constant | Flags that apply to every command, rendered under "Global flags" and returned in every help payload. |
@@ -109,7 +111,18 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 13. Help is a normal `Result`, so it is available in agent mode: `rune <cmd> --help --json`
     returns the command's `usage` string and `flags` list as data. Every flag a command parses is
     declared on that command via the `flag` DSL, so the CLI surface is discoverable without
-    reading `specs/` or scraping the human rendering.
+    reading `specs/` or scraping the human rendering. A command that dispatches subcommands
+    declares them with the `subcommand` DSL, and its help payload then carries a `commands`
+    array of `{name, summary}` — the same key and entry shape `rune --help` uses for top-level
+    commands, so one parser reads both levels. A command with no subcommands emits no
+    `commands` key at all, leaving every existing payload's shape unchanged. This closes a gap
+    a field report hit while driving real agent CLIs: `rune --help --json` answered
+    structurally but `rune session --help --json` carried its subcommands only inside the
+    `usage` line as `<start|send|read|…>`, so structural discovery worked for exactly one level
+    and then required splitting a display string. The declared list is not the dispatched list —
+    `SessionCommand` keeps `SUBCOMMANDS` as its dispatch table — so the suite asserts the two are
+    equal; a subcommand that dispatches without being declared would otherwise be invisible here
+    while working on the command line.
 14. Help extraction removes every recognized alias before the first separator. Mixed and repeated
     forms such as `rune --help -h` and `rune --help --help` remain help requests and do not leave
     an alias behind to be resolved as a command.
@@ -190,3 +203,6 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
 | 2026-08-16 | CHG-0055-turn-the-provenance-gate-off-and-record-why-instead-of-leaving-it-to-fail: Turn the provenance gate off, and record why, instead of leaving it to fail |
 | 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |
+| 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
+| 2026-08-17 | CHG-0059-expose-subcommands-as-structured-data-in-per-command-help: Expose subcommands as structured data in per-command help |
+| 2026-08-17 | CHG-0061-release-0-9-0-bump-the-version-and-record-the-round-s-measurements: Release 0.9.0: bump the version and record the round's measurements |

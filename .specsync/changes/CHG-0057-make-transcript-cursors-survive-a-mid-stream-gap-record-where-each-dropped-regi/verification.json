@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786934083,
-  "commit": "75fb0141d5eac0a757cd000f4b1ed994178b52cf",
+  "timestamp": 1786987515,
+  "commit": "7041cb9163a91f82075fe50e1be202ceba717a09",
   "contract_digest": "57c7ad801a32a80b1111a8d06dff2019f13ec0f4b2511aef3e000e15bd74ad51",
-  "workspace_digest": "4b3ddd9e02140a0b7e3aad25870d328fbdc3a4dee82f817c68b6f58c4431aa7c",
-  "acceptance_input_digest": "58a3d826882cbd436b87eb9e97266a6ab9c2ea82448e506d35d41ac375d0e9a4",
+  "workspace_digest": "874121a29e4ad63b799bd1f96716ea9351142cd5e4ee4b89514fb8c861280a7f",
+  "acceptance_input_digest": "966e7ddb6fc6e9c00874c0a95752125536bd9ae5f66828f00b0bd0cfb3f5be31",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": "docs/sessions.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "7323317f32a6f3962ef66b7555ed2d1c9207b4002ec6d80f9a8fa0d64edea05b",
-        "entry_digest": "baad164f3973ab1593eb79531854d786ba283e28a257d6c44f203b4c7a41e789",
+        "payload_digest": "504700bbdc2f4736afdb53fc206a3c68a154d5877ff475f2962860021f1b984e",
+        "entry_digest": "e946bf5d9d4697febbcf69ad601d989f9a29563ed51978eed4d1070483ea7442",
         "owners": [
           "@exact:delivery"
         ]
@@ -88,6 +88,16 @@
         ]
       },
       {
+        "path": "harnesses/composer_echo.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d0b8a31117d0191b4cc76b2b557f11fbb99cf238ffdb88df9564f9138e014d55",
+        "entry_digest": "0551714dea0ecb2917f3bde5a1c5a0a6cf4721d8396721bc43ee1b6b3d13abac",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
         "path": "harnesses/drain.rb",
         "kind": "file",
         "mode": 33188,
@@ -103,6 +113,16 @@
         "mode": 33188,
         "payload_digest": "e184864f15083f6843549c70af2d91864346a16d448cdb3a91c475f1bdc9123a",
         "entry_digest": "6946d58ac17da589c1d8d1d33e99aa648f5a558ff736fa6fc1e8e4edd90c048f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "harnesses/margin_wrap.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b9317b2dfcc11fadcda7f5056c4b51d54a31d0e1ad0ead892e3c77798c8370ee",
+        "entry_digest": "2eed234b017ad39b331fb121b1de9bb04d088ceb1648a756dc8bee339e92e21a",
         "owners": [
           "@exact:delivery"
         ]
@@ -128,6 +148,26 @@
         ]
       },
       {
+        "path": "harnesses/orphan_report.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e42fc40c2c7a1d3bf27869a329a25091ed00c685bdfefd5affeffa116355c3aa",
+        "entry_digest": "91defe69dd198194d57b10d57fd96916cc0ff6677da9d4f19e559f6fed5e9121",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "harnesses/rotation_eacces.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4a3b3b718773445d8362d5d3e3b57124b908c7b62c76844bd53133261814ab9b",
+        "entry_digest": "55553ede637f5d7c4e739b2aaccaf237c3254048389b2cde53d35d49ff445dec",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
         "path": "harnesses/transcript_gaps.rb",
         "kind": "file",
         "mode": 33188,
@@ -143,6 +183,26 @@
         "mode": 33188,
         "payload_digest": "5ead04678c131a3d679d5b82d788e7e3b32fd849f6b8e17ac4c60cf1a3961f2c",
         "entry_digest": "67616d834217d9423a19c8d30c417cbcc5f88d536b0a146ec98a7ac3583bafb7",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "harnesses/whole_record_sweep.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ecde6ed94e9cbbc71c6b76b80f6f9250f6919d48faa2a193232eb1052f3844fc",
+        "entry_digest": "8b70fe778304c8855c181f9e411b7e69a9aa571154a0778f0c5f33481b6e0d36",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "harnesses/wrap_reassembly.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "367fa3efcae7494c1b409a18188b225afae9f843e9ccf382fef9d67124c5e820",
+        "entry_digest": "871167c50adf54873ae925ebdf718922873087781c19c3f8ddc1e54de250f53c",
         "owners": [
           "@exact:delivery"
         ]
@@ -201,8 +261,8 @@
         "path": "lib/rune/session/store.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "ac03450d1f862b2192158b2ee63282c3442fc6aef57073d7e1852d2135e0e86f",
-        "entry_digest": "4568062390343c6b8b07f2c3808e0abe9075d6fb4df7f71a2881ec34d203acf8",
+        "payload_digest": "9a28807e20992a0357784466c659c8ac1b467fe2078a5482cfb03c4f2aebe87e",
+        "entry_digest": "325c90c5c95835d389f47d1ed7b9d2829d0347f12d33a1c2d7e4e79537b6504e",
         "owners": [
           "session"
         ]
@@ -211,8 +271,8 @@
         "path": "lib/rune/session/supervisor.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "030ae157105165ad9b541ef4670bb5388ea8f9ac2187c3e1ee87623f190c4ab0",
-        "entry_digest": "491d4f5d21c7d97d68b0f6a523659cc8bcabb59fe2f21bfe9f3ec7eed5546e43",
+        "payload_digest": "da0435c7dcf3e4ce087cf141277cb81410ae79491f5f096ca9565b195d038d94",
+        "entry_digest": "c377c2fed500f07226e0c85a44fdfcb2f34e911a8ffa04dccfe220512d58a954",
         "owners": [
           "session"
         ]
@@ -231,8 +291,8 @@
         "path": "spec/rune/session_spec.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "ad5e482c13d7fd070a1f9691fcbf2948caace7ca8ab5a7bdc2686ab360661f9b",
-        "entry_digest": "71199987c78007533e4314f2d40fcc8eb2825f337fb0ef311673e0ce6d984d5e",
+        "payload_digest": "a6d96381bf5102b2b80c176bfe0f301728d52f04ceaddd2959d433e8fd4038b1",
+        "entry_digest": "e0dfcc093d81aed3750cafe480d019eab0631b3933d31506b521faff3ef806d9",
         "owners": [
           "@exact:delivery"
         ]
@@ -251,8 +311,8 @@
         "path": "specs/session/session.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "0c4ec1fe439a2340aa88e928e74c5895d6c8f44e53093543f475a7280c7bff25",
-        "entry_digest": "155c18529c49729618617d5f6d4abe73863ead4a2a6c40715812d84bc73a6677",
+        "payload_digest": "0b3cf5ba5cb8722782ee2ac66c46144404a10eacb863fdac7ead3be6234231f0",
+        "entry_digest": "8553828ed7bcbd913f5993d3c0cc18d464d3d3fd1d3febdba41a67b65b62c276",
         "owners": [
           "session"
         ]

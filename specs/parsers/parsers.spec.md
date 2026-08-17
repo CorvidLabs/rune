@@ -1,6 +1,6 @@
 ---
 module: parsers
-version: 10
+version: 11
 status: active
 files:
   - lib/rune/parsers/table_parser.rb
@@ -8,6 +8,7 @@ files:
   - lib/rune/parsers/text_sanitizer.rb
   - lib/rune/parsers/prompt_detector.rb
   - lib/rune/parsers/screen_renderer.rb
+  - lib/rune/parsers/screen.rb
 ---
 # Parsers
 
@@ -72,12 +73,26 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | `PROMPT_PATTERNS` | constant | Positive prompt-detection patterns. |
 | `FALSE_POSITIVES` | constant | Exclusions applied before positive prompt matching. |
 
-> Note: `Screen`s cursor and erase operations — `carriage_return`, `backspace`, `tab`, `newline`,
-> `cursor_up`, `cursor_down`, `cursor_right`, `cursor_left`, `cursor_next_line`,
-> `cursor_previous_line`, `cursor_column`, `cursor_position`, `erase_display` and `erase_line` —
-> are intentionally absent from the table above. They exist and are exercised by the suite, but
-> SpecSyncs Ruby extractor does not surface them from their position in a nested class
-> (rune#20 / spec-sync#479), and documenting an export it cannot see fails the contract check.
+| `carriage_return` | instance method | Returns the cursor to column zero without changing the row. |
+| `backspace` | instance method | Moves the cursor one column left without deleting what follows. |
+| `tab` | instance method | Advances to the next tab stop. |
+| `newline` | instance method | Moves down a row, scrolling the region when already at its bottom. |
+| `index` | instance method | ESC D: down one row, scrolling at the region bottom. |
+| `next_line` | instance method | ESC E: down one row and back to column zero. |
+| `reverse_index` | instance method | ESC M: up one row, scrolling the region down at its top. |
+| `save_cursor` | instance method | Records the cursor position and pending-wrap state. |
+| `restore_cursor` | instance method | Returns the cursor to the saved position and state. |
+| `cursor_up` | instance method | CUU: up N rows, clamped to the screen. |
+| `cursor_down` | instance method | CUD: down N rows, clamped to the screen. |
+| `cursor_right` | instance method | CUF: right N columns, clamped to the line. |
+| `cursor_left` | instance method | CUB: left N columns, clamped to column zero. |
+| `cursor_next_line` | instance method | CNL: down N rows and to column zero. |
+| `cursor_previous_line` | instance method | CPL: up N rows and to column zero. |
+| `cursor_column` | instance method | CHA: to an absolute column on the current row. |
+| `cursor_row` | instance method | VPA: to an absolute row, keeping the column. |
+| `cursor_position` | instance method | CUP: to an absolute row and column. |
+| `erase_display` | instance method | ED: erases the screen, inclusive of the cell under the cursor. |
+| `erase_line` | instance method | EL: erases the line, inclusive of the cell under the cursor. |
 
 ## Invariants
 
@@ -183,3 +198,4 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | 2026-08-16 | CHG-0052-the-screen-tail-can-cut-an-escape-sequence-in-half-and-print-its-remainder-onto: The screen tail can cut an escape sequence in half and print its remainder onto the screen |
 | 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
 | 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |
+| 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |

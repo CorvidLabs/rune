@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.9.0] - 2026-08-17
 
 ### Fixed
 
@@ -81,7 +81,32 @@
   is idempotent and each teardown step keeps its own rescue, so a child that will not die still gets
   the record written after it.
 
+- **`send` accepted `--max-output` and `--tail` and silently ignored both.** They were parsed for
+  every session subcommand and applied only by `read`, so a caller that asked for a bound was told
+  `status: ok` and handed everything: measured against `python3 -q`, `send --max-output=120` and
+  `send --tail=3` each returned the same 4187 bytes as no flag at all, while `read --max-output=120`
+  correctly returned 65. `send` is the worst place for that gap — it is the call an agent makes most
+  and one turn of a full-screen TUI is megabytes, which is exactly how a driving loop pages a whole
+  transcript into its context believing it set a limit. `clean_output` is derived from the *bounded*
+  raw text rather than bounded separately, so the two fields cannot describe different windows of
+  one reply with a single `omitted_bytes` true of only one of them. Bounding stays in the command,
+  not the supervisor: the transcript, the cursor, and every attached client still see the whole
+  stream. Separately, `--max-output` together with `--tail` is now refused on every session
+  subcommand with the message `rune run` has always used — accepting both applied whichever was
+  tested first and silently gave the caller the other one.
+
 ### Added
+
+- **Subcommands are structured data in per-command help.** `rune --help --json` answered with
+  `commands: [{name, summary}, …]` while `rune session --help --json` had no `commands` key at all:
+  its seven subcommands appeared only inside the `usage` line as `<start|send|read|…>`. Discovering
+  the CLI therefore worked structurally for exactly one level and then required splitting a
+  display string, which a field report hit while driving real agent CLIs. Per-command help now
+  carries the same key and the same entry shape as the top-level list, so one parser reads both
+  levels. A command with no subcommands emits no `commands` key, leaving every existing payload
+  unchanged. The declared list and the dispatch table are separate on purpose — declaring carries
+  the summaries — so the suite asserts they are equal, since a subcommand that dispatches without
+  being declared would otherwise work on the command line while being invisible to discovery.
 
 - **`orphaned_child_pid` on `list` and on the `archive` reply.** A supervisor killed with SIGKILL
   leaves its child running, reparented to pid 1 and still holding the pty, and nothing said so:
@@ -202,6 +227,29 @@
   7.5 seconds, with another process doing exactly what `alive_session` does: **90 of 294,728 reads
   came back unreadable before, 0 of 312,582 after**. Amplified by padding meta and rewriting it 200
   times against a concurrent reader: 303 unreadable reads before, 0 after.
+
+### Verified, not changed
+
+Two durability claims had been specified and unit-tested but never observed end to end. Both were
+run against a live session for this release, and neither needed a change — recorded because "we
+believe it holds" and "we watched it hold" are different statements.
+
+- **A transcript rotation, observed.** A field report noted "no rotation observed" over ~50 minutes,
+  which is the one thing a reporter cannot manufacture on demand. Driving 41.7 MB through a single
+  `python3 -q` session crosses `MAX_LOG_BYTES` (32 MB): the rotation fired between 20 and 30 MB,
+  dropped 22,843,377 bytes, and left the transcript at 9.2 MB and growing. The cursor stayed
+  monotonic across it (1,604 → 41,695,634 → 41,697,712), a `read --since=<pre-rotation cursor>`
+  still answered and reported `dropped_bytes: 22843377` rather than silently renumbering, and the
+  session took further sends afterwards. This is the path CHG-0057's cursor-gap arithmetic exists
+  for, exercised by a real rotation rather than a synthesised one.
+
+- **A stalled attach client cannot wedge the supervisor.** The event loop is single-threaded and
+  `attach` is a push stream, so a client that attaches and stops reading is the shape most likely to
+  stall the loop that also drains the pty. Non-blocking writes were built for this in 0.7.0; the
+  guarantee had not been watched under load. With three clients attached and one deliberately never
+  reading again, 4.1 MB was driven through the session: the control plane kept answering `status`,
+  `read` kept working, a healthy attacher kept receiving, backlog replay had reached all three
+  identically (1,990 bytes each), and the supervisor survived every client disconnecting at once.
 
 ## [v0.8.0] - 2026-08-16
 

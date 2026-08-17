@@ -1,6 +1,6 @@
 ---
 module: pty_runner
-version: 5
+version: 6
 status: active
 files:
   - lib/rune/pty_runner.rb
@@ -37,6 +37,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `poll_ready_streams` | internal method | Runs one `IO.select` pass and consumes every stream that became readable. |
 | `consume_stream_chunk` | internal method | Reads and decodes one chunk from a single stream, or finalizes it on EOF. |
 | `append_decoded_chunk` | internal method | Appends one decoded chunk to a stream's own buffer and the shared `raw_output`. |
+| `timeout_hint` | internal method | An extra sentence on a timeout that captured nothing, naming the stdin shape that usually causes it. |
 | `prompt_detected_in?` | internal predicate | Checks whether the last non-blank line of a finished text buffer looks like an interactive prompt. |
 | `kill_orphaned_child` | internal method | Kills and reaps a timed-out direct child. |
 | `wait_for_process` | internal method | Reaps the child and normalizes exit or signal status. |
@@ -66,7 +67,6 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `human_render` | instance method | Prints a concise command summary and captured clean output. |
 | `FLAG_PATTERNS` | constant | Maps each `PTYRunner` value-taking keyword option (`--timeout`, `--max-output`, `--tail`) to its argv pattern, flag name, and error-message value description. `--separate-streams` takes no value, so it is matched separately rather than via this table. |
 | `matching_flag` | internal method | Matches one argv token against `FLAG_PATTERNS`, returning the matched option key and `MatchData`, or `[nil, nil]`. |
-| `scan_head` | internal method | Splits the pre-separator argv into the tokens rune did not claim, the raw flag values it did, and whether `--separate-streams` was present. |
 | `unknown_flag_error` | internal method | Rejects a flag-shaped token that appears before the first operand and matches no rune flag, instead of letting it be exec'd as the program name. Examines nothing after the first operand, so a wrapped command's own long flags pass through. |
 | `parse_flags` | internal method | Parses every raw `--timeout`/`--max-output`/`--tail` value, stopping at the first invalid one, then checks mutual exclusion. |
 | `both_output_limits?` | internal predicate | True when both `--max-output` and `--tail` were given. |
@@ -194,3 +194,4 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | 2026-08-14 | CHG-0022-add-opt-in-separate-streams-to-rune-run-clean-stdout-clean-stderr-alongside-t: Add opt-in --separate-streams to rune run: clean_stdout/clean_stderr alongside the merged view, closing #15 |
 | 2026-08-14 | CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e: Fix `prompt_detected` to reflect only the last non-blank line of output instead of any line seen across the whole run; also fixes a latent bug where `--timeout` kills always reported `prompt_detected: false` regardless of actual content. Closes #30. |
 | 2026-08-14 | CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e: Fix prompt_detected to reflect the last non-blank line of output, not any line ever seen, closing #30 |
+| 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |

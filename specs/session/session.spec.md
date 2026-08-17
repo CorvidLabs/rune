@@ -1,6 +1,6 @@
 ---
 module: session
-version: 25
+version: 28
 status: active
 files:
   - lib/rune/session/store.rb
@@ -115,6 +115,7 @@ deciding who talks to whom stays the calling agent's job.
 | `CLOSE_BRACE_BYTE` | constant | The byte a whole NDJSON record ends on. |
 | `output_size` | instance method | Current size of a session's transcript file. |
 | `rotate_log` | internal method | Rotates the transcript once it reaches the ceiling, backing off rather than retrying an attempt that failed. |
+| `HARD_LOG_CEILING` | constant | The size past which recording stops rather than growing, when rotation cannot succeed. |
 | `ROTATE_RETRY_SECONDS` | constant | How long a failed rotation waits before it is attempted again. |
 | `output_path` | instance method | Returns one session's NDJSON transcript path. |
 | `socket_path` | instance method | Returns one session's control-socket path. |
@@ -163,6 +164,7 @@ deciding who talks to whom stays the calling agent's job.
 | `resolve_orphaned_pending` | internal method | Replies to a send that would otherwise never be answered because the supervisor is exiting. |
 | `terminate_child` | internal method | Kills and reaps a still-running child. |
 | `safe_close` | internal method | Closes an IO, tolerating one already closed. |
+| `writable_log?` | internal predicate | Whether the transcript handle is open, checked before a record is generated. |
 | `log_event` | internal method | Appends one timestamped NDJSON event to the transcript, recording a write that failed as a gap rather than losing it. |
 | `append_log` | internal method | Writes one event, preceded by the `truncated` event accounting for any pending gap; nil when the event did not reach the file. |
 | `write_record` | internal method | Writes one NDJSON record, preceded by the torn marker when the last write failed; nil when nothing can be trusted to have landed. |
@@ -246,6 +248,8 @@ deciding who talks to whom stays the calling agent's job.
 | `DETACH_HINT` | constant | The detach instruction shown when a terminal attaches. |
 | `CHUNK` | constant | Maximum bytes moved per read while attached. |
 | `with_clean_output` | internal method | Adds the ANSI-stripped `clean_output` beside a reply's raw output, matching `rune run`. |
+| `bounded_output` | internal method | Applies `--max-output`/`--tail` to a control-socket reply, deriving `clean_output` from the bounded raw text. |
+| `conflicting_bounds` | internal method | Rejects `--max-output` combined with `--tail`, the pair `rune run` already refuses. |
 | `attach` | internal method | Validates the session and hands a real terminal to it. |
 | `GRACEFUL_STOP_TIMEOUT` | constant | How long `stop` waits for a cooperative shutdown before force-killing. |
 | `DISPATCH` | constant | Maps each session subcommand, including the hidden supervisor entry point, to its handler. |
@@ -314,6 +318,7 @@ deciding who talks to whom stays the calling agent's job.
 | `screen_after` | internal method | Renders the settled screen for `send --screen`, client-side. |
 | `screen_fields` | internal method | The rendered screen and the size it was rendered at, for `--screen` on either command. |
 | `window_size` | internal method | The child's last recorded winsize, resolved to a usable one. |
+| `liveness` | internal method | The child's state and exit code, on every send and read rather than only on `list`. |
 | `busy_fields` | internal method | Whether the child printed within the settle window, and how long since. |
 | `read_payload` | internal method | Builds the result body for a transcript read. |
 | `ALIASES` | constant | Internal option keys whose user-facing flag is not their name with dashes. |
@@ -825,6 +830,19 @@ deciding who talks to whom stays the calling agent's job.
     reports nothing, even if its child is in fact alive.
 49. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
     additive.
+50. `--max-output` and `--tail` bound `send` as well as `read`. Both flags were parsed for every
+    subcommand and applied only by `read`, so `send --max-output=120` returned everything under
+    `status: ok` — a caller that asked for a bound was told it succeeded and did not get one.
+    `send` is the worst place for that gap: it is the call an agent makes most, and one turn of a
+    full-screen TUI is megabytes. Bounding happens in the command rather than the supervisor
+    because the cap is one caller's presentation choice; the transcript, the cursor, and every
+    attached client still see the whole stream.
+50a. `clean_output` is derived from the *bounded* raw text, not bounded separately. Bounding the
+    two independently lets them describe different windows of one reply and leaves
+    `omitted_bytes` true of only one of them. This is what `read` already does.
+50b. `--max-output` and `--tail` are mutually exclusive on every session subcommand, with the same
+    message `rune run` has always used. Accepting both applied whichever `bound_size` tested
+    first, so the caller silently got the other one.
 
 ## Behavioral Examples
 
@@ -1014,3 +1032,6 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
 | 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |
 | 2026-08-17 | CHG-0057-make-transcript-cursors-survive-a-mid-stream-gap-record-where-each-dropped-regi: Make transcript cursors survive a mid-stream gap: record where each dropped region sits and map cursors through the list |
+| 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
+| 2026-08-17 | CHG-0059-expose-subcommands-as-structured-data-in-per-command-help: Expose subcommands as structured data in per-command help |
+| 2026-08-17 | CHG-0060-bound-send-output-with-max-output-and-tail-and-make-the-two-mutually-exclus: Bound send output with --max-output and --tail, and make the two mutually exclusive |

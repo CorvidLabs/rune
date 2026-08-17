@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 57,
-  "id": "CHG-0057-make-transcript-cursors-survive-a-mid-stream-gap-record-where-each-dropped-regi",
+  "sequence": 61,
+  "id": "CHG-0061-release-0-9-0-bump-the-version-and-record-the-round-s-measurements",
   "acknowledged_collisions": []
 }

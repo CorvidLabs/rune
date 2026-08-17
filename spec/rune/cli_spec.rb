@@ -155,6 +155,36 @@ RSpec.describe Rune::CLI do
       end
     end
 
+    # A field report hit this driving real agent CLIs: `rune --help --json`
+    # answers structurally and `rune session --help --json` did not, so
+    # discovering the surface meant parsing JSON at one level and splitting the
+    # usage line's `<start|send|...>` at the next.
+    it 'lists subcommands as data, in the same shape as the top-level command list' do
+      overview = cli_json('--help')[:data][:commands].first.keys.sort
+      output = cli_json('session', '--help')
+
+      expect(output[:data][:commands]).to be_an(Array)
+      expect(output[:data][:commands].first.keys.sort).to eq(overview)
+      expect(output[:data][:commands].map { |c| c[:name] })
+        .to eq(Rune::Commands::SessionCommand::SUBCOMMANDS)
+      expect(output[:data][:commands].map { |c| c[:summary] }).to all(match(/\A\S.*\.\z/))
+    end
+
+    # The declared list and the dispatched list are separate, so they can drift:
+    # a new subcommand that dispatches but is never declared is invisible to the
+    # payload above while `rune session <it>` works, which is the worse of the
+    # two directions. Asserting the names *equal* SUBCOMMANDS above catches it
+    # only while both are edited together; this pins the dispatcher's own view.
+    it 'declares every subcommand it will dispatch, and no others' do
+      klass = Rune::Commands::SessionCommand
+
+      expect(klass.command_subcommands.map { |s| s[:name] }).to eq(klass::SUBCOMMANDS)
+    end
+
+    it 'omits the subcommand list entirely for a command that has none' do
+      expect(cli_json('run', '--help')[:data]).not_to have_key(:commands)
+    end
+
     it 'exposes the flag list as structured data so an agent can discover it without scraping text' do
       output = cli_json('run', '--help')
 

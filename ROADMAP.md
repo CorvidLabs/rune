@@ -155,20 +155,35 @@ the way:
   `D`, every item in 0.7.0, and nine more in 0.8.0. That is evidence about method, not luck, and
   1.0 should not be cut without another round of it.
 
-## Known, unfixed, and queued for 0.9.0
+## The 0.8.0 review round, re-measured
 
-All found in the 0.8.0 review round, all reproduced, none yet fixed:
+All eight were found in the 0.8.0 review, all reproduced then. Each was re-run against the tree
+rather than carried forward on the strength of the table, and seven are closed:
 
-| finding | why it matters |
+| finding | status |
 |---|---|
-| `--max-output` splices head and tail with no marker | turned `/bin/zsh` into `bin/zsh` — plausible text that never existed |
-| an unparseable `--grep` returns the *whole* transcript | 17MB under `status: ok` for a typo; the safe fallback is nothing, not everything |
-| one oversized send bricks a cooked-mode session | every later send is silently discarded while `settled: true` |
-| a failed transcript write desynchronises cursors permanently | `send` and `read` disagree forever, with no `dropped_bytes` to signal it |
-| `archive` can orphan a live child | when the supervisor is already dead, the child survives and becomes unnameable |
-| unknown flags are typed at the child | `--settle_ms` became part of the prompt instead of an error |
-| `send` ignores `--max-output`/`--tail` | accepted silently; the one call an agent makes most has no output bound |
-| renderer: alt screen, wide characters, DEC line drawing, IRM, DECAWM | narrower than the above, all verified against two reference emulators |
+| `--max-output` splices head and tail with no marker | **fixed** — `[rune] ==== 1517 bytes omitted by --max-output ====` |
+| an unparseable `--grep` returns the *whole* transcript | **fixed** — returns nothing and says why, quoting Ruby's own reason |
+| one oversized send bricks a cooked-mode session | **fixed** — see below; the entry was also wrong about the mechanism |
+| a failed transcript write desynchronises cursors permanently | **fixed** — CHG-0057 records each dropped region and maps cursors through it |
+| `archive` can orphan a live child | **fixed** — verified by killing the supervisor and archiving underneath it |
+| unknown flags are typed at the child | **fixed** — `--settle_ms` now returns `Did you mean --settle-ms?` |
+| `send` ignores `--max-output`/`--tail` | **fixed in 0.9.0** — and the two are now mutually exclusive, as `rune run` already had them |
+| renderer: alt screen, wide characters, DEC line drawing, IRM, DECAWM | **open**, and now the only one |
+
+**The oversized-send entry was wrong, and worth correcting rather than deleting.** It claimed
+"every later send is silently discarded while `settled: true`". Measured on a 20,000-character
+send to `python3 -q`: the child receives the input *in full* (`LEN=20000`), and an overlapping
+send is *refused* with a specific error — `previous input is still being delivered to the child`
+after a `--no-wait`, `a send is already in flight on this session` otherwise. Nothing is
+discarded and nothing lies. What is real is the duration: ~10 s for 20 KB to drain, during which
+the session is correctly unavailable. The threshold sits between 10,000 and 12,000 characters on
+macOS, which is the tty line discipline's, not rune's.
+
+The first probe of this reported "bricked" because its liveness helper checked only whether the
+output contained a marker and ignored `status`, so a *correct refusal* read as a dead session —
+the third harness error of that session, and the reason the entry above is stated with the
+control that produced it.
 
 ## What is deliberately not planned
 

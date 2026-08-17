@@ -1,0 +1,126 @@
+{
+  "timestamp": 1786989163,
+  "commit": "7041cb9163a91f82075fe50e1be202ceba717a09",
+  "contract_digest": "9050876dbe029305245d05cbbc6f8677fa10a17b93cf9a467336f50d13f144f6",
+  "workspace_digest": "9e6c246ffdfe0fc76a78a3e059e6d99cfeca61f17db0481c23b3e028204724c2",
+  "acceptance_input_digest": "8f3f17fcd3947e39185cbb70eb5b30ea5af0d83441d8b812f779ee489bb93e64",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9df0a8c725b0a959699654fc63da08a691c34adff481ff0f0bc015bf0078aa84",
+        "entry_digest": "d73b7059b219be4f52ec1a716e9c715772e895a0498656c553191ac2237ac5f3",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "lib/rune/command.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1e333ba4ceb5bb895ffab526d439d8a58ed58de9ae211f5c07fb6a2839f96073",
+        "entry_digest": "7fc4fd93163eec65c89dc408ffb59bed1a8194355db4990e8d116f1ba26f3c28",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "lib/rune/commands/session_command.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8ad2ff496cd7205a4917cbe9fb113470f62429a05ef469e39321240d413a771e",
+        "entry_digest": "594a3f92058122e023c2b4d2f8ef1cd23da528abd32545dedbfad684e908f48d",
+        "owners": [
+          "session"
+        ]
+      },
+      {
+        "path": "lib/rune/help.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "38a96d9e7fc1370a571df8bef16493fc4d4d45404c8f24ab2a0e5a93912d5f0f",
+        "entry_digest": "bf49399e110d3aa6c3040a93ebcef03dacf294d0538d851efe15385ec7ce8fa7",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "spec/rune/cli_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "369d020bcd46bfeb425166a39952ad64285ff12eed6be78731b595ddf2bb9d80",
+        "entry_digest": "f4b57dcae87f0b69cc08f055c67384b3fe0e1dc325480fdcfa8d52de884c3087",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/cli/cli.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "685078f51b6c3a24623617e145507dcc30d84f16da77a53053d72f4730ab0cb8",
+        "entry_digest": "f869b955d407663d6c81bb387618df2da2f5b075cdca33693bd16675fe45b0f6",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "specs/cli/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+        "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+        "owners": [
+          "cli"
+        ]
+      },
+      {
+        "path": "specs/session/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+        "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+        "owners": [
+          "session"
+        ]
+      },
+      {
+        "path": "specs/session/session.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0b3cf5ba5cb8722782ee2ac66c46144404a10eacb863fdac7ead3be6234231f0",
+        "entry_digest": "8553828ed7bcbd913f5993d3c0cc18d464d3d3fd1d3febdba41a67b65b62c276",
+        "owners": [
+          "session"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -46,6 +46,23 @@ module Rune
       end
 
       def command_flags = @command_flags ||= []
+
+      # Declares one subcommand so `rune <command> --help --json` can list them
+      # as data, in the same `{name, summary}` shape `rune --help` already uses
+      # for top-level commands.
+      #
+      # Without this the surface was structured at the top level and a string
+      # one level down: `rune session --help --json` carried the subcommands
+      # only inside its `usage` line, as `<start|send|read|...>`. An agent
+      # discovering the CLI had to parse JSON for one level and then split on
+      # `|` for the next, which a field report flagged after hitting exactly
+      # that. Commands without subcommands declare none and the key stays
+      # absent, so nothing that reads the old payload changes shape.
+      def subcommand(name, description)
+        command_subcommands << { name: name.to_s, summary: description }
+      end
+
+      def command_subcommands = @command_subcommands ||= []
     end
 
     # Override in subclasses

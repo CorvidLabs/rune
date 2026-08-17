@@ -198,6 +198,54 @@ RSpec.describe Rune::Commands::SessionCommand do
       expect(result.data[:cursor]).to be_a(Integer)
       expect(result.data[:waited]).to be false
     end
+
+    # `--max-output` and `--tail` were parsed for every subcommand but applied
+    # only by `read`. `send` is the call an agent makes most and the one whose
+    # output is least bounded — a single turn of a full-screen TUI is megabytes —
+    # so the flag that exists to bound it silently doing nothing there is the
+    # worst place for it to be missing.
+    it 'honours --max-output on send, not only on read' do
+      start_session('cap', %w[cat])
+
+      result = session('send', '--name=cap', '--settle-ms=300', '--timeout-ms=8000',
+                       '--max-output=120', '--', 'X' * 4000)
+
+      expect(result.data[:output].bytesize).to be <= 200
+      expect(result.data[:truncated]).to be true
+      expect(result.data[:omitted_bytes]).to be_positive
+      expect(result.data[:clean_output]).to include('omitted by --max-output')
+    end
+
+    it 'honours --tail on send' do
+      start_session('captail', %w[cat])
+
+      result = session('send', '--name=captail', '--settle-ms=300', '--timeout-ms=8000',
+                       '--tail=1', '--', 'one')
+
+      expect(result.data[:truncated]).to be true
+      expect(result.data[:omitted_lines]).to be_positive
+    end
+
+    # Bounding `output` and `clean_output` independently would let the two
+    # describe different windows of one reply, and leave `omitted_bytes` true of
+    # only one of them. `read` derives clean from the bounded raw; so does this.
+    it 'derives clean_output from the bounded raw output, as read does' do
+      start_session('capsame', %w[cat])
+
+      result = session('send', '--name=capsame', '--settle-ms=300', '--timeout-ms=8000',
+                       '--max-output=200', '--', 'Y' * 4000)
+
+      expect(result.data[:clean_output])
+        .to eq(Rune::Parsers::TextSanitizer.strip_ansi(result.data[:output]))
+    end
+
+    it 'refuses --max-output together with --tail, as rune run already does' do
+      start_session('capboth', %w[cat])
+
+      result = session('send', '--name=capboth', '--max-output=100', '--tail=3', '--', 'hi')
+
+      expect(result.error).to include('Cannot combine --max-output and --tail')
+    end
   end
 
   describe 'send-and-settle' do

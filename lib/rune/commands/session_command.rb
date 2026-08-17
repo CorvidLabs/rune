@@ -46,6 +46,14 @@ module Rune
       flag '--all-projects', 'list: include sessions from every project, not just this one.'
       flag '--archived', 'list: show archived sessions instead of live ones.'
 
+      subcommand 'start',   'Start a named session that outlives this invocation and keeps its child alive.'
+      subcommand 'send',    'Send text to the child and wait for it to settle, match a regex, or time out.'
+      subcommand 'read',    'Read transcript output, optionally since a cursor, as a screen, or grepped.'
+      subcommand 'attach',  'Attach this terminal to a running session as a live bidirectional view.'
+      subcommand 'list',    'List sessions with state, exit code, and recent activity.'
+      subcommand 'stop',    'Stop a session, ending its child and supervisor.'
+      subcommand 'archive', 'Archive a stopped session, retaining its transcript.'
+
       SUBCOMMANDS = %w[start send read attach list stop archive].freeze
       # How long `start` waits for the supervisor to come up and report ready
       # before giving up. Generous because it covers a Ruby process boot.
@@ -357,7 +365,8 @@ module Rune
         regex_error = validate_regex(options[:wait_for_regex])
         return Result.failure(regex_error) if regex_error
 
-        exchange(options[:name], send_payload(options, text), action: 'send', screen: options[:screen])
+        exchange(options[:name], send_payload(options, text),
+                 action: 'send', screen: options[:screen], options: options)
       end
 
       def send_payload(options, text)
@@ -391,7 +400,7 @@ module Rune
         "Invalid --wait-for-regex value: #{e.message}"
       end
 
-      def exchange(name, payload, action:, screen: false)
+      def exchange(name, payload, action:, screen: false, options: {})
         alive = alive_session(name)
         return alive if alive.is_a?(Result)
 
@@ -401,7 +410,7 @@ module Rune
         return Result.failure("Session #{name.inspect}: #{reply[:error]}") if reply[:error]
 
         Result.success({ action: action, name: name }
-                         .merge(with_clean_output(reply))
+                         .merge(bounded_output(reply, options))
                          .merge(liveness(name))
                          .merge(screen_after(name, screen)))
       rescue Session::Client::Unavailable => e
@@ -432,6 +441,29 @@ module Rune
         return reply unless reply.key?(:output)
 
         reply.merge(clean_output: Parsers::TextSanitizer.strip_ansi(reply[:output]))
+      end
+
+      # `--max-output` and `--tail` were parsed for every subcommand but applied
+      # only by `read`, so `send` accepted both and silently returned everything.
+      # That is the wrong one to leave unbounded: `send` is the call an agent
+      # makes most, and one turn of a full-screen TUI is megabytes. An agent that
+      # asked for a bound and was told `status: ok` had no way to know it did not
+      # get one.
+      #
+      # Bounding happens here rather than in the supervisor because the cap is a
+      # presentation choice of this one caller — the transcript, the cursor, and
+      # every other attached client must still see the whole stream.
+      def bounded_output(reply, options)
+        return with_clean_output(reply) unless reply.key?(:output) &&
+                                               (options[:max_output_bytes] || options[:tail_lines])
+
+        # Bound the raw text and derive `clean_output` from the bounded result,
+        # which is what `read` does. Bounding the two independently would let
+        # them describe different windows of the same reply, and leave the
+        # `omitted_bytes` count true of only one of them.
+        bounded, extra = bound_size(reply[:output].to_s, options)
+        reply.merge(output: bounded,
+                    clean_output: Parsers::TextSanitizer.strip_ansi(bounded)).merge(extra)
       end
 
       def alive_session(name)
@@ -962,7 +994,18 @@ module Rune
         tail = separator_index ? args[separator_index..] : []
 
         options, rest, error = scan_flags(head, operand_owns_flags: operand_owns_flags)
+        error ||= conflicting_bounds(options)
         [options, rest + tail, error]
+      end
+
+      # `rune run` has always refused this pair; sessions accepted both and
+      # applied whichever `bound_size` checked first, so a caller that asked for
+      # `--tail` alongside `--max-output` was told `status: ok` and quietly given
+      # the other one. Same message as `run`, because it is the same mistake.
+      def conflicting_bounds(options)
+        return nil unless options[:max_output_bytes] && options[:tail_lines]
+
+        'Cannot combine --max-output and --tail; use one or the other.'
       end
 
       def flag_to_validate?(token, rest, operand_owns_flags)

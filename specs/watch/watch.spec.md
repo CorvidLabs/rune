@@ -1,6 +1,6 @@
 ---
 module: watch
-version: 6
+version: 7
 status: active
 files:
   - lib/rune/pty_watcher.rb
@@ -108,6 +108,13 @@ there.
     belongs to the wrapped target rather than an intermediary shell, so output-sink cleanup,
     signal forwarding, and reaping act on the correct process. The structured `command` field
     remains a shell-escaped display string; explicit string commands retain shell semantics.
+    A **single-element** array is the case that needed care: Ruby's `exec` family treats one
+    argument as a shell command line, so `rune watch -- 'my file'` reached `sh -c` and split on
+    the space, and a name containing `;` or backticks executed. `ExecArgv.for_spawn` passes the
+    `[command, argv0]` two-element form for that case, which forces the direct-exec path.
+    `PTYWatcher` distinguishes the two by recording whether its constructor received an Array,
+    not by counting elements — a watcher built from the `String` form still gets shell semantics
+    with one element, which is what its callers expect.
 16. `WatchCommand` selects the live passthrough's destination from the output mode and passes it
     explicitly as `PTYWatcher.new(..., output:)`: `$stdout` for a human on a TTY, `$stderr` in agent
     mode (`--json`, `--ndjson`, or non-TTY stdout). Without this the command was the only one that
@@ -211,3 +218,4 @@ there.
 | 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |
 | 2026-08-14 | CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t: Add opt-in `--timeout=SECONDS` (total wall-clock) and `--idle-timeout=SECONDS` (no output/input) to `rune watch`, so an agent-driven session can no longer hang forever. Fully additive: the result data shape is unchanged when neither flag is passed. Closes #14. |
 | 2026-08-14 | CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t: Add --timeout and --idle-timeout to rune watch so an agent-driven session can't hang forever, closing #14 |
+| 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
