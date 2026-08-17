@@ -371,6 +371,46 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:exit_code]).to eq(130)
     end
 
+    # read_separate_streams has its own abort rescue (IO.select over two readers rather than
+    # read_pty_stream's single wait_readable), so the escalation ladder is covered here too.
+    it 'ends a separate_streams run on a second signal, reaping the child and keeping both ' \
+       'streams' do
+      Dir.mktmpdir do |dir|
+        pid_path = File.join(dir, 'child.pid')
+        ready = false
+        watch_ready = ->(chunk) { ready ||= chunk.include?('ready') }
+        runner = described_class.new(['ruby', '-e', <<~RUBY], separate_streams: true, timeout_seconds: 8,
+          Signal.trap('INT') { $stdout.puts 'out INT'; $stderr.puts 'err INT' }
+          $stdout.sync = true
+          $stderr.sync = true
+          File.write(#{pid_path.inspect}, Process.pid)
+          puts 'ready'
+          sleep 30
+        RUBY
+                                     &watch_ready)
+
+        signaller = Thread.new do
+          Timeout.timeout(10) { sleep 0.02 until ready }
+          Process.kill('INT', Process.pid)
+          sleep 0.4
+          Process.kill('INT', Process.pid)
+        end
+
+        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        result = runner.run
+        elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+        signaller.join(5)
+        child_pid = File.read(pid_path).strip.to_i
+
+        expect(result).to be_success
+        expect(result.data[:exit_code]).to eq(130)
+        expect(result.data[:clean_stdout].scan('out INT').size).to eq(2)
+        expect(result.data[:clean_stderr].scan('err INT').size).to eq(2)
+        expect(elapsed).to be < 6
+        expect { Process.kill(0, child_pid) }.to raise_error(Errno::ESRCH)
+      end
+    end
+
     it 'rejects combining separate_streams: true with script: (the interactive DSL only ' \
        'supports the merged single-stream view)' do
       script = Rune::Script.new { wait_for(/x/) }
