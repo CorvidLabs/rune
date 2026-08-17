@@ -229,16 +229,49 @@ section('Rune::Script — the .new-silently-empty fix') do
 end
 
 section('Signal forwarding') do
-  check('SIGINT to the rune process terminates the wrapped child promptly, not after it finishes') do
-    runner = Rune::PTYRunner.new('sleep 10', timeout_seconds: 30)
+  # These checks pin rune's contract rather than the child's disposition. The
+  # previous version of this section sent ONE signal and asserted the run ended,
+  # which
+  # passed only because `sleep` happens to die on SIGINT. Run where SIGINT is
+  # inherited as ignored — exactly what a task runner does, and how this was
+  # caught — the child inherits SIG_IGN, the forwarded signal does nothing,
+  # rune correctly keeps waiting, and the check failed at 10.01s. It was
+  # asserting the child's disposition, not rune's contract.
+  # The child announces receipt, so forwarding is observable rather than
+  # inferred. It has to be Ruby rather than a shell `trap`: POSIX lets a shell
+  # decline to trap a signal it inherited as ignored, and under a task runner
+  # INT *is* inherited as ignored, so a shell child would silently prove
+  # nothing. `Signal.trap` installs over SIG_IGN either way.
+  check('one SIGINT is forwarded to the child and rune keeps waiting') do
+    child = "#{RbConfig.ruby} -e 'Signal.trap(\"INT\") { puts \"GOT_INT\"; $stdout.flush }; sleep 4'"
+    runner = Rune::PTYRunner.new(child, timeout_seconds: 30)
     Thread.new do
+      sleep 1.0
+      Process.kill('INT', Process.pid)
+    end
+    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = runner.run
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+    assert(result.data[:clean_output].include?('GOT_INT'),
+           "the signal never reached the child: #{result.data[:clean_output].inspect}")
+    assert(elapsed > 2, "one signal must not end the run, returned after #{elapsed.round(2)}s")
+    assert(result.data[:exit_code].zero?, "expected the child's own exit, got #{result.data.inspect}")
+  end
+end
+
+section('Signal escalation') do
+  check('a second SIGINT stops rune promptly at 130, even though the child ignores it') do
+    runner = Rune::PTYRunner.new('trap "" INT; sleep 30', timeout_seconds: 60)
+    Thread.new do
+      sleep 0.3
+      Process.kill('INT', Process.pid)
       sleep 0.3
       Process.kill('INT', Process.pid)
     end
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     result = runner.run
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-    assert(elapsed < 5, "expected early termination, took #{elapsed.round(2)}s (child was not signaled)")
+    assert(elapsed < 10, "expected early termination, took #{elapsed.round(2)}s")
     assert(result.data[:exit_code] == 130, result.data.inspect)
   end
 end
