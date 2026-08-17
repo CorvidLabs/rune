@@ -70,10 +70,12 @@ module Rune
 
     def run_session
       exit_code = nil
+      spawned_pid = nil
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
       PTY.spawn(env, *@spawn_arguments) do |r, w, pid|
+        spawned_pid = pid
         SignalHandler.with_traps(pid) do |forward_signal|
           synchronize_window_size(w)
           log_event('start', command: @command, pid: pid)
@@ -82,6 +84,13 @@ module Rune
       end
 
       build_result(exit_code, started_at)
+    # A repeated INT/TERM: the signal itself was already forwarded to the child
+    # on the way out, and unwinding through `with_raw_input` has already put the
+    # human's terminal back into cooked mode, so all that is left is to make sure
+    # the child is actually gone (bounded grace, then SIGKILL) and to report the
+    # session at the conventional 128 + signo status instead of hanging.
+    rescue SignalHandler::Aborted => e
+      interrupted_result(e, spawned_pid, started_at)
     # Same conventional exit codes PTYRunner already returns for a missing
     # (127) or non-executable (126) wrapped command, instead of collapsing
     # both into a generic rune-level failure.
@@ -107,6 +116,19 @@ module Rune
       @timed_out_kind = :timeout
       log_event('timeout', timeout_seconds: @timeout_seconds)
       124
+    end
+
+    # A repeated INT/TERM ended the session. The signal itself was already
+    # forwarded to the child on the way out, and unwinding through
+    # `with_raw_input` has already put the human's terminal back into cooked
+    # mode, so all that is left is making sure the child is gone and reporting
+    # the conventional 128 + signo status instead of hanging. The reap is a
+    # bounded net: pump_output already reaps while its pty reader is open,
+    # which is the only place a wedged child can be drained free.
+    def interrupted_result(error, pid, started_at)
+      SignalHandler.reap(pid)
+      log_event('interrupted', signal: error.signal_name)
+      build_result(error.exit_code, started_at)
     end
 
     def build_result(exit_code, started_at)
@@ -187,9 +209,25 @@ module Rune
     rescue Errno::EIO, EOFError, PTY::ChildExited
       emit_output(decoder.finish)
       wait_for_exit_code(pid)
+    rescue SignalHandler::Aborted
+      # Reaped here, with the pty reader still open, for the reason spelled out
+      # in SignalHandler.reap: a SIGKILLed pty child holding unread output
+      # wedges unreapably on macOS, and only draining the master clears it.
+      # Draining also keeps the child's final bytes on screen and in the log.
+      SignalHandler.reap(pid) { drain_available(reader, decoder) }
+      raise
     rescue Errno::EPIPE
       terminate_child(pid)
       raise
+    end
+
+    # One bounded, best-effort read used while tearing a session down.
+    def drain_available(reader, decoder)
+      return unless reader.wait_readable(0.01)
+
+      emit_output(decoder.decode(reader.readpartial(4096)))
+    rescue Errno::EIO, Errno::EPIPE, PTY::ChildExited, IOError # IOError covers EOFError
+      nil
     end
 
     def emit_output(chunk)
@@ -235,11 +273,12 @@ module Rune
       size.is_a?(Array) && size.size == 2 && size.all? { |value| value.is_a?(Integer) && value.positive? }
     end
 
+    # grace_seconds: 0 keeps the existing straight-to-SIGKILL semantics for the
+    # timeout/idle-timeout/EPIPE paths; the wait after it is bounded rather
+    # than a plain `Process.wait` so a wedged pty child (see SignalHandler.reap)
+    # cannot turn a bound into an unbounded hang.
     def terminate_child(pid)
-      Process.kill('KILL', pid)
-      Process.wait(pid)
-    rescue Errno::ESRCH, Errno::ECHILD
-      nil
+      SignalHandler.reap(pid, grace_seconds: 0)
     end
 
     def wait_for_exit_code(pid)

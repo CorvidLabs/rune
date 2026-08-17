@@ -1,6 +1,6 @@
 ---
 module: watch
-version: 6
+version: 7
 status: active
 files:
   - lib/rune/pty_watcher.rb
@@ -66,7 +66,23 @@ there.
 5. `Result#exit_code` (the process-level exit status) mirrors the wrapped command's real exit code
    on a natural exit, same convention as `PTYRunner`/`RunCommand`; on a `--timeout`/`--idle-timeout`
    expiry it is `124`, the same convention `PTYRunner --timeout` already uses.
-6. INT/TERM are forwarded to the child using the same `SignalHandler` mechanism as `PTYRunner`.
+6. INT/TERM are forwarded to the child using the same `SignalHandler` mechanism as `PTYRunner`,
+   including its escalation ladder: every signal is forwarded, and the second one within
+   `SignalHandler::BURST_WINDOW_SECONDS` is forwarded and *then* ends the session, reaping the
+   child and reporting the conventional `128 + signo` exit code. This matters more here than in
+   `PTYRunner` because `rune watch` has no default `--timeout`: before the ladder existed, a child
+   that trapped INT/TERM left the session with no bound at all — measured surviving 5x SIGINT +
+   5x SIGTERM and needing SIGKILL, a CLI that could not be stopped by an init system. The reap
+   happens inside `pump_output`, while the pty reader is still open, because a SIGKILLed pty child
+   holding unread output wedges unreapably on macOS and only draining the master clears it (see
+   `pty_runner`'s invariant 26); draining also keeps the child's last bytes on screen and in the
+   NDJSON log.
+   A human's Ctrl-C at the terminal does *not* travel this path. Raw mode clears `ISIG`, so the
+   keystroke reaches the child as a `0x03` byte through the input-forwarding thread and the
+   child's own pty line discipline, and `rune`'s traps never fire. Verified against a real
+   controlling terminal: three Ctrl-Cs, three interrupts delivered to the child, session still
+   running. An agent CLI whose first Ctrl-C interrupts a turn is therefore unaffected by the
+   ladder, however many times it is pressed.
 7. The input-forwarding thread never blocks process exit: it's explicitly killed once the child's
    output stream ends, regardless of whether it's currently blocked reading more input.
 8. `input`/`output`/`log` are constructor-injectable (defaulting to `$stdin`/`$stdout`/`$stderr`),

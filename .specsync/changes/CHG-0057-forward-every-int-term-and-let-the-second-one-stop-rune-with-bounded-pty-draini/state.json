@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0057-forward-every-int-term-and-let-the-second-one-stop-rune-with-bounded-pty-draini",
+  "slug": "forward-every-int-term-and-let-the-second-one-stop-rune-with-bounded-pty-draini",
+  "title": "Forward every INT/TERM and let the second one stop rune, with bounded pty-draining child reaping",
+  "description": "Forward every INT/TERM and let the second one stop rune, with bounded pty-draining child reaping",
+  "kind": "feature",
+  "state": "implementing",
+  "base_commit": "6277a4e99d31233ed54d2f8edd8f4245d7239a38",
+  "created_at": 1786985346,
+  "updated_at": 1786985566,
+  "affected_specs": [
+    "pty_runner",
+    "watch"
+  ],
+  "affected_paths": [
+    "lib/rune/signal_handler.rb",
+    "lib/rune/pty_runner.rb",
+    "lib/rune/pty_watcher.rb",
+    "spec/rune/signal_handler_spec.rb",
+    "spec/rune/pty_runner_spec.rb",
+    "spec/rune/pty_watcher_spec.rb",
+    "specs/pty_runner/pty_runner.spec.md",
+    "specs/watch/watch.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Every trapped INT/TERM is forwarded to the child instead of only the first; the second signal within the burst window forwards and then ends the run at 128+signo with the child reaped and a well-formed result rendered; a lone signal still only reaches the child and rune keeps waiting; every wait on a signalled child is bounded and drains its pty so a wedged pty child cannot hang rune."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

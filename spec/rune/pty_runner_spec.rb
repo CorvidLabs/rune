@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'rune/script'
+require 'timeout'
 require 'tmpdir'
 
 RSpec.describe Rune::PTYRunner do
@@ -402,6 +403,95 @@ RSpec.describe Rune::PTYRunner do
       expect(result).to be_success
       expect(elapsed).to be < 5
       expect(result.data[:exit_code]).to eq(130)
+    end
+
+    # A child that traps INT/TERM and keeps going is not hypothetical — it is
+    # every agent CLI that turns the first Ctrl-C into "interrupt this turn".
+    # Before the escalation ladder, rune latched after the first forward, so
+    # signals two onward were swallowed: rune neither passed them on nor died,
+    # and the only bound left was --timeout (with `rune watch`, nothing at all).
+    it 'gives up and returns a well-formed interrupted result when a second signal arrives, ' \
+       'instead of running on to --timeout' do
+      Dir.mktmpdir do |dir|
+        pid_path = File.join(dir, 'child.pid')
+        ready = false
+        # timeout_seconds is deliberately still generous: if the second signal
+        # were swallowed again this example would report 124 at ~8s, not 130.
+        # The handler *prints*, which is not incidental: a pty child that is
+        # SIGKILLed while bytes it wrote sit unread in the pty buffer wedges
+        # permanently in the macOS kernel exit path and can never be reaped
+        # again. A silent child hides that entirely — this example passed
+        # against an implementation that hung the real CLI for minutes.
+        watch_ready = ->(chunk) { ready ||= chunk.include?('ready') }
+        runner = described_class.new(['ruby', '-e', <<~RUBY], timeout_seconds: 8, &watch_ready)
+          Signal.trap('INT') { $stdout.puts 'child: caught INT' }
+          Signal.trap('TERM') { $stdout.puts 'child: caught TERM' }
+          $stdout.sync = true
+          File.write(#{pid_path.inspect}, Process.pid)
+          puts 'ready'
+          sleep 30
+        RUBY
+
+        signaller = Thread.new do
+          Timeout.timeout(10) { sleep 0.02 until ready }
+          Process.kill('INT', Process.pid)
+          sleep 0.4
+          Process.kill('INT', Process.pid)
+        end
+
+        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        result = runner.run
+        elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+        signaller.join(5)
+        child_pid = File.read(pid_path).strip.to_i
+
+        expect(result).to be_success
+        expect(result.data[:exit_code]).to eq(130)
+        expect(result.data[:clean_output]).to include('ready').and include('Interrupted by SIGINT')
+        # Both interrupts reached the child, and the second one's output was
+        # still drained into the result rather than lost with the teardown.
+        expect(result.data[:clean_output].scan('child: caught INT').size).to eq(2)
+        expect(result.data[:duration_ms]).to be_a(Numeric)
+        expect(elapsed).to be < 6
+        # Reaped, not orphaned: the whole reason rune traps at all is so the
+        # child is dealt with rather than left behind.
+        expect { Process.kill(0, child_pid) }.to raise_error(Errno::ESRCH)
+      end
+    end
+
+    # The case the fix must not lose: a lone signal is still the child's to
+    # handle, and rune keeps waiting on it. Escalation is about a *repeated*
+    # signal, not about rune bailing out the instant one arrives and orphaning
+    # the child — which is exactly why the traps were installed in the first
+    # place.
+    it 'still gives a signal-handling child its first signal and keeps waiting on it, rather than ' \
+       'aborting on the very first one' do
+      Dir.mktmpdir do |dir|
+        marker_path = File.join(dir, 'trapped')
+        ready = false
+        watch_ready = ->(chunk) { ready ||= chunk.include?('ready') }
+        runner = described_class.new(['ruby', '-e', <<~RUBY], timeout_seconds: 10, &watch_ready)
+          Signal.trap('INT') { File.write(#{marker_path.inspect}, 'trapped') }
+          $stdout.sync = true
+          puts 'ready'
+          sleep 0.05 until File.exist?(#{marker_path.inspect})
+          puts 'still here'
+          exit 7
+        RUBY
+
+        signaller = Thread.new do
+          Timeout.timeout(10) { sleep 0.02 until ready }
+          Process.kill('INT', Process.pid)
+        end
+
+        result = runner.run
+        signaller.join(5)
+
+        expect(result).to be_success
+        expect(File.exist?(marker_path)).to be true
+        expect(result.data[:clean_output]).to include('still here')
+        expect(result.data[:exit_code]).to eq(7)
+      end
     end
   end
 

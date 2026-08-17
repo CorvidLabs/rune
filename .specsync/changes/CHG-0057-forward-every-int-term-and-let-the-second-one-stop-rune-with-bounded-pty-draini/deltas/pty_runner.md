@@ -1,21 +1,6 @@
----
-module: pty_runner
-version: 6
-status: active
-files:
-  - lib/rune/pty_runner.rb
-  - lib/rune/commands/run_command.rb
-  - lib/rune/script.rb
-  - lib/rune/signal_handler.rb
-  - lib/rune/utf8_stream_decoder.rb
-  - lib/rune/output_limiter.rb
----
-# PTY Runner
+## MODIFIED
 
-## Purpose
-Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured TTY CLI commands in a sandboxed PTY process, cleans ANSI formatting, tracks execution timing, and exposes structured execution contracts to AI agents and humans alike.
-
-## Public API
+### SPEC SECTION Public API
 
 | Name | Type | Description |
 |------|------|-------------|
@@ -86,7 +71,8 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `continuation_bytes?` | internal predicate | Validates UTF-8 continuation bytes. |
 | `scrub` | internal method | Force-encodes bytes as UTF-8 and replaces invalid sequences. |
 
-## Invariants
+
+### SPEC SECTION Invariants
 
 22. `data[:prompt_detected]` reflects only the *last* non-blank line of the finished output
     buffer (ANSI stripped), not whether any line anywhere in the run ever matched a prompt
@@ -136,7 +122,8 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
     not a `StandardError`, so it cannot be caught while the reader is still in scope — so it gives
     up on a wedged child rather than blocking forever.
 
-## Behavioral Examples
+
+### SPEC SECTION Behavioral Examples
 
 - `ruby bin/rune run -- echo "Hello PTY"` outputs clean JSON in agent mode (`--json`) containing `exit_code: 0`, `clean_output: "Hello PTY\n"`, and `duration_ms`.
 - `rune run -- nonexistent_binary` returns a *successful* `Result` with `data[:exit_code]: 127`; the `rune` process itself also exits `127`.
@@ -184,7 +171,8 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
   three interrupts delivered to the child, session still running — so an agent CLI whose first
   Ctrl-C interrupts a turn is unaffected however many times it is pressed.
 
-## Error Cases
+
+### SPEC SECTION Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
@@ -203,12 +191,8 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | A second INT/TERM arrives within the burst window | The signal is forwarded to the child, then the run ends: the child is reaped (bounded grace, then SIGKILL), `[rune] Interrupted by SIG<NAME>` is appended to the capture, and a successful `Result` reports `exit_code` `128 + signo` |
 | A signalled pty child wedges unreapably in the kernel exit path | The abort path drains the pty master, which clears the wedge; every wait is bounded regardless, so `rune` still exits |
 
-## Dependencies
 
-- Ruby stdlib: `pty`, `timeout`, `io/wait` (required explicitly — `IO#wait_readable` isn't
-  guaranteed to be autoloaded by `pty` alone on every Ruby version)
-
-## Change Log
+### SPEC SECTION Change Log
 
 - v1: Active PTY runner spec contract
 - v1: Added `Script` to this module's file/API coverage (previously untracked by spec-sync

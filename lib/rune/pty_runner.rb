@@ -152,7 +152,25 @@ module Rune
       timed_out_prompt = prompt_detected_in?(raw_output)
       ["#{raw_output}\n[rune] Execution timed out after #{timeout_seconds} seconds", 124, timed_out_prompt,
        stdout_buffer, stderr_buffer]
+    rescue SignalHandler::Aborted => e
+      interrupted_capture(e, spawned_pid, raw_output, stdout_buffer, stderr_buffer)
     rescue PTY::ChildExited then [raw_output, 0, prompt_detected_in?(raw_output), stdout_buffer, stderr_buffer]
+    end
+
+    # The signal that raised Aborted was already forwarded to the child, so the
+    # child had its chance to leave on its own terms. Unwinding to a well-formed
+    # result here rather than letting rune die mid-render is the point: the run
+    # is reported as interrupted, with the output captured up to that moment, at
+    # the conventional 128 + signo status for the signal that ended it.
+    #
+    # The reap is a bounded net, not the primary one: the read loops already
+    # reap while their pty reader is still open (see read_pty_stream), because
+    # that is the only place a wedged child can be drained free. By the time
+    # this runs it normally hits ECHILD and does nothing.
+    def interrupted_capture(error, pid, raw_output, stdout_buffer, stderr_buffer)
+      SignalHandler.reap(pid)
+      ["#{raw_output}\n[rune] Interrupted by SIG#{error.signal_name}", error.exit_code,
+       prompt_detected_in?(raw_output), stdout_buffer, stderr_buffer]
     end
 
     # prompt_detected reflects whether the *last* non-blank line of output looks like an
@@ -186,7 +204,7 @@ module Rune
         on_pid&.call(pid)
         SignalHandler.with_traps(pid) do |forward_signal|
           write_input(w, input) if input
-          read_pty_stream(r, w, raw_output, forward_signal)
+          read_pty_stream(r, w, raw_output, forward_signal, pid)
           exit_code = wait_for_process(pid)
         end
       end
@@ -212,7 +230,7 @@ module Rune
           SignalHandler.with_traps(pid) do |forward_signal|
             write_input(master, input) if input
             streams = [{ reader: master, buffer: stdout_buffer }, { reader: err_r, buffer: stderr_buffer }]
-            read_separate_streams(streams, raw_output, forward_signal)
+            read_separate_streams(streams, raw_output, forward_signal, pid)
             exit_code = wait_for_process(pid)
           end
         ensure
@@ -230,14 +248,17 @@ module Rune
     end
 
     # SIGKILL, not SIGTERM: the process already overran its allotted time, so
-    # there's no value giving it another chance to ignore a softer signal.
+    # there's no value giving it another chance to ignore a softer signal —
+    # hence grace_seconds: 0, which goes straight to the kill. The wait after
+    # it is bounded rather than a plain `Process.wait`, because a pty child
+    # SIGKILLed with unread output can wedge permanently (SignalHandler.reap);
+    # blocking here would turn a --timeout into the unbounded hang --timeout
+    # exists to prevent. Unlike the abort path this cannot drain the pty to
+    # clear such a wedge — Timeout's internal exception is not a StandardError,
+    # so it cannot be caught while the reader is still in scope — so a wedged
+    # child is given up on rather than waited for.
     def kill_orphaned_child(pid)
-      return unless pid
-
-      Process.kill('KILL', pid)
-      Process.wait(pid)
-    rescue Errno::ESRCH, Errno::ECHILD
-      nil
+      SignalHandler.reap(pid, grace_seconds: 0)
     end
 
     def wait_for_process(pid)
@@ -262,7 +283,7 @@ module Rune
     # Polls with a short readable-wait rather than blocking indefinitely on
     # readpartial, so a caught signal gets forwarded promptly instead of
     # waiting for the next chunk of child output (which may never come).
-    def read_pty_stream(reader, writer, output_buffer, forward_signal)
+    def read_pty_stream(reader, writer, output_buffer, forward_signal, pid = nil)
       script_step_index = 0
       decoder = UTF8StreamDecoder.new
       loop do
@@ -275,6 +296,28 @@ module Rune
     rescue Errno::EIO, EOFError, PTY::ChildExited, Errno::EPIPE
       consume_output_chunk(decoder.finish, output_buffer, writer, script_step_index)
       nil
+    rescue SignalHandler::Aborted
+      # The child is reaped here, while the pty reader is still open, rather
+      # than after unwinding out of PTY.spawn — see SignalHandler.reap: a
+      # SIGKILLed pty child with unread output wedges unreapably on macOS, and
+      # only draining the master clears it. Draining also means the last thing
+      # the child managed to print still reaches the interrupted result.
+      SignalHandler.reap(pid) { drain_available(reader, output_buffer, decoder) }
+      raise
+    end
+
+    # One bounded, best-effort read used while tearing a run down. Deliberately
+    # not consume_output_chunk: script steps must not fire during an abort.
+    def drain_available(reader, output_buffer, decoder)
+      return unless reader.wait_readable(0.01)
+
+      chunk = decoder.decode(reader.readpartial(4096))
+      return if chunk.empty?
+
+      output_buffer << chunk
+      on_output&.call(chunk)
+    rescue Errno::EIO, Errno::EPIPE, PTY::ChildExited, IOError # IOError covers EOFError
+      nil
     end
 
     # Multiplexes N independent readers (stdout's pty, stderr's pipe) with IO.select instead of
@@ -282,7 +325,7 @@ module Rune
     # (separate_streams: true and script: are mutually exclusive, checked in #run), just each
     # stream decoded and appended to its own buffer plus the shared merged raw_output. `streams` is
     # `[{reader:, buffer:}, ...]`; a `decoder:` is added to each entry here.
-    def read_separate_streams(streams, raw_output, forward_signal)
+    def read_separate_streams(streams, raw_output, forward_signal, pid = nil)
       streams.each { |stream| stream[:decoder] = UTF8StreamDecoder.new }
       open_streams = streams.dup
 
@@ -290,6 +333,11 @@ module Rune
         forward_signal.call
         poll_ready_streams(open_streams, raw_output)
       end
+    rescue SignalHandler::Aborted
+      # Same reason as read_pty_stream's: keep the stdout pty moving while the
+      # child is killed, or it can wedge unreapably (SignalHandler.reap).
+      SignalHandler.reap(pid) { poll_ready_streams(open_streams, raw_output) unless open_streams.empty? }
+      raise
     end
 
     def poll_ready_streams(open_streams, raw_output)
