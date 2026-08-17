@@ -13,15 +13,27 @@ module Rune
       # survived, so `clean_output` for a driven agent CLI was still unreadable
       # escape soup. Found by driving real agent CLIs through `rune session`,
       # where the "last line of output" summary came back as `\e[?25h`.
+      # The two-byte escapes were the next gap, found the same way: driving
+      # Claude Code through `rune session`, `clean_output` opened with a literal
+      # `\e7\e8` (DECSC/DECRC) on every read — present uncapped as well as
+      # capped, so the stripper rather than the truncation. `ScreenRenderer`
+      # already acted on `[DEM78c]`, so the two parsers in this module disagreed
+      # about what an escape is; the sanitizer was the one that was wrong.
+      #
+      # The charset branch was `[()][AB0K]` and is now the renderer's own set:
+      # `\e(1` and `\e)0` are as real as `\e(B`, and a designation left behind
+      # puts its final byte into the text as a stray letter.
+      #
       # Note: a `/` inside an `-x` mode comment would close the literal, so the
       # comments below deliberately avoid it.
-      ANSI_REGEX = /
+      ANSI_REGEX = %r{
         \e\[ [0-9;?<>=!]* [@-~]         # CSI, including private-parameter forms
         | \e\] [^\a\e]* (?: \a | \e\\ ) # OSC, BEL- or ST-terminated
         | \e [PX^_] [^\e]* \e\\         # DCS, SOS, PM, APC strings
-        | \e [()][AB0K]                 # charset selection
-        | \e [=><]                      # keypad and cursor-key modes
-      /x
+        | \e [()*+] [A-Za-z0-9<>%"&./:?-] # charset designation into G0-G3
+        | \e [\#%] [@A-Za-z0-9]         # DEC screen alignment, UTF-8 select
+        | \e [78DEHMNOZc=><\\]          # two-byte escapes
+      }x
 
       class << self
         def strip_ansi(text)

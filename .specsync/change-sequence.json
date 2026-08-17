@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 63,
-  "id": "CHG-0063-assert-the-geometry-rune-guarantees-not-the-scheduler-that-usually-delivers-it",
+  "sequence": 64,
+  "id": "CHG-0064-honour-the-modes-and-charsets-that-decide-what-the-screen-contains-and-strip-th",
   "acknowledged_collisions": []
 }

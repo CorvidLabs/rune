@@ -158,10 +158,101 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
   end
 
   describe 'sequences that cannot move the cursor' do
+    # `\e[?1049h` used to be in this list and is not any more: it switches to
+    # the alternate screen buffer, which is the opposite of invisible. Grouping
+    # it here is what let the gap sit unnoticed — the test asserted the bug.
     it 'consumes colour, title and mode sequences without emitting them' do
-      raw = "\e[1;32mgreen\e[0m\e]0;a title\a\e[?25l\e[?1049h"
+      raw = "\e[1;32mgreen\e[0m\e]0;a title\a\e[?25l\e[?2004h"
 
       expect(described_class.render(raw, rows: 4, columns: 40)).to eq('green')
+    end
+  end
+
+  # An agent CLI enters the alternate screen at startup, so without this every
+  # byte printed before the switch stayed on the grid and `read --screen`
+  # rendered a shell banner underneath the TUI.
+  describe 'the alternate screen buffer' do
+    it 'hides the primary buffer while the alternate one is in use' do
+      raw = "PRIMARY\r\n\e[?1049hALT"
+
+      frame = described_class.render(raw, rows: 4, columns: 20)
+
+      expect(frame).to include('ALT')
+
+      expect(frame).not_to include('PRIMARY')
+    end
+
+    it 'restores the primary buffer and discards the alternate one on exit' do
+      raw = "PRIMARY\r\n\e[?1049hALT\e[?1049l"
+
+      frame = described_class.render(raw, rows: 4, columns: 20)
+
+      expect(frame).to include('PRIMARY')
+
+      expect(frame).not_to include('ALT')
+    end
+
+    it 'treats a second enter as idempotent rather than saving the alternate buffer over the primary' do
+      raw = "PRIMARY\r\n\e[?1049hALT1\e[?1049h\e[?1049l"
+
+      frame = described_class.render(raw, rows: 4, columns: 20)
+
+      expect(frame).to include('PRIMARY')
+
+      expect(frame).not_to include('ALT1')
+    end
+
+    it 'ignores an exit that was never entered' do
+      expect(described_class.render("PRIMARY\e[?1049l", rows: 4, columns: 20)).to include('PRIMARY')
+    end
+
+    # 47 and 1047 predate 1049 and carry no cursor save; that is why 1049 exists.
+    [47, 1047].each do |mode|
+      it "switches buffers for the older mode #{mode} without a cursor save" do
+        raw = "PRIMARY\r\n\e[?#{mode}hALT\e[?#{mode}l"
+
+        frame = described_class.render(raw, rows: 4, columns: 20)
+
+        expect(frame).to include('PRIMARY')
+
+        expect(frame).not_to include('ALT')
+      end
+    end
+
+    it 'returns to the primary buffer on a full reset, so pre-reset output cannot reappear' do
+      raw = "PRIMARY\r\n\e[?1049hALT\ecAFTER\e[?1049l"
+
+      frame = described_class.render(raw, rows: 4, columns: 20)
+
+      expect(frame).to include('AFTER')
+
+      expect(frame).not_to include('PRIMARY')
+    end
+
+    it 'applies every mode in a combined set, not only the first' do
+      raw = "PRIMARY\r\n\e[?25;1049hALT"
+
+      frame = described_class.render(raw, rows: 4, columns: 20)
+
+      expect(frame).to include('ALT')
+
+      expect(frame).not_to include('PRIMARY')
+    end
+  end
+
+  # A TUI turns autowrap off to paint the last cell of a row without scrolling
+  # the screen out from under itself.
+  describe 'autowrap (DECAWM)' do
+    it 'does not wrap while autowrap is off' do
+      expect(described_class.render("\e[?7l#{'A' * 25}", rows: 4, columns: 20).lines.length).to eq(1)
+    end
+
+    it 'wraps again once autowrap is turned back on' do
+      expect(described_class.render("\e[?7l\e[?7h#{'A' * 25}", rows: 4, columns: 20).lines.length).to eq(2)
+    end
+
+    it 'wraps by default, with no mode set at all' do
+      expect(described_class.render('A' * 25, rows: 4, columns: 20).lines.length).to eq(2)
     end
   end
 

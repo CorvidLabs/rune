@@ -35,6 +35,25 @@ module Rune
         # sequences from the same bytes dropped that to 0.
         @top = 0
         @bottom = @rows - 1
+        # The primary buffer's grid while the alternate one is in use, and nil
+        # otherwise — so "am I in the alternate buffer" and "what do I restore"
+        # are one piece of state rather than two that can disagree.
+        @alternate = nil
+        # DECAWM, on by default as every terminal ships it. A TUI turns it off
+        # to write the last cell of a row without scrolling the screen, which is
+        # why status bars and box borders depend on it.
+        @autowrap = true
+        # IRM. Off by default; with it on, a graphic shifts the rest of the line
+        # right instead of overwriting. `zsh`'s line editor sets it to insert a
+        # character mid-line without repainting the tail.
+        @insert = false
+        # G0/G1 charset designations and which of them GL currently selects.
+        # `ESC ( 0` designates DEC Special Graphics into G0, which is how
+        # ncurses draws a box from `acsc` — the letters q, x, l, k are the line
+        # glyphs, so leaving the designation unhandled printed `qqq` where a
+        # border belonged.
+        @charsets = { 'G0' => :ascii, 'G1' => :ascii }
+        @gl = 'G0'
       end
 
       # RIS. Consumed but not acted on until now, under a comment asserting
@@ -44,6 +63,14 @@ module Rune
       # stale region then confines every later line feed, IL, DL and scroll
       # for the rest of the render.
       def full_reset(_numbers = [])
+        # RIS returns to the primary buffer and to autowrap on, like a terminal
+        # power-cycling. Clearing the grid while still holding the alternate
+        # buffer's would have left the primary's contents to reappear at the
+        # next `\e[?1049l` — a reset that resurrects pre-reset output.
+        @alternate = nil
+        @autowrap = true
+        @charsets = { 'G0' => :ascii, 'G1' => :ascii }
+        @gl = 'G0'
         @grid = Array.new(@rows) { +'' }
         @saved = nil
         soft_reset
@@ -52,6 +79,7 @@ module Rune
       # DECSTR. Resets the region, origin and saved cursor, and homes the
       # cursor, but deliberately does not clear the display.
       def soft_reset(_numbers = [])
+        @insert = false
         @top = 0
         @bottom = @rows - 1
         @saved = nil
@@ -78,15 +106,115 @@ module Rune
         move_to(0, 0)
       end
 
+      # A DEC private mode, `CSI ? Pm h` / `CSI ? Pm l`. Every private form used
+      # to be dropped whole, which was right for the ones that only affect a
+      # real terminal's hardware (cursor visibility, bracketed paste, mouse
+      # reporting) and wrong for the two that decide what the grid contains.
+      #
+      # Modes not listed here are still ignored, deliberately: `\e[?25l` and
+      # `\e[?2004h` change nothing a rendered frame can show, and guessing at an
+      # unknown mode is how a renderer starts inventing output.
+      # DEC Special Graphics, the `acsc` set every ncurses program draws boxes
+      # with. Only 0x5F-0x7E are remapped; everything else passes through, which
+      # is why text between `ESC ( 0` and `ESC ( B` is not mangled.
+      GRAPHICS = {
+        '_' => ' ', '`' => '◆', 'a' => '▒', 'b' => '␉', 'c' => '␌', 'd' => '␍', 'e' => '␊',
+        'f' => '°', 'g' => '±', 'h' => '␤', 'i' => '␋', 'j' => '┘', 'k' => '┐', 'l' => '┌',
+        'm' => '└', 'n' => '┼', 'o' => '⎺', 'p' => '⎻', 'q' => '─', 'r' => '⎼', 's' => '⎽',
+        't' => '├', 'u' => '┤', 'v' => '┴', 'w' => '┬', 'x' => '│', 'y' => '≤', 'z' => '≥',
+        '{' => 'π', '|' => '≠', '}' => '£', '~' => '·'
+      }.freeze
+
+      # `ESC ( <final>` and `ESC ) <final>`. `0` selects the graphics set; `B`
+      # and every other designation returns that slot to ASCII, because guessing
+      # at an unknown national set would corrupt text a terminal shows plainly.
+      def designate_charset(slot, final)
+        @charsets[slot] = final == '0' ? :graphics : :ascii
+      end
+
+      # SO and SI. A program that designates graphics into G1 shifts in and out
+      # around each run rather than re-designating G0 every time.
+      def shift_out = @gl = 'G1'
+      def shift_in = @gl = 'G0'
+
+      # ANSI (public) modes, `CSI Pm h/l`. Only IRM decides what the grid holds;
+      # the rest govern a real terminal's input handling and are ignored.
+      def ansi_modes(parameters, enable)
+        parameters.split(';').each { |mode| @insert = enable if mode.to_i == 4 }
+        nil
+      end
+
+      # `CSI ? 1049 ; 25 h` sets both, so each parameter applies in turn. An
+      # empty list is `CSI ? h`, which selects nothing and must not read as 0.
+      def private_modes(parameters, enable)
+        parameters.split(';').reject(&:empty?).each { |mode| private_mode(mode.to_i, enable) }
+        nil
+      end
+
+      def private_mode(mode, enable)
+        return alternate_buffer(mode, enable) if ALTERNATE_MODES.key?(mode)
+        return enable ? save_cursor : restore_cursor if mode == 1048
+
+        @autowrap = enable if mode == 7
+      end
+
+      # xterm 1049 saves the cursor, switches to a cleared alternate buffer, and
+      # restores both on exit. Agent CLIs enter it at startup, so without it
+      # every byte printed before the switch stayed on the grid and
+      # `read --screen` showed a shell banner underneath a TUI. 47 and 1047 are
+      # the older forms and carry no cursor save — that is precisely why 1049
+      # was added, so they are not given one here.
+      ALTERNATE_MODES = { 1049 => true, 1047 => false, 47 => false }.freeze
+
+      def alternate_buffer(mode, enable)
+        saves_cursor = ALTERNATE_MODES.fetch(mode)
+        enable ? enter_alternate(save: saves_cursor) : leave_alternate(restore: saves_cursor)
+      end
+
+      # The scroll region is deliberately not part of the snapshot. DECSTBM
+      # margins belong to the terminal rather than to a buffer in xterm, so a
+      # region set inside the alternate buffer survives the switch back — which
+      # is what an application that sets one before switching depends on.
+      def enter_alternate(save:)
+        return if @alternate # 1049h while already alternate is idempotent, not a second save.
+
+        save_cursor if save
+        @alternate = @grid
+        @grid = Array.new(@rows) { +'' }
+      end
+
+      def leave_alternate(restore:)
+        return unless @alternate
+
+        @grid = @alternate
+        @alternate = nil
+        restore_cursor if restore
+      end
+
       def to_s = @grid.map(&:rstrip).join("\n").sub(/\n+\z/, '')
 
       def write(chunk)
         chunk.each_char do |char|
-          wrap if @wrap_pending
+          # With DECAWM off the pending wrap is never taken: the cursor stays on
+          # the last cell and each further graphic overwrites it. That is what
+          # lets a TUI paint the bottom-right corner of a border without
+          # scrolling the screen out from under itself.
+          wrap if @wrap_pending && @autowrap
+          @wrap_pending = false unless @autowrap
           pad
-          @grid[@row][@column] = char
+          # IRM: make room first, so the tail of the line shifts right rather
+          # than being overwritten. ICH is the same operation, which is why this
+          # reuses it rather than reimplementing the clamp at the right margin.
+          insert_blanks([1]) if @insert
+          @grid[@row][@column] = translate(char)
           advance
         end
+      end
+
+      def translate(char)
+        return char unless @charsets[@gl] == :graphics
+
+        GRAPHICS.fetch(char, char)
       end
 
       def carriage_return

@@ -24,6 +24,12 @@ module Rune
     # earlier version claimed that boundary while ignoring `ESC D`/`E`/`M`,
     # cursor save/restore, `VPA`, and the insert/delete family; the first of
     # those printed a literal `D` into the output.
+    # rubocop:disable Metrics/ClassLength -- 101 code lines across 267 physical: the length is one
+    # documented rationale per escape, and each of those comments exists because the sequence above
+    # it was got wrong once. The tables and the dispatch that reads them have to stay together —
+    # `ESC D` printed a literal `D` precisely because a sequence was absent from the table the
+    # dispatch consults, and the state half was already extracted into `Screen` for exactly this
+    # ceiling. Splitting the grammar from its own vocabulary would hide that class of bug again.
     class ScreenRenderer
       DEFAULT_ROWS = 40
       DEFAULT_COLUMNS = 120
@@ -108,6 +114,17 @@ module Rune
       INCOMPLETE = %r{\A(?:\[[0-9:;<=>?]*[ -/]*|\][^\a\e]*|[PX^_][^\e]*|[()*+#% ])\z}
       # CSI final byte to the operation it performs. A table rather than a case
       # so that adding a sequence is a line, not a branch.
+      # Control byte to the operation it performs, a table for the same reason
+      # CONTROLS is one. SO/SI select G1/G0 and were previously consumed and
+      # dropped, which is correct only while no slot can hold anything but ASCII.
+      BYTE_CONTROLS = {
+        "\r" => :carriage_return, "\n" => :newline, "\v" => :newline, "\f" => :newline,
+        "\x08" => :backspace, "\x0e" => :shift_out, "\x0f" => :shift_in
+      }.freeze
+
+      # `CSI Pm h/l`, with an optional private prefix. Nothing else may reach the
+      # mode path: an intermediate byte selects a different function entirely.
+      MODE_FORM = /\A\[(\??)[\d;]*[hl]\z/
       CONTROLS = {
         'A' => :cursor_up, 'B' => :cursor_down, 'C' => :cursor_right, 'D' => :cursor_left,
         'E' => :cursor_next_line, 'F' => :cursor_previous_line, 'G' => :cursor_column,
@@ -216,13 +233,12 @@ module Rune
       # class is a zero-width *word boundary*: it matched without consuming, and
       # rendering any stream containing a backspace hung forever.
       def control_byte(scanner)
-        case scanner.getch
-        when "\e" then escape(scanner)
-        when "\r" then @screen.carriage_return
-        when "\n", "\v", "\f" then @screen.newline
-        when "\x08" then @screen.backspace
-        when "\t" then @screen.tab(TAB_WIDTH)
-        end
+        byte = scanner.getch
+        return escape(scanner) if byte == "\e"
+        return @screen.tab(TAB_WIDTH) if byte == "\t"
+
+        operation = BYTE_CONTROLS[byte]
+        @screen.public_send(operation) if operation
       end
 
       def escape(scanner)
@@ -231,6 +247,13 @@ module Rune
 
         single = scanner.scan(/[DEM78c]/)
         return @screen.public_send(ESCAPES.fetch(single), []) if single
+
+        # Charset designation, `ESC ( <final>` / `ESC ) <final>`. Consumed by
+        # IGNORED until now, which was right while nothing could act on it and
+        # wrong once the graphics set existed: ncurses draws every box from it,
+        # so a dropped designation printed `qqq` where a border belonged.
+        designation = scanner.scan(%r{[()][A-Za-z0-9<>%"&./:?-]})
+        return @screen.designate_charset(designation[0] == '(' ? 'G0' : 'G1', designation[1]) if designation
 
         # Consumed and ignored: none of these can move the cursor, so none of
         # them can change the text on the screen.
@@ -242,6 +265,13 @@ module Rune
         # which was fixed for three escapes and left in place for the rest.
         # `\ec` put a literal `c` on screen, `\e(1` a `(1`, `\eN` an `N`.
         IGNORED.any? { |pattern| scanner.scan(pattern) } || incomplete(scanner)
+      end
+
+      # `\e[?1049h` and `\e[4h` differ only in where the parameters start.
+      def apply_modes(csi, private_form)
+        enable = csi[-1] == 'h'
+        parameters = csi[(private_form ? 2 : 1)..-2].to_s
+        private_form ? @screen.private_modes(parameters, enable) : @screen.ansi_modes(parameters, enable)
       end
 
       # A sequence the buffer ended in the middle of. Consumed rather than
@@ -261,6 +291,11 @@ module Rune
         # dropped twice over. terminfo's `rs2`/`is2` for xterm begin with it.
         return @screen.soft_reset([]) if csi == '[!p'
 
+        # Mode changes, before the guard below drops every `?` form: the private
+        # ones decide what the grid *contains*, not how hardware behaves.
+        mode = csi.match(MODE_FORM)
+        return apply_modes(csi, mode[1] == '?') if mode
+
         operation = CONTROLS[csi[-1]]
         parameters = csi[1..-2].to_s
         # Private-parameter forms are modes (`\e[?25l`, `\e[?1049h`) or vendor
@@ -279,11 +314,7 @@ module Rune
 
         @screen.public_send(operation, parameters.delete('<>=!').split(';').map(&:to_i))
       end
-
-      # The grid and cursor a terminal would maintain. Separated from the
-      # stream parsing above so each half is legible on its own: this one knows
-      # nothing about escape sequences, only about where text goes.
-      #
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end
