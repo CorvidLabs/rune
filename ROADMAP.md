@@ -79,6 +79,30 @@ the way:
   quiet-settle the *default* path for children that repaint — the reply cannot
   yet tell you, so the API should not imply that it can.
 
+- **`--wait-for-regex` matches the byte stream, which is the wrong surface — but the screen is not
+  simply the right one.** Reported from real use: in one session with one sentinel, the flag produced
+  a false positive on the caller's own composer echo *and* a false negative on the child's real
+  output, because the TUI split the token across a wrap boundary.
+
+  Both halves reproduce, and the second half of the reporter's conclusion does not. Harnesses are in
+  `harnesses/wrap_reassembly.rb` and `harnesses/composer_echo.rb`.
+
+  | | byte stream | rendered screen |
+  |---|---|---|
+  | token split by cursor positioning | **not found** | found |
+  | caller's prompt in a composer box | found (false positive) | **also found (false positive)** |
+
+  So rendering fixes the false negative and *not* the false positive: a regex against the screen
+  matches `\| When finished print exactly RUNE_TASK_COMPLETE_573` in the composer box just as the
+  byte stream did. A human reading `--screen` can see that is the composer; a pattern cannot.
+
+  The complete fix is therefore **screen matching plus the echo veto rune already has** — condensed
+  location and `Echo#repaint?`, built for the byte path. The open question is cost: matching per tick
+  would render the grid on every pty read, and per-tick cost is what made the send path quadratic
+  twice. A settle-time check is cheap and fixes the wrong-answer case while giving up the early
+  return that is the flag's whole point. Neither is measured yet, and this is the item most likely to
+  be got wrong in a hurry — four rules have already failed on the adjacent settle problem.
+
 - **Independent review.** Most of the sharpest bugs in this project were found by an agent other
   than the one that wrote the code: the ECMA-48 erase semantics, the `ESC D` that printed a literal
   `D`, every item in 0.7.0, and nine more in 0.8.0. That is evidence about method, not luck, and
