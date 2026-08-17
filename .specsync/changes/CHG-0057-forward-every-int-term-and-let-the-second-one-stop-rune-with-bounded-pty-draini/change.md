@@ -1,6 +1,6 @@
 ---
 id: CHG-0057-forward-every-int-term-and-let-the-second-one-stop-rune-with-bounded-pty-draini
-state: implementing
+state: accepted
 type: feature
 base_commit: 6277a4e99d31233ed54d2f8edd8f4245d7239a38
 ---

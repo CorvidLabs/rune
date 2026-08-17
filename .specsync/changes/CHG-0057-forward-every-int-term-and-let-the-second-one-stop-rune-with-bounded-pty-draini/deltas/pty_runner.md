@@ -63,6 +63,12 @@
 | `POST_KILL_SECONDS` | constant | Bound on waiting for a SIGKILLed child to become reapable (2.0). |
 | `POLL_SECONDS` | constant | Reap-loop poll interval (0.02). |
 | `drain_available` | internal method | One bounded, best-effort pty read used while tearing an aborted run down; appends to the capture and fires `on_output` without driving script steps. |
+| `drain` | internal method | Forwards every signal queued since the last poll, in order, then raises `Aborted` at the burst threshold. |
+| `next_signal` | internal method | Pops one queued signal name, or `nil` when the queue is empty. |
+| `record_burst` | internal method | Returns the signal's position within the current burst, restarting the count once the burst window has lapsed. |
+| `forward` | internal method | Sends one signal to the child, treating an already-dead or permission-denied target as handled. |
+| `trap_signal` | internal method | Installs one trap, swallowing an unsupported signal name instead of raising. |
+| `restore_signal` | internal method | Restores one signal's previous disposition, defaulting to `DEFAULT`. |
 | `interrupted_capture` | internal method | Reaps and builds the capture tuple for a run ended by a repeated signal. |
 | `UTF8StreamDecoder` | class | Incrementally decodes chunks while retaining incomplete UTF-8 suffix bytes. |
 | `decode` | instance method | Returns complete scrubbed UTF-8 text and buffers an incomplete suffix. |

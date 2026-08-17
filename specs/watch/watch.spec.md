@@ -1,6 +1,6 @@
 ---
 module: watch
-version: 7
+version: 8
 status: active
 files:
   - lib/rune/pty_watcher.rb
@@ -38,6 +38,8 @@ there.
 | `synchronize_window_size` | internal method | Copies changed terminal dimensions onto the child PTY. |
 | `valid_window_size?` | internal predicate | Accepts two positive integer terminal dimensions. |
 | `terminate_child` | internal method | Kills and reaps a child after an output-sink failure or a timeout. |
+| `interrupted_result` | internal method | Reaps the child and builds the session result for a run ended by a repeated INT/TERM, at the conventional `128 + signo` exit code. |
+| `drain_available` | internal method | One bounded, best-effort pty read used while tearing an interrupted session down; keeps the child's last bytes on screen and in the log. |
 | `wait_for_exit_code` | internal method | Reaps the child and normalizes exit or signal status. |
 | `log_event` | internal method | Writes and flushes one timestamped NDJSON event. |
 | `Commands` | module | Namespace containing concrete CLI command implementations. |
@@ -227,3 +229,4 @@ there.
 | 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |
 | 2026-08-14 | CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t: Add opt-in `--timeout=SECONDS` (total wall-clock) and `--idle-timeout=SECONDS` (no output/input) to `rune watch`, so an agent-driven session can no longer hang forever. Fully additive: the result data shape is unchanged when neither flag is passed. Closes #14. |
 | 2026-08-14 | CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t: Add --timeout and --idle-timeout to rune watch so an agent-driven session can't hang forever, closing #14 |
+| 2026-08-17 | CHG-0057-forward-every-int-term-and-let-the-second-one-stop-rune-with-bounded-pty-draini: Forward every INT/TERM and let the second one stop rune, with bounded pty-draining child reaping |

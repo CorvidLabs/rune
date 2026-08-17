@@ -6,6 +6,27 @@
       "timestamp": 1786985561,
       "digest": "ab47dc92597cdb1766322d1c33b05e19d025075fb3a03a6c583cd8681ad0dd98",
       "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786985653,
+      "digest": "e1f41bf44823c261167c7069cca2c66ab2b4fefd80d0713462a7346c8fdceb63",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786985697,
+      "digest": "8e6b1fd7bc629f0160a6ab042e91a6f5ef469d4c31b992a2a5d33c0d4133d752",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1786985818,
+      "digest": "ee577e35cfc19a97b0ec5653e2560533d7355a1af3dc6154ee840acaa7f5f697",
+      "note": null
     }
   ],
   "reopenings": []

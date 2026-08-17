@@ -1,0 +1,146 @@
+{
+  "timestamp": 1786985809,
+  "commit": "c42843631776eb96082ae42017ffe363e5f71dc4",
+  "contract_digest": "8e6b1fd7bc629f0160a6ab042e91a6f5ef469d4c31b992a2a5d33c0d4133d752",
+  "workspace_digest": "be6daef5548f2910d3c2696818643d4fd69d246436814e7abafc12384168465a",
+  "acceptance_input_digest": "f22794855256d9b496b963dcabaf868cd184c04c019c88ec13432d46361bc347",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "41f49f715c4da64e787911db2df4e073a0e871a289057189326ffe2b88bed2fe",
+        "entry_digest": "b24ed65143705e04601edffaa91ab9f6f2ad320c6b61b9bde98178ff512a34fe",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "lib/rune/pty_runner.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4b20de14229d0214389bc5fb7987411de565028503a8b4a1e1a6449713362ae7",
+        "entry_digest": "5bcfcc0a9fa96fb7837ce6b5b67451807a04265d3df616a0959c59abfc71e1f2",
+        "owners": [
+          "pty_runner"
+        ]
+      },
+      {
+        "path": "lib/rune/pty_watcher.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "366e72c42c12ab9535011e76b56bc0a3fa9c61886b3955a4b904e7ba899a3cd2",
+        "entry_digest": "8eda5392ab3a6ac6c22f7cb5403f74592357b4a2eb585684cd4633de4caf5ce6",
+        "owners": [
+          "watch"
+        ]
+      },
+      {
+        "path": "lib/rune/signal_handler.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "505433f78ac1a2fa42a6d323ae2651a8ced640bf42a1ce447000d1a040454478",
+        "entry_digest": "94bbe62cd5fc8dd84ef7c0074ed2101baaeccfd37133c2ced060150aceca52d3",
+        "owners": [
+          "pty_runner"
+        ]
+      },
+      {
+        "path": "spec/rune/pty_runner_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "cef4c7f86c9c325e10c676619bfb82bde2e9e079d04a40f2b1e05e43e210c15b",
+        "entry_digest": "685d924f08d57139b295b1415aa22d4dd205af7fbb6771563883505293311d45",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/rune/pty_watcher_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2328e33ac5fdc7283fdf411811daee37ac1665136b3651e7fe102884fffa80cc",
+        "entry_digest": "d90582083e27ba9b3e9fabb43b9a535012b108a3912e4397de68e3950575884a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "spec/rune/signal_handler_spec.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "abd4e7ccef9aa15d3d7249e184fae13e30806e168ca3b16d151e7b0f5b0f13f2",
+        "entry_digest": "2957cdd7d742450d596faacbfec114c810ce2360266a3afb51d38b60e2d312ef",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/pty_runner/pty_runner.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "18fc184a2d3b364cb9f6a946c8f3a60a90d3d3820db4b49a80a61f14c50cbfd6",
+        "entry_digest": "c73aea7e962470f161d36c53686bd8b75e1f120602d2544a38cc1e26c555444b",
+        "owners": [
+          "pty_runner"
+        ]
+      },
+      {
+        "path": "specs/pty_runner/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3070f0d5d578baa2f058503359b33d17c02641731aec9e820e782f4e58813fcf",
+        "entry_digest": "6e141c1e84e140b7147f958068fa75dd6c0e22153ff3c50fe8782499d2f7dfb7",
+        "owners": [
+          "pty_runner"
+        ]
+      },
+      {
+        "path": "specs/watch/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4120dc4e6971fe20155d57e0110ef66f1dc8560a9471fffb954222cb6d7fd81a",
+        "entry_digest": "4396e75507693c7f324e619de816b9b20564813b26b608ac4bc577d26759bbf2",
+        "owners": [
+          "watch"
+        ]
+      },
+      {
+        "path": "specs/watch/watch.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b43631e77d15fd643fc4800cba7b4371a143ef7c3996d3304d03344c56100e11",
+        "entry_digest": "203270b2f461164480908c0c1805e58f631bd4ee4f808fc6bc5ab465c95c0cea",
+        "owners": [
+          "watch"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}
