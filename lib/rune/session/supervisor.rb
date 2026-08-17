@@ -490,12 +490,11 @@ module Rune
         cols = Integer(cols)
         return unless rows.positive? && cols.positive?
 
-        # Clamped here, at the point the size becomes a fact, rather than where
-        # it is rendered: the pty, the child's own idea of its geometry and the
-        # value written to meta then all agree, and no later reader has to
-        # decide what a 65535-row session means.
-        rows = [rows, MAX_ROWS].min
-        cols = [cols, MAX_COLUMNS].min
+        # The child gets exactly the size it was given. Clamping before this
+        # line reached the *pty*: attaching from a 400-row terminal silently
+        # handed the child 300, so a TUI painted its top 300 rows forever and
+        # nothing in the ack or the reply said so. The ceiling exists to bound
+        # what rune later renders, which is rune's problem and not the child's.
         writer.winsize = [rows, cols]
         # SIGWINCH is what tells a TUI to re-lay-out; setting the size alone
         # leaves it drawing at the old geometry until something else repaints.
@@ -522,12 +521,21 @@ module Rune
       # frame, and each one would otherwise rewrite meta.json — a
       # read-modify-write of the whole file, on the thread that also has to keep
       # pumping the pty.
+      # Recorded, and clamped at the record — the one place a ceiling belongs,
+      # because rendering is the only thing it protects. A reduced value is
+      # marked so `screen_size_recorded` can report false, which the spec
+      # already promised and the code did not do: a supervisor-clamped size used
+      # to come back flagged as trustworthy.
       def record_window_size(rows, cols)
-        return if @rows == rows && @cols == cols
-        return unless @store.update_meta(@name, rows: rows, cols: cols)
+        bounded_rows = [rows, MAX_ROWS].min
+        bounded_cols = [cols, MAX_COLUMNS].min
+        reduced = bounded_rows != rows || bounded_cols != cols
+        return if @rows == bounded_rows && @cols == bounded_cols && @size_reduced == reduced
+        return unless @store.update_meta(@name, rows: bounded_rows, cols: bounded_cols, size_reduced: reduced)
 
-        @rows = rows
-        @cols = cols
+        @rows = bounded_rows
+        @cols = bounded_cols
+        @size_reduced = reduced
       end
 
       # Total bytes the child has ever produced. Cursors are offsets into that,

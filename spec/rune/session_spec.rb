@@ -1764,10 +1764,11 @@ RSpec.describe Rune::Commands::SessionCommand do
       start_session('win8', size_painting_child)
       wait_for_repaint('win8', 'size 40x120')
       resize('win8', 65_535, 65_535)
-      # Clamped at the pty too, so the child, the record and the render agree —
-      # a recorded size the child never had would be the original bug again.
-      wait_for_repaint('win8', "size #{Rune::Session::Supervisor::MAX_ROWS}x" \
-                               "#{Rune::Session::Supervisor::MAX_COLUMNS}")
+      # The CHILD gets what it asked for. Clamping the pty as well silently
+      # handed a 400-row terminal's child 300 rows, so a TUI painted its top 300
+      # forever with nothing in the ack saying so. The ceiling protects rune's
+      # renderer, which is rune's problem and not the child's.
+      wait_for_repaint('win8', 'size 65535x65535')
 
       result = session('read', '--name=win8', '--screen')
 
@@ -1775,6 +1776,9 @@ RSpec.describe Rune::Commands::SessionCommand do
                                                  cols: Rune::Session::Supervisor::MAX_COLUMNS)
       expect(result.data.values_at(:screen_rows, :screen_cols))
         .to eq([Rune::Session::Supervisor::MAX_ROWS, Rune::Session::Supervisor::MAX_COLUMNS])
+      # A size rune had to reduce is not the child's geometry, so it is not
+      # "recorded" either — which is what the spec promised before the code did.
+      expect(result.data[:screen_size_recorded]).to be false
     end
   end
 

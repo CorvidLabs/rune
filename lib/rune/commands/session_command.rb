@@ -497,7 +497,10 @@ module Rune
       def window_size(name)
         meta = store.read_meta(name) || {}
         rows, columns = Parsers::ScreenRenderer.dimensions(meta[:rows], meta[:cols])
-        [rows, columns, rows == meta[:rows] && columns == meta[:cols]]
+        # A size the supervisor had to reduce is not the child's geometry, so it
+        # is not "recorded" either — the spec said as much before the code did.
+        recorded = rows == meta[:rows] && columns == meta[:cols] && !meta[:size_reduced]
+        [rows, columns, recorded]
       end
 
       def bound_output(text, options, transcript = nil)
