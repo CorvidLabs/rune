@@ -10,6 +10,20 @@ started it, and `send` blocks until the child has actually answered.
 
 ## Naming: every session has one, you rarely have to pick it
 
+Sessions are namespaced per **directory**: a project is the working directory's basename plus a hash
+of its path, so two git worktrees of the same repository are two separate namespaces. `start` reports
+the one it registered in, and reading that field is the difference between a five-minute detour and
+an hour:
+
+```console
+$ rune session start --name reviewer -- grok
+{"name":"reviewer","project":"myrepo-0a922f34","command":["grok"],"state":"running",...}
+```
+
+`read` from the wrong directory answers *"No such session"*, and `list` — which that error suggests
+— shows an empty array, which reads as confirmation the session died rather than that you are
+standing somewhere else.
+
 ```console
 $ rune session start -- grok
 {"name":"grok-amber","command":["grok"],"child_pid":68012,"supervisor_pid":67926,"state":"running"}

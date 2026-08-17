@@ -257,7 +257,14 @@ module Rune
         end
 
         meta = store.read_meta(name) || {}
+        # `project` because a session's namespace is the cwd's basename plus a
+        # hash, so every git worktree is a separate one. A caller that started a
+        # session in a worktree and read from the parent repo got
+        # "No such session", and `list` — the remedy the error suggests — showed
+        # an empty array, actively confirming the wrong conclusion. Reported by
+        # someone who was about to debug the wrong program.
         Result.success({ action: 'start', name: name, command: command,
+                         project: store.project,
                          child_pid: meta[:child_pid], supervisor_pid: pid,
                          state: meta[:state], exit_code: meta[:exit_code] }.compact)
       end
@@ -362,6 +369,19 @@ module Rune
         }.compact
       end
 
+      # The child's state, on every send and read.
+      #
+      # Only `list` carried it, and the driving loop is send -> read -> send. A
+      # child that exited answered `settled: true` with no indication, so a naive
+      # loop drove a corpse forever seeing plausible replies each time. Reported
+      # from real use by someone who read `settled: true, matched: nil` at 1198ms
+      # against a 30s settle window and started drafting a bug that --settle-ms
+      # was being ignored — the child had died. Presentation gap, not a data gap.
+      def liveness(name)
+        meta = store.read_meta(name) || {}
+        { state: meta[:state], exit_code: meta[:exit_code] }.compact
+      end
+
       def validate_regex(source)
         return nil if source.nil?
 
@@ -382,6 +402,7 @@ module Rune
 
         Result.success({ action: action, name: name }
                          .merge(with_clean_output(reply))
+                         .merge(liveness(name))
                          .merge(screen_after(name, screen)))
       rescue Session::Client::Unavailable => e
         Result.failure("Session #{name.inspect} is not reachable (#{e.message}). It may have exited; " \
@@ -461,6 +482,7 @@ module Rune
           prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }
           .merge(transcript.dropped.positive? ? { dropped_bytes: transcript.dropped } : {})
           .merge(busy_fields(options))
+          .merge(liveness(options[:name]))
           .merge(options[:screen] ? screen_fields(transcript, options[:name]) : {})
       end
 

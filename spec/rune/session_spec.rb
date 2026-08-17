@@ -140,6 +140,41 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # Every one of these came from a field report driving grok and kimi through
+  # rune on real work. Each is one additive field; each existed because the
+  # information was already known and simply not said.
+  describe 'saying what happened' do
+    it 'reports the project a session registered in' do
+      result = start_session('proj', %w[cat])
+
+      # A session's namespace is the cwd's basename plus a hash, so every git
+      # worktree is separate. Starting in a worktree and reading from the parent
+      # repo gave "No such session", and `list` — the remedy the error suggests
+      # — returned an empty array, confirming the wrong conclusion.
+      expect(result.data[:project]).to eq(store.project)
+    end
+
+    it 'reports liveness on a send, so a loop cannot drive a corpse' do
+      start_session('live', ['ruby', '-e', 'STDOUT.sync = true; STDIN.gets; exit 7'])
+
+      session('send', '--name=live', '--settle-ms=300', '--timeout-ms=8000', '--', 'go')
+      wait_until(reason: 'the child to exit') { session('list').data[:sessions].first[:state] == 'exited' }
+      result = session('read', '--name=live')
+
+      expect(result.data[:state]).to eq('exited')
+      expect(result.data[:exit_code]).to eq(7)
+    end
+
+    it 'returns a cursor from --no-wait, so fire-and-poll is one call' do
+      start_session('nw', %w[cat])
+
+      result = session('send', '--name=nw', '--no-wait', '--', 'queued')
+
+      expect(result.data[:cursor]).to be_a(Integer)
+      expect(result.data[:waited]).to be false
+    end
+  end
+
   describe 'send-and-settle' do
     # Regression for the defect that made the first working build subtly
     # useless: a pty echoes input straight back, so the echo alone satisfied

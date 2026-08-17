@@ -542,15 +542,26 @@ module Rune
       # Sent over its own short-lived control connection rather than inline,
       # because after the attach ack the attachment socket is a raw byte pipe
       # to the pty — a control frame in that stream would be typed at the child.
+      # Reports what it did, not that it was asked. `resized: true` was a
+      # constant: `{"op":"resize"}` with no arguments, with negative values, and
+      # with `"tall"`/`"wide"` all answered `resized: true` while the session was
+      # correctly left alone. A socket client could not tell whether its resize
+      # took effect — reported from real use, and the kind of inconsistency that
+      # matters more than any single bug, because a client author generalises
+      # from whichever behaviour they meet first.
       def handle_resize(request, client, writer)
-        resize_child(writer, request[:rows], request[:cols])
-        respond(client, resized: true)
+        applied = resize_child(writer, request[:rows], request[:cols])
+        return respond(client, resized: true, rows: applied[0], cols: applied[1]) if applied
+
+        respond(client, resized: false,
+                        error: 'rows and cols must both be positive integers')
       end
 
+      # Returns the size actually applied, or nil when the request was unusable.
       def resize_child(writer, rows, cols)
         rows = Integer(rows)
         cols = Integer(cols)
-        return unless rows.positive? && cols.positive?
+        return nil unless rows.positive? && cols.positive?
 
         # The child gets exactly the size it was given. Clamping before this
         # line reached the *pty*: attaching from a 400-row terminal silently
@@ -564,6 +575,7 @@ module Rune
         # something else entirely.
         Process.kill('WINCH', @child_pid) if @child_pid && !@child_finished
         record_window_size(rows, cols)
+        [rows, cols]
       rescue TypeError, ArgumentError, IOError, SystemCallError, NoMethodError
         nil
       end
@@ -714,7 +726,13 @@ module Rune
         # --no-wait has no such check, so it answered `sent: true` for bytes
         # that reached nothing.
         return respond(client, error: 'session child has exited') if @child_finished
-        return respond(client, sent: true, waited: false) if request[:no_wait]
+        # `cursor` because --no-wait exists for exactly one pattern — fire the
+        # task, then poll for output newer than the send — and it was the only
+        # send mode that withheld the position marker that pattern needs. The
+        # workaround was `read` for a cursor and then `send --no-wait`: two calls,
+        # with a window where the child's output lands after the cursor but
+        # before the task was sent. Reported from real use.
+        return respond(client, sent: true, waited: false, cursor: transcript_bytes) if request[:no_wait]
 
         begin_pending(request, client, echo)
       end
