@@ -123,6 +123,33 @@ the way:
   return that is the flag's whole point. Neither is measured yet, and this is the item most likely to
   be got wrong in a hurry — four rules have already failed on the adjacent settle problem.
 
+- **A retained per-session `Screen` is the fix, and it is now specified rather than hoped for.** It
+  removes the render window instead of tuning it, which is what makes every constant above
+  unnecessary, and it takes per-tick cost from ~262KB re-processed to the ~277 bytes that actually
+  arrived — which is also what makes screen-based `--wait-for-regex` matching affordable. The whole
+  chain hangs off it.
+
+  Measured, by the spec-sync session and reproduced here on a second corpus: feeding pty chunks into
+  one retained renderer **diverges** from a one-shot render — 3297 bytes against 2980, 28 of 40 lines
+  differing on their corpus. The cause is not scroll, insert/delete or save/restore; those are
+  `Screen` state and `Screen` is retained. **The parser is stateless between calls**: `render` builds a
+  fresh `StringScanner`, so an escape split across a chunk boundary fails to match CSI, falls through
+  to `PRINTABLE`, and is written onto the grid as literal text. The divergent lines are escape
+  fragments — a bare `H`, a `108;`, an `m│`.
+
+  Holding back a trailing partial escape and prepending it to the next chunk makes both corpora
+  byte-identical to the one-shot render. Validated independently here: 2980 == 2980.
+
+  **The UTF-8 half of that carry already exists and is already on this path.** `UTF8StreamDecoder`
+  keeps a `@pending` byte suffix across reads and `supervisor.rb` decodes every pty read through it
+  before the text reaches the transcript. That is also why a transcript replay shows zero
+  invalid-encoding chunks: the split was resolved before it was ever written. So a retained grid needs
+  the escape carry only, and must sit *after* the existing decoder rather than replacing it.
+
+  Still open, and the only thing that is: **resize**. A retained grid has to be rebuilt rather than
+  reflowed when `attach` changes the geometry, and that is precisely the boundary where the two
+  reference emulators disagree with each other, so there is no oracle to appeal to.
+
 - **Independent review.** Most of the sharpest bugs in this project were found by an agent other
   than the one that wrote the code: the ECMA-48 erase semantics, the `ESC D` that printed a literal
   `D`, every item in 0.7.0, and nine more in 0.8.0. That is evidence about method, not luck, and
