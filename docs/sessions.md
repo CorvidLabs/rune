@@ -430,7 +430,10 @@ agent erases anything at all.
 ### The transcript is bounded
 
 Both the file and the supervisor's memory are capped, so a session left running for a day does not
-grow without limit. When rotation drops older output, `read` reports `dropped_bytes` and cursors
+grow without limit. The file's cap is enforced twice: normally by rotation, and — when rotation
+cannot succeed at all, because the directory became unwritable or a disk stayed full — by a hard
+ceiling at twice the cap, past which output is recorded as dropped rather than written. Either way
+`read` reports `dropped_bytes` and cursors stay absolute. When rotation drops older output, `read` reports `dropped_bytes` and cursors
 stay absolute — a cursor still names the same position in the stream, it just points at output no
 longer held.
 
