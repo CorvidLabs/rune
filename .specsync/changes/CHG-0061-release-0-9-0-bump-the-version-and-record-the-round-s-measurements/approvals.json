@@ -13,7 +13,159 @@
       "timestamp": 1786990982,
       "digest": "d1339c65add4cf68800ad5960b82e122fbf09fdf7f3cd65672b5cafa5dfd2483",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1786994949,
+      "digest": "dd427003e33f45086e166144171bdb8ff3311b41bf0831ed488088ad66102622",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0061-release-0-9-0-bump-the-version-and-record-the-round-s-measurements",
+      "actor": "claude",
+      "reason": "the signals fix (CHG-0062) merged into the 0.9.0 branch, moving pty_runner.rb, pty_watcher.rb, CHANGELOG.md and ROADMAP.md, which these changes also deliver; re-verifying against the merged tree",
+      "timestamp": 1786994810,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1786990982,
+        "digest": "d1339c65add4cf68800ad5960b82e122fbf09fdf7f3cd65672b5cafa5dfd2483",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786990978,
+        "commit": "7041cb9163a91f82075fe50e1be202ceba717a09",
+        "contract_digest": "965b4fd105fd931078e8b56f9f62338fb4868548354a8227e39db2f59a604121",
+        "workspace_digest": "9b342e7bc3110df806d3062611bc89286ccad4f6d98608269ac594024114df3e",
+        "acceptance_input_digest": "f31ebf1f03da4fee577ff227c4a18900fa6b8e4da61c6ae300e2398036bdbb41",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "2a2bd5005707df6b480a1b0677b5c3dd152c2cefdea4b7f6d9170e910f1896c0",
+              "entry_digest": "eca0a93d1b6818301d0614180ecf8843dcba412bc5d3a531bfa5d778b55882d6",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "CHANGELOG.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b27bb2c2a6f015c1fd7acb2677caa13fcefa81abae784ac2f40b66ac653e6709",
+              "entry_digest": "cf648509c1b1391fc98c17f120513fe2939ed4ffc541afe1531bb9e99a476c89",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "Gemfile.lock",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6113b85e65d4760416001ef7c136ed55e0237d87fe9c74312a8a293bb9572164",
+              "entry_digest": "b95e1a4d2fefd9bc60fe6e3e0770d5c7b856ed3f7a051242af13e541b50760df",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "ROADMAP.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "76c46870e75f95d338bedeea4c43153753a094fc86f43a3b2a2a8a7ea7c97e9f",
+              "entry_digest": "40ad612d0cd784979b1f36f72025505367787ad5ff37a498cb2d4c90318e2aa4",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/getting_started.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "849a4464e10d2701991fc0856dfd3d7b6be472ef49bbb36db1970a45b801db36",
+              "entry_digest": "745b4d9772f68e39705046f927e840a526e11312b38ca512d22c2a87b519918f",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/version.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "78ee93687e4744aa68f7769c7d6791327da288eb48a59c7853f47f8f2ce3c7c8",
+              "entry_digest": "56bac8d877a226b3e1a8c80ee30715bca9f62639d133a1ea43e4b6a7123d8fd6",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "plugin.toml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5e0d0d6255a485eb901dde72bb3aebc4d1b44c4754ff708789d18899ca8a92f4",
+              "entry_digest": "861bbdac5be6c1a40d53aec21732e8c22c79e7ad72b2b771cfb1a8d79adfbea3",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/cli/cli.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "685078f51b6c3a24623617e145507dcc30d84f16da77a53053d72f4730ab0cb8",
+              "entry_digest": "f869b955d407663d6c81bb387618df2da2f5b075cdca33693bd16675fe45b0f6",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/cli/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b3223697f7d83909e9718f17e068a205d0717ed45b65df647701dffee8157858",
+              "entry_digest": "4bdce8f159673c64d8ee23db590ddcf7480f1e276ee48d86e2f1260b9a730ca6",
+              "owners": [
+                "cli"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "f31ebf1f03da4fee577ff227c4a18900fa6b8e4da61c6ae300e2398036bdbb41",
+      "current_acceptance_input_digest": "b693b2df246763e537c3d9aada9a22a31175d545330c2bc2cb2263de4ba7be76"
+    }
+  ]
 }

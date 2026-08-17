@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0062-bound-rune-run-timeout-when-the-child-is-still-printing-and-let-a-second-sign",
+  "slug": "bound-rune-run-timeout-when-the-child-is-still-printing-and-let-a-second-sign",
+  "title": "Bound rune run --timeout when the child is still printing, and let a second signal stop rune",
+  "description": "Bound rune run --timeout when the child is still printing, and let a second signal stop rune",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "05aa9661a7dbc4444ca61cbff7936c0a40b4ce4b",
+  "created_at": 1786994025,
+  "updated_at": 1786994217,
+  "affected_specs": [
+    "pty_runner",
+    "watch"
+  ],
+  "affected_paths": [
+    "lib/rune/signal_handler.rb",
+    "lib/rune/pty_runner.rb",
+    "lib/rune/pty_watcher.rb",
+    "spec/rune/signal_handler_spec.rb",
+    "spec/rune/pty_runner_spec.rb",
+    "spec/rune/pty_watcher_spec.rb",
+    "specs/pty_runner/pty_runner.spec.md",
+    "specs/watch/watch.spec.md",
+    "CHANGELOG.md",
+    "ROADMAP.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "rune run --timeout returns at its deadline even when the child is actively printing at the moment of the kill: four ladder cases all return 124 within ~5.5s, where two hung past 40s on v0.8.0. Every trapped INT/TERM reaches the child rather than being overwritten within one poll. A second signal within a 5s burst window is forwarded to the child first and then unwinds rune to a well-formed result at 128+signo, with traps restored to DEFAULT so a third signal is the last escape hatch. rune watch is unaffected because raw mode clears ISIG. The full suite, lint and release lane pass on the merged tree."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

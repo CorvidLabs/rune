@@ -1,6 +1,6 @@
 ---
 module: watch
-version: 7
+version: 9
 status: active
 files:
   - lib/rune/pty_watcher.rb
@@ -38,6 +38,8 @@ there.
 | `synchronize_window_size` | internal method | Copies changed terminal dimensions onto the child PTY. |
 | `valid_window_size?` | internal predicate | Accepts two positive integer terminal dimensions. |
 | `terminate_child` | internal method | Kills and reaps a child after an output-sink failure or a timeout. |
+| `interrupted_result` | internal method | Reaps the child and builds the session result for a run ended by a repeated INT/TERM, at the conventional `128 + signo` exit code. |
+| `drain_available` | internal method | One bounded, best-effort pty read used while tearing an interrupted session down; keeps the child's last bytes on screen and in the log. |
 | `wait_for_exit_code` | internal method | Reaps the child and normalizes exit or signal status. |
 | `log_event` | internal method | Writes and flushes one timestamped NDJSON event. |
 | `Commands` | module | Namespace containing concrete CLI command implementations. |
@@ -66,7 +68,23 @@ there.
 5. `Result#exit_code` (the process-level exit status) mirrors the wrapped command's real exit code
    on a natural exit, same convention as `PTYRunner`/`RunCommand`; on a `--timeout`/`--idle-timeout`
    expiry it is `124`, the same convention `PTYRunner --timeout` already uses.
-6. INT/TERM are forwarded to the child using the same `SignalHandler` mechanism as `PTYRunner`.
+6. INT/TERM are forwarded to the child using the same `SignalHandler` mechanism as `PTYRunner`,
+   including its escalation ladder: every signal is forwarded, and the second one within
+   `SignalHandler::BURST_WINDOW_SECONDS` is forwarded and *then* ends the session, reaping the
+   child and reporting the conventional `128 + signo` exit code. This matters more here than in
+   `PTYRunner` because `rune watch` has no default `--timeout`: before the ladder existed, a child
+   that trapped INT/TERM left the session with no bound at all — measured surviving 5x SIGINT +
+   5x SIGTERM and needing SIGKILL, a CLI that could not be stopped by an init system. The reap
+   happens inside `pump_output`, while the pty reader is still open, because a SIGKILLed pty child
+   holding unread output wedges unreapably on macOS and only draining the master clears it (see
+   `pty_runner`'s invariant 26); draining also keeps the child's last bytes on screen and in the
+   NDJSON log.
+   A human's Ctrl-C at the terminal does *not* travel this path. Raw mode clears `ISIG`, so the
+   keystroke reaches the child as a `0x03` byte through the input-forwarding thread and the
+   child's own pty line discipline, and `rune`'s traps never fire. Verified against a real
+   controlling terminal: three Ctrl-Cs, three interrupts delivered to the child, session still
+   running. An agent CLI whose first Ctrl-C interrupts a turn is therefore unaffected by the
+   ladder, however many times it is pressed.
 7. The input-forwarding thread never blocks process exit: it's explicitly killed once the child's
    output stream ends, regardless of whether it's currently blocked reading more input.
 8. `input`/`output`/`log` are constructor-injectable (defaulting to `$stdin`/`$stdout`/`$stderr`),
@@ -219,3 +237,4 @@ there.
 | 2026-08-14 | CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t: Add opt-in `--timeout=SECONDS` (total wall-clock) and `--idle-timeout=SECONDS` (no output/input) to `rune watch`, so an agent-driven session can no longer hang forever. Fully additive: the result data shape is unchanged when neither flag is passed. Closes #14. |
 | 2026-08-14 | CHG-0021-add-timeout-and-idle-timeout-to-rune-watch-so-an-agent-driven-session-can-t: Add --timeout and --idle-timeout to rune watch so an agent-driven session can't hang forever, closing #14 |
 | 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
+| 2026-08-17 | CHG-0062-bound-rune-run-timeout-when-the-child-is-still-printing-and-let-a-second-sign: Bound rune run --timeout when the child is still printing, and let a second signal stop rune |

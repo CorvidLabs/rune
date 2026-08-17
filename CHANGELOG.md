@@ -81,6 +81,42 @@
   is idempotent and each teardown step keeps its own rescue, so a child that will not die still gets
   the record written after it.
 
+- **`rune run --timeout` never returned when the child was still printing.** The flag that exists to
+  bound a run did not bound it: on macOS a pty child SIGKILLed while bytes it wrote sit unread in
+  the pty buffer wedges permanently in the kernel exit path (`ps` shows `?Es`), so the blocking
+  `Process.wait2` after the kill never returned. Reproduced independently against the released
+  0.8.0 with a hard 40 s ceiling and rune's own output redirected to a file, so "rune has not
+  exited" could not be confused with a blocked reader — the rune process itself sat in state `S`:
+
+      rune run --timeout=3 -- sh -c '<case>'         v0.8.0      after
+      child ignores TERM, prints constantly          HUNG 40s+   124 in 5.5s
+      child ignores TERM, silent                     124 in 3.1s 124 in 3.2s
+      child handles TERM, prints constantly          HUNG 40s+   124 in 5.5s
+      child handles TERM, one burst then idle        124 in 3.2s 124 in 3.2s
+
+  Note the second and fourth rows: ignoring TERM was never the trigger, and a child that has
+  stopped printing exits cleanly. The discriminator is whether the child is *actively producing
+  output at the moment of the kill*, which is why every earlier fixture missed it — a silent test
+  child leaves nothing unread and never wedges. `SignalHandler.reap` is now bounded at every step
+  and takes a drain block, and the abort is caught inside the read loops where the pty reader is
+  still open, because reading the master is the only thing that clears the wedge. The
+  `--timeout`/`--idle-timeout`/EPIPE kill paths are bounded too, but cannot drain — Ruby's internal
+  timeout exception is not a `StandardError`, so it cannot be caught while the reader is open. A
+  child wedged on those paths is given up on rather than waited for: strictly better than an
+  unbounded wait, and a documented limitation rather than a fix.
+
+- **A second INT/TERM to rune now stops it, instead of only being forwarded.** Signals are enqueued
+  on a `Thread::Queue` and drained by the poll callable, so two arriving inside one 0.2 s poll no
+  longer overwrite each other and every signal reaches the child. The second signal within a 5 s
+  burst window is forwarded to the child *first*, then unwinds to a well-formed result at
+  `128 + signo` rather than killing rune mid-render; the window is what keeps two legitimate
+  interrupts ten minutes apart from counting as an escalation, and the traps are restored to
+  `DEFAULT` afterwards so a third signal is the last escape hatch. This is the `timeout`/`docker
+  run`/`ssh` ladder, and it is a deliberate trade-off: two signals to the *rune process* end the run
+  even if the child would have carried on. Under `rune watch` it is moot — raw mode clears `ISIG`,
+  so a human's Ctrl-C reaches the child as a `0x03` byte and never becomes a signal to rune at all,
+  verified through a real controlling terminal. Agent-CLI turn-interrupts are untouched.
+
 - **`send` accepted `--max-output` and `--tail` and silently ignored both.** They were parsed for
   every session subcommand and applied only by `read`, so a caller that asked for a bound was told
   `status: ok` and handed everything: measured against `python3 -q`, `send --max-output=120` and

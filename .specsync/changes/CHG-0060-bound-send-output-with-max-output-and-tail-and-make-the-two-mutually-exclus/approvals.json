@@ -13,7 +13,129 @@
       "timestamp": 1786987145,
       "digest": "fd3e52eccfb0cc32f3a2c6cb80918e65ea76c6128d722fa417f5231d4288162b",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1786994805,
+      "digest": "4b99b5e5cf7040133651f1752a19c0c1b6a2343ec720d051c7fd587d72b85bf4",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0060-bound-send-output-with-max-output-and-tail-and-make-the-two-mutually-exclus",
+      "actor": "claude",
+      "reason": "the signals fix (CHG-0062) merged into the 0.9.0 branch, moving pty_runner.rb, pty_watcher.rb, CHANGELOG.md and ROADMAP.md, which these changes also deliver; re-verifying against the merged tree",
+      "timestamp": 1786994666,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1786987145,
+        "digest": "fd3e52eccfb0cc32f3a2c6cb80918e65ea76c6128d722fa417f5231d4288162b",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1786987141,
+        "commit": "7041cb9163a91f82075fe50e1be202ceba717a09",
+        "contract_digest": "8ff05f7ab4bcae02f358ffefaee90634e1e57abb70a9d4c2ffc87ec8a36d5d59",
+        "workspace_digest": "ba5d3ed6841dafa19c94dbb194b0ae1fbfddbe398677672f556e101e7c1c1522",
+        "acceptance_input_digest": "00c97d15ca376279eee11ef1cff69f29756ddf2ced65ab61ba2c6c1a861af5d2",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4e5d355027080ada1c7022d93df1af1766799b5874d2c38e41773e97617d289f",
+              "entry_digest": "af318fcb07b8494a0524221c994fbe317db62f4d4f55981fdee9754e43aac4e6",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "ROADMAP.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "76c46870e75f95d338bedeea4c43153753a094fc86f43a3b2a2a8a7ea7c97e9f",
+              "entry_digest": "40ad612d0cd784979b1f36f72025505367787ad5ff37a498cb2d4c90318e2aa4",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/commands/session_command.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8ad2ff496cd7205a4917cbe9fb113470f62429a05ef469e39321240d413a771e",
+              "entry_digest": "594a3f92058122e023c2b4d2f8ef1cd23da528abd32545dedbfad684e908f48d",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "a6d96381bf5102b2b80c176bfe0f301728d52f04ceaddd2959d433e8fd4038b1",
+              "entry_digest": "e0dfcc093d81aed3750cafe480d019eab0631b3933d31506b521faff3ef806d9",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0b3cf5ba5cb8722782ee2ac66c46144404a10eacb863fdac7ead3be6234231f0",
+              "entry_digest": "8553828ed7bcbd913f5993d3c0cc18d464d3d3fd1d3febdba41a67b65b62c276",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "00c97d15ca376279eee11ef1cff69f29756ddf2ced65ab61ba2c6c1a861af5d2",
+      "current_acceptance_input_digest": "e7dcf78d441d13490053e297f7f966eb74aa6cc1a4bd66018c5b9161793da169"
+    }
+  ]
 }

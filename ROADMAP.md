@@ -171,6 +171,14 @@ rather than carried forward on the strength of the table, and seven are closed:
 | `send` ignores `--max-output`/`--tail` | **fixed in 0.9.0** — and the two are now mutually exclusive, as `rune run` already had them |
 | renderer: alt screen, wide characters, DEC line drawing, IRM, DECAWM | **open**, and now the only one |
 
+**A ninth, found after that table was written and not on it.** `rune run --timeout` never returned
+when the child was still printing — the flag that exists to bound a run did not bound it. Present in
+every release through 0.8.0, missed by every review round, and missed because every fixture used a
+silent child: the trigger is unread bytes in the pty buffer at the moment of the kill, not a child
+that ignores signals. Fixed in 0.9.0 with bounded, pty-draining reaping. The lesson is the one this
+file already records in another form — a fixture more specific than the mechanism produces a test
+that cannot fail, and this one hid a hang in the oldest command for nine releases.
+
 **The oversized-send entry was wrong, and worth correcting rather than deleting.** It claimed
 "every later send is silently discarded while `settled: true`". Measured on a 20,000-character
 send to `python3 -q`: the child receives the input *in full* (`LEN=20000`), and an overlapping

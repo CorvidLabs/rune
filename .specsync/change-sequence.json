@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 61,
-  "id": "CHG-0061-release-0-9-0-bump-the-version-and-record-the-round-s-measurements",
+  "sequence": 62,
+  "id": "CHG-0062-bound-rune-run-timeout-when-the-child-is-still-printing-and-let-a-second-sign",
   "acknowledged_collisions": []
 }

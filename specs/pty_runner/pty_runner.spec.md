@@ -1,6 +1,6 @@
 ---
 module: pty_runner
-version: 6
+version: 8
 status: active
 files:
   - lib/rune/pty_runner.rb
@@ -77,8 +77,25 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `define` | class method | Constructs a `Script` from the DSL block. |
 | `Step` | data type | Immutable step record containing `type` and `payload`. |
 | `steps` | reader | Ordered script steps. |
-| `SignalHandler` | class | Temporarily traps and safely forwards INT/TERM to a child process. |
-| `with_traps` | class method | Installs traps for a block and yields a polling forward callable. |
+| `SignalHandler` | class | Temporarily traps INT/TERM, forwards every one of them to a child process, and escalates a repeated signal into stopping `rune` itself. |
+| `with_traps` | class method | `(pid, burst_window:, abort_after:)` installs traps for a block and yields a polling forward callable. |
+| `reap` | class method | `(pid, grace_seconds:, &drain)` gives a signalled child a bounded grace period, then SIGKILLs it, then waits a bounded time for it to become reapable, running `drain` on every poll. Returns its status, or `nil` if it never became reapable inside the bounds. |
+| `Aborted` | error class | Raised out of the caller's polling loop once a repeated INT/TERM means `rune` must stop too. |
+| `signal_name` | reader | The INT/TERM that triggered the abort. |
+| `exit_code` | instance method | The conventional `128 + signo` status for the aborting signal (130 for INT, 143 for TERM). |
+| `BURST_WINDOW_SECONDS` | constant | Seconds within which successive signals count as one escalating burst (5.0). |
+| `ABORT_AFTER` | constant | Signals within one burst tolerated before `rune` stops itself (2). |
+| `ABORT_GRACE_SECONDS` | constant | Grace a just-signalled child gets to leave on its own before SIGKILL (1.0). |
+| `POST_KILL_SECONDS` | constant | Bound on waiting for a SIGKILLed child to become reapable (2.0). |
+| `POLL_SECONDS` | constant | Reap-loop poll interval (0.02). |
+| `drain_available` | internal method | One bounded, best-effort pty read used while tearing an aborted run down; appends to the capture and fires `on_output` without driving script steps. |
+| `drain` | internal method | Forwards every signal queued since the last poll, in order, then raises `Aborted` at the burst threshold. |
+| `next_signal` | internal method | Pops one queued signal name, or `nil` when the queue is empty. |
+| `record_burst` | internal method | Returns the signal's position within the current burst, restarting the count once the burst window has lapsed. |
+| `forward` | internal method | Sends one signal to the child, treating an already-dead or permission-denied target as handled. |
+| `trap_signal` | internal method | Installs one trap, swallowing an unsupported signal name instead of raising. |
+| `restore_signal` | internal method | Restores one signal's previous disposition, defaulting to `DEFAULT`. |
+| `interrupted_capture` | internal method | Reaps and builds the capture tuple for a run ended by a repeated signal. |
 | `UTF8StreamDecoder` | class | Incrementally decodes chunks while retaining incomplete UTF-8 suffix bytes. |
 | `decode` | instance method | Returns complete scrubbed UTF-8 text and buffers an incomplete suffix. |
 | `finish` | instance method | Flushes a final incomplete suffix using replacement-character semantics. |
@@ -102,6 +119,39 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
     whatever `raw_output` was captured up to the point execution stopped, in every case.
 23. No output at all, or output consisting only of blank/whitespace lines, yields
     `data[:prompt_detected]: false` — never a crash from an absent "last line".
+24. No trapped signal is ever swallowed. Every INT/TERM caught while a child is running is
+    forwarded to that child, in arrival order, for as long as the run lasts. The forward callable
+    used to latch after its first successful forward, so signals two onward reached neither the
+    child nor `rune` itself: measured as a `rune run` absorbing 4x SIGINT + 2x SIGTERM over three
+    seconds and leaving only when its own `--timeout` fired 15s later, and as a `rune watch`
+    (which has no default timeout) surviving 5x SIGINT + 5x SIGTERM and needing SIGKILL. Signals
+    are queued rather than held in a single slot, so two arriving inside one 0.2s poll interval
+    are both delivered instead of overwriting each other.
+25. The second INT/TERM within `SignalHandler::BURST_WINDOW_SECONDS` ends the run, the same
+    escalation `timeout`, `docker run`, and `ssh` use: it is forwarded to the child *first* — a
+    child whose second Ctrl-C interrupts a turn still receives it — and only then is
+    `SignalHandler::Aborted` raised out of the polling loop. `rune` unwinds to a well-formed
+    result rather than dying mid-render: the child is reaped, the capture keeps everything it
+    printed on the way out, `[rune] Interrupted by SIG<NAME>` is appended, and the reported exit
+    code is the conventional `128 + signo` (130 for INT, 143 for TERM). A single signal is still
+    the child's alone — it is forwarded and `rune` keeps waiting, so the traps continue to do what
+    they were installed for instead of `rune` dying instantly and orphaning the child. Signals
+    further apart than the burst window are independent first signals, so a long-lived session
+    legitimately interrupted once now and once ten minutes later is not torn down by the second.
+    Once `rune` has aborted, INT/TERM are restored to their default dispositions, so a third
+    signal during teardown kills `rune` outright — deliberately, as the last escape hatch.
+26. Every wait on a signalled child is bounded, and the child's pty is drained while it dies.
+    Both are load-bearing on macOS rather than defensive: a pty child SIGKILLed while bytes it
+    wrote are still sitting unread in the pty buffer wedges *permanently* in the kernel's exit
+    path (`ps` reports `?Es`), and from there it is never reapable again — a blocking
+    `Process.wait2` never returns, `WNOHANG` polling never succeeds, and waiting minutes does not
+    help; only reading the pty master clears it. This is the ordinary shape of an abort, because
+    the last thing a child does on its way out is usually to print something, and it hung the real
+    CLI for over three minutes on a 20-second `--timeout` before the drain existed. The abort path
+    therefore reaps from inside the read loop, where the reader is still open. `--timeout`'s kill
+    path is bounded for the same reason but cannot drain — Ruby's internal timeout exception is
+    not a `StandardError`, so it cannot be caught while the reader is still in scope — so it gives
+    up on a wedged child rather than blocking forever.
 
 ## Behavioral Examples
 
@@ -152,6 +202,21 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
   the last (and only) line.
 - `rune run --timeout=1 -- ruby -e 'puts "Password: "; sleep 5'` reports `exit_code: 124` and
   `prompt_detected: true` — the timeout-killed run's last on-screen line was a genuine prompt.
+- `rune run --json --timeout=20 -- <child that traps INT and prints from the handler>` sent two
+  SIGINTs half a second apart exits `130` about 1.6s after the first one, with the child reaped
+  and *both* of the child's INT replies present in `clean_output` — the second one is drained out
+  of the pty during teardown rather than lost with it. The same run given a single SIGINT forwards
+  it and keeps waiting, reaching `124` at the `--timeout` as before.
+- `rune run --json --timeout=20 -- <same child>` sent the originally measured 4x SIGINT + 2x
+  SIGTERM burst exits `130` on the second signal instead of running to the timeout.
+- `rune run --json --timeout=20 -- <same child>` sent two SIGTERMs exits `143`.
+- `rune watch -- <child that traps INT/TERM>`, with no `--timeout` at all, exits `130` on the
+  second signal; before this it survived 5x SIGINT + 5x SIGTERM and had to be SIGKILLed.
+- A human's Ctrl-C under `rune watch` never reaches these traps: raw mode clears `ISIG`, so the
+  keystroke travels to the child as a `0x03` byte through the input-forwarding thread and the
+  child's own pty line discipline. Verified against a real controlling terminal — three Ctrl-Cs,
+  three interrupts delivered to the child, session still running — so an agent CLI whose first
+  Ctrl-C interrupts a turn is unaffected however many times it is pressed.
 
 ## Error Cases
 
@@ -172,6 +237,8 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | A `--max-output` cut lands inside a sequence longer than `RESYNC_WINDOW_BYTES` | The boundary is left where it was — the pre-existing behaviour — rather than a guess being made |
 | A rune flag is mistyped before the wrapped command (`--tiemout=5`) | Returns `Result.failure("Unknown option: --tiemout...")` before spawning anything |
 | `separate_streams: true` combined with `script:` | Returns `Result.failure(...)` before spawning anything |
+| A second INT/TERM arrives within the burst window | The signal is forwarded to the child, then the run ends: the child is reaped (bounded grace, then SIGKILL), `[rune] Interrupted by SIG<NAME>` is appended to the capture, and a successful `Result` reports `exit_code` `128 + signo` |
+| A signalled pty child wedges unreapably in the kernel exit path | The abort path drains the pty master, which clears the wedge; every wait is bounded regardless, so `rune` still exits |
 
 ## Dependencies
 
@@ -186,6 +253,9 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
   explicit `io/wait` require and the timeout-triggered SIGKILL/reap fix for orphaned child
   processes.
 - v1: Added boundary-safe incremental UTF-8 decoding shared by `PTYRunner` and `PTYWatcher`.
+- v6: `SignalHandler` forwards every INT/TERM instead of latching after the first, escalates a
+  repeated signal into stopping `rune` itself at `128 + signo`, and reaps signalled children with
+  bounded, pty-draining waits.
 | 2026-07-29 | CHG-0009-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand, with declarable usage and flags on Command |
 | 2026-07-29 | CHG-0010-add-help-and-h-at-the-top-level-and-per-subcommand-with-declarable-usage-and: Add --help and -h at the top level and per subcommand with declarable usage and flags, while fixing duplicate help aliases and per-run help state |
 | 2026-08-14 | CHG-0020-add-opt-in-bounded-output-to-rune-run-max-output-bytes-head-tail-truncation-a: Add opt-in `--max-output=BYTES` (head+tail truncation) and `--tail=N` to `rune run`, plus the new `OutputLimiter` module. Fully additive: the result data shape is unchanged when neither flag is passed. Closes #12. |
@@ -195,3 +265,4 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | 2026-08-14 | CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e: Fix `prompt_detected` to reflect only the last non-blank line of output instead of any line seen across the whole run; also fixes a latent bug where `--timeout` kills always reported `prompt_detected: false` regardless of actual content. Closes #30. |
 | 2026-08-14 | CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e: Fix prompt_detected to reflect the last non-blank line of output, not any line ever seen, closing #30 |
 | 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
+| 2026-08-17 | CHG-0062-bound-rune-run-timeout-when-the-child-is-still-printing-and-let-a-second-sign: Bound rune run --timeout when the child is still printing, and let a second signal stop rune |
