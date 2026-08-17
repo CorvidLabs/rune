@@ -87,14 +87,22 @@ the way:
   Both halves reproduce, and the second half of the reporter's conclusion does not. Harnesses are in
   `harnesses/wrap_reassembly.rb` and `harnesses/composer_echo.rb`.
 
-  | | byte stream | rendered screen |
+  | mechanism | byte stream | rendered screen |
   |---|---|---|
   | token split by cursor positioning | **not found** | found |
-  | caller's prompt in a composer box | found (false positive) | **also found (false positive)** |
+  | token wrapped at the right margin | found | **not found** |
+  | caller's prompt in a composer box | false positive | **false positive** |
 
-  So rendering fixes the false negative and *not* the false positive: a regex against the screen
-  matches `\| When finished print exactly RUNE_TASK_COMPLETE_573` in the composer box just as the
-  byte stream did. A human reading `--screen` can see that is the composer; a pattern cannot.
+  **Neither surface is correct for both fragmentation mechanisms, and neither excludes the echo.** A
+  margin wrap emits contiguous bytes that the *terminal* splits across two rows, so the stream has
+  the token and the render does not; cursor positioning is the exact reverse. And a regex against the
+  screen matches `\| When finished print exactly RUNE_TASK_COMPLETE_573` in a composer box just as
+  the byte stream does — a human reading `--screen` can see that is the composer, a pattern cannot.
+
+  So "match the screen instead" is not the fix, and neither is "match the stream". What the evidence
+  actually supports is **matching both surfaces, with the echo veto applied to each** — succeed if
+  either fires, having excluded copies of the caller's own input. rune already owns every piece of
+  that: condensed echo location, `Echo#repaint?`, and a bounded renderer.
 
   The complete fix is therefore **screen matching plus the echo veto rune already has** — condensed
   location and `Echo#repaint?`, built for the byte path. The open question is cost: matching per tick
