@@ -44,18 +44,30 @@ module Rune
       # Bounds the work for a long-lived session, whose transcript grows without
       # limit. Only the tail can still be on screen: a full repaint cycle of a
       # 40x120 terminal is a few KB, so this is orders of magnitude of headroom.
-      # Measured against 5.5MB of real grok TUI output, not derived. 256KB — the
-      # value that shipped through 0.8.0 — renders 1782 bytes of screen where
-      # 512KB renders 1990 and stays there through 2MB: the smaller window was
-      # silently returning an incomplete screen for the exact children rune
-      # exists to drive. The old figure came from "a full repaint of a 40x120
-      # terminal is a few KB", which is true of a plain program and wrong by
-      # roughly 50x for a TUI spending most of its bytes on colour and cursor
-      # positioning.
+      # Measured, not derived — and deliberately not called "sufficient".
       #
-      # 512KB costs ~53ms against ~26ms on that transcript. That is paid per
-      # `--screen` read, not per pty read, and a wrong screen is worth more than
-      # 27ms.
+      # The old 256KB came from "a full repaint of a 40x120 terminal is a few
+      # KB", which holds for a plain program and is wrong by roughly 50x for a
+      # TUI spending most of its bytes on colour and cursor positioning. On one
+      # 5.5MB grok transcript 256KB renders 1782 bytes of screen where 512KB
+      # renders 1990 and holds there through 2MB.
+      #
+      # But two transcripts from the *same child* disagree about whether any
+      # constant converges. A second 5.08MB grok session, measured independently,
+      # converges at no window up to 1MB and is non-monotonic well inside that
+      # range — 393,216 and 786,432 both render 3074 bytes while 524,288 between
+      # them renders 3123. A long session simply accumulates more content that
+      # was painted once and never repainted, and no window can recover it.
+      #
+      # So 512KB is justified as *better*, never as *enough*: it renders strictly
+      # more of the screen than 256KB on both corpora, at ~52ms against ~26ms,
+      # paid per `--screen` read rather than per pty read. A kimi corpus converges
+      # at 32KB and pays 13x here for grok's benefit.
+      #
+      # The real answer is not a bigger constant, and not "grow until two sizes
+      # agree" either — that rule would terminate on the coincidental 3074/3074
+      # match above. It is to retain one `Screen` per session and feed it each
+      # chunk as it arrives, which removes the window entirely.
       DEFAULT_TAIL_BYTES = 512 * 1024
       # How far past the cut to look for an escape to resync on. Comfortably
       # more than any CSI sequence, and small enough that a stream containing

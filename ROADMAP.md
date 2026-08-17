@@ -89,9 +89,21 @@ the way:
 
   | mechanism | byte stream | rendered screen |
   |---|---|---|
+  | **split by streaming token paint** | **not found** | found |
   | token split by cursor positioning | **not found** | found |
   | token wrapped at the right margin | found | **not found** |
   | caller's prompt in a composer box | false positive | **false positive** |
+
+  The first row is the structural one, identified from raw bytes by the reporter and reproduced here
+  independently. A streaming agent paints each model token as its own positioned write, so
+  `RUNE_TASK_COMPLETE_573` arrives as `RUN` + `E` + `_TASK` + `_COMPLETE_573` at adjacent columns, in
+  different pty reads. Measured on a 5.5MB grok transcript: `"WROTE: /private/tmp/claude-501/…"` is
+  **absent from the byte stream and present on the screen**. Meanwhile the caller's own prompt is
+  contiguous, because a paste is painted in one go.
+
+  So the byte stream does not merely *sometimes* miss the child and match the echo — for any sentinel
+  longer than one model token it is **guaranteed** to, at boundaries chosen by a tokeniser nobody
+  controls. That is the crispest statement of the bug.
 
   **Neither surface is correct for both fragmentation mechanisms, and neither excludes the echo.** A
   margin wrap emits contiguous bytes that the *terminal* splits across two rows, so the stream has
