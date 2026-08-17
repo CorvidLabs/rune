@@ -231,31 +231,44 @@ end
 section('Signal forwarding') do
   # These checks pin rune's contract rather than the child's disposition. The
   # previous version of this section sent ONE signal and asserted the run ended,
-  # which
-  # passed only because `sleep` happens to die on SIGINT. Run where SIGINT is
-  # inherited as ignored — exactly what a task runner does, and how this was
-  # caught — the child inherits SIG_IGN, the forwarded signal does nothing,
-  # rune correctly keeps waiting, and the check failed at 10.01s. It was
-  # asserting the child's disposition, not rune's contract.
-  # The child announces receipt, so forwarding is observable rather than
-  # inferred. It has to be Ruby rather than a shell `trap`: POSIX lets a shell
-  # decline to trap a signal it inherited as ignored, and under a task runner
-  # INT *is* inherited as ignored, so a shell child would silently prove
-  # nothing. `Signal.trap` installs over SIG_IGN either way.
+  # which passed only because `sleep` happens to die on SIGINT. Run where SIGINT
+  # is inherited as ignored — exactly what a task runner does, and how this was
+  # caught — the child inherits SIG_IGN, the forwarded signal does nothing, rune
+  # correctly keeps waiting, and the check failed at 10.01s. It was asserting
+  # the child's disposition, not rune's contract.
+  #
+  # The child announces receipt, so forwarding is observed rather than inferred.
+  # It has to be Ruby rather than a shell `trap`: POSIX lets a shell decline to
+  # trap a signal it inherited as ignored, and under a task runner INT *is*
+  # inherited as ignored, so a shell child would silently prove nothing.
+  # `Signal.trap` installs over SIG_IGN either way.
+  #
+  # The signal waits for a readiness file rather than a fixed delay. The first
+  # version slept 1s and passed locally while failing on CI, where a cold Ruby
+  # interpreter had not reached `Signal.trap` yet — so the signal killed the
+  # child before it could report, and the check blamed rune for the harness's
+  # race. There is no sleep long enough to be correct on an unknown machine.
   check('one SIGINT is forwarded to the child and rune keeps waiting') do
-    child = "#{RbConfig.ruby} -e 'Signal.trap(\"INT\") { puts \"GOT_INT\"; $stdout.flush }; sleep 4'"
-    runner = Rune::PTYRunner.new(child, timeout_seconds: 30)
-    Thread.new do
-      sleep 1.0
-      Process.kill('INT', Process.pid)
+    Dir.mktmpdir do |dir|
+      ready = File.join(dir, 'ready')
+      child = "#{RbConfig.ruby} -e 'Signal.trap(\"INT\") { puts \"GOT_INT\"; $stdout.flush }; " \
+              "File.write(#{ready.inspect}, \"1\"); sleep 6'"
+      runner = Rune::PTYRunner.new(child, timeout_seconds: 45)
+      signaller = Thread.new do
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 30
+        sleep 0.05 until File.exist?(ready) || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        Process.kill('INT', Process.pid) if File.exist?(ready)
+      end
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = runner.run
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+      signaller.join
+      assert(File.exist?(ready), 'the child never became ready; nothing was signalled')
+      assert(result.data[:clean_output].include?('GOT_INT'),
+             "the signal never reached the child: #{result.data[:clean_output].inspect}")
+      assert(elapsed > 2, "one signal must not end the run, returned after #{elapsed.round(2)}s")
+      assert(result.data[:exit_code].zero?, "expected the child's own exit, got #{result.data.inspect}")
     end
-    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    result = runner.run
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-    assert(result.data[:clean_output].include?('GOT_INT'),
-           "the signal never reached the child: #{result.data[:clean_output].inspect}")
-    assert(elapsed > 2, "one signal must not end the run, returned after #{elapsed.round(2)}s")
-    assert(result.data[:exit_code].zero?, "expected the child's own exit, got #{result.data.inspect}")
   end
 end
 
