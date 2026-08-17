@@ -701,13 +701,36 @@ module Rune
         end
       end
 
-      def handle_send(request, client, writer)
-        return respond(client, error: 'a send is already in flight on this session') if @pending
-        return respond(client, error: 'session child has exited') if @child_finished
+      # The reason this send cannot be accepted, or nil to proceed. Grouped so
+      # each reason is one line and adding another does not push the handler past
+      # a complexity ceiling — the same shape `start_rejection` already uses.
+      def send_rejection(request)
+        return 'a send is already in flight on this session' if @pending
+        return 'session child has exited' if @child_finished
         # A --no-wait send sets no @pending, so a second send can arrive while
         # the first is still draining into a backpressured pty. Accepting it
         # would force the previous terminator out alongside undelivered text.
-        return respond(client, error: UNDELIVERED_INPUT_ERROR) if undelivered_input?
+        return UNDELIVERED_INPUT_ERROR if undelivered_input?
+        # A send with no `text` key is malformed, and the most obvious mistake a
+        # new socket client makes. It used to be accepted as an empty send, which
+        # writes a bare carriage return, produces no output from most children,
+        # and so waits out `timeout_ms` — 120 seconds by default. A client that
+        # gave up after five seconds reported it as a hang, 3 of 3, noting that
+        # every *other* malformed request got a clean error. That inconsistency
+        # is worse for a protocol than any single bug, because a client author
+        # generalises from whichever behaviour they meet first.
+        #
+        # `text: ""` stays valid: it is the documented way to deliver a bare
+        # carriage return to a TUI holding text it never submitted. Absent and
+        # empty are different requests.
+        return 'send requires a text field (use "" to send a bare carriage return)' unless request.key?(:text)
+
+        nil
+      end
+
+      def handle_send(request, client, writer)
+        rejection = send_rejection(request)
+        return respond(client, error: rejection) if rejection
 
         begin
           echo = write_to_child(writer, request)

@@ -299,6 +299,7 @@ deciding who talks to whom stays the calling agent's job.
 | `drop_writer` | internal method | Handles an IO that failed to accept a write, distinguishing the pty from a terminal. |
 | `detach` | internal method | Removes an attached terminal and restores the headless size when it was the last. |
 | `reap_idle_clients` | internal method | Closes control connections that connected and never sent a request. |
+| `send_rejection` | internal method | The reason a send cannot be accepted, or nil to proceed. |
 | `handle_resize` | internal method | Applies a resize request sent over its own control connection. |
 | `resize_child` | internal method | Sets the child's pty dimensions and signals SIGWINCH so it re-lays-out. |
 | `record_window_size` | internal method | Records the child's current winsize in meta, so `--screen` can render at it. |

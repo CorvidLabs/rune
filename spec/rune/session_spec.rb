@@ -143,6 +143,31 @@ RSpec.describe Rune::Commands::SessionCommand do
   # Every one of these came from a field report driving grok and kimi through
   # rune on real work. Each is one additive field; each existed because the
   # information was already known and simply not said.
+  # A socket client's most obvious mistake used to look like a hang: a send with
+  # no text was accepted as an empty send, which writes a bare carriage return,
+  # produces no output from most children, and so waits out timeout_ms — 120s by
+  # default. Reported 3/3 against five-second client timeouts, alongside the
+  # observation that every other malformed request got a clean error.
+  describe 'a socket send with no text field' do
+    it 'is refused immediately rather than waiting out the timeout' do
+      start_session('sock', %w[cat])
+      client = Rune::Session::Client.new(store.socket_path('sock'))
+
+      reply = client.request({ op: 'send' })
+
+      expect(reply[:error]).to include('text field')
+    end
+
+    it 'still accepts an empty string, which is the documented bare carriage return' do
+      start_session('sock2', %w[cat])
+      client = Rune::Session::Client.new(store.socket_path('sock2'))
+
+      reply = client.request({ op: 'send', text: '', timeout_ms: 1500 })
+
+      expect(reply[:error]).to be_nil
+    end
+  end
+
   describe 'saying what happened' do
     it 'reports the project a session registered in' do
       result = start_session('proj', %w[cat])
