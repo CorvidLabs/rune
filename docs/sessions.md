@@ -210,9 +210,15 @@ line in pieces or driving a TUI that reads keystrokes.
   the previous question.
 - `regex_timed_out: true` — the `--wait-for-regex` pattern exceeded its match budget and was
   abandoned. Almost always a catastrophically backtracking pattern; simplify it.
-- `dropped_bytes` — a count of earlier output rotated away before this read. It does **not**
-  invalidate a `--since` cursor: cursors stay absolute, so one from before the rotation returns
-  everything still held rather than an error.
+- `dropped_bytes` — a count of earlier output the log no longer holds: rotated away, or lost
+  because a transcript write failed. It does **not** invalidate a `--since` cursor: cursors stay
+  absolute, so one from before a drop returns everything still held *after* it rather than an error.
+  A cursor that lands inside a dropped region resolves to the output that followed the region —
+  never to output already delivered, which would arrive looking like new output for the current
+  turn.
+- `transcript_gap_bytes` — on `status` and on a `send` reply only, and only while output that no
+  write could record is still owed. It is the one window in which the skew is not on disk: the next
+  successful write records it and `read` reports it as `dropped_bytes` instead.
 - `screen_rows`, `screen_cols`, `screen_size_recorded` — only with `--screen`: the geometry the
   screen was rendered at, and whether that geometry is the child's recorded winsize or the fallback.
   See [It renders at the size the child is actually running at](#it-renders-at-the-size-the-child-is-actually-running-at).
@@ -427,6 +433,13 @@ Both the file and the supervisor's memory are capped, so a session left running 
 grow without limit. When rotation drops older output, `read` reports `dropped_bytes` and cursors
 stay absolute — a cursor still names the same position in the stream, it just points at output no
 longer held.
+
+A transcript write that fails — a full disk, an unwritable directory — drops output the same way,
+except in the *middle* of a stream that continues afterwards. Those bytes are carried and recorded
+as soon as writing resumes, and a cursor is mapped through each dropped region rather than past one
+running total, so output before a hole is not re-delivered as though it were new. Until a write
+succeeds there is nowhere on disk to record the hole, which is what `transcript_gap_bytes` on
+`status` reports.
 
 ## What to know before driving a real agent
 

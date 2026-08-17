@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 56,
-  "id": "CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and",
+  "sequence": 57,
+  "id": "CHG-0057-make-transcript-cursors-survive-a-mid-stream-gap-record-where-each-dropped-regi",
   "acknowledged_collisions": []
 }

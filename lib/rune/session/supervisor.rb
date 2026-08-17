@@ -170,13 +170,7 @@ module Rune
         @accepted_at = {}
         @close_after_drain = []
         @stopping = false
-        @log_bytes = 0
-        # Output bytes that never reached the transcript because a write failed,
-        # nil while nothing is owed. Carried, not forgotten: it is what the next
-        # successful write records as a `truncated` event. Non-nil also means the
-        # file may end mid-record, which is why it gates TORN_MARKER.
-        @log_gap = nil
-        @rotate_retry_at = nil
+        reset_log_state
         @submit_at = nil
         @exit_code = nil
         @finished = false
@@ -215,6 +209,17 @@ module Rune
       end
 
       private
+
+      # Everything the recording path holds between events: how much the
+      # transcript file already carries, output no write could record — nil while
+      # nothing is owed, and non-nil also meaning the file may end mid-record,
+      # which is what gates TORN_MARKER — and when a rotation that failed may be
+      # attempted again.
+      def reset_log_state
+        @log_bytes = 0
+        @log_gap = nil
+        @rotate_retry_at = nil
+      end
 
       # Without setsid the supervisor stays in the launching shell's session
       # and dies with it (SIGHUP on terminal close), which would defeat the

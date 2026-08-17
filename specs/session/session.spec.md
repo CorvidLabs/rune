@@ -1,6 +1,6 @@
 ---
 module: session
-version: 23
+version: 25
 status: active
 files:
   - lib/rune/session/store.rb
@@ -50,11 +50,14 @@ deciding who talks to whom stays the calling agent's job.
 | `Unavailable` | class | Raised when a control socket is missing or refuses a connection — how a dead supervisor presents. |
 | `PromptScanner` | module | Reports whether the last non-blank line of text looks like an interactive prompt. |
 | `Transcript` | class | One session's durable transcript: reconstruction, cursors across rotation, search and rendering. |
-| `load` | class method | Reads a transcript log, returning the retained text and the bytes rotation dropped. |
+| `load` | class method | Reads a transcript log, returning the retained text and where in it the stream is not contiguous. |
+| `record_gap` | class method | Records one dropped region at a retained offset, merging it with one already recorded there. |
 | `text` | reader | The output the log still holds. |
-| `dropped` | reader | Bytes of earlier output that rotation discarded. |
-| `cursor` | instance method | Total bytes the child has produced, including what rotation discarded. |
+| `dropped` | reader | Bytes of earlier output that was discarded, by rotation or by a write that failed. |
+| `gaps` | reader | Each dropped region as the retained offset it sits at and the total dropped up to and including it. |
+| `cursor` | instance method | Total bytes the child has produced, including everything discarded. |
 | `from` | instance method | Everything from an absolute cursor onwards, as far as the retained text reaches. |
+| `retained_offset` | instance method | Where an absolute cursor lands in the retained text, walking past each dropped region rather than subtracting one total. |
 | `screen` | instance method | What a terminal of a given size would be showing. |
 | `grep` | instance method | Lines matching a pattern with surrounding context, and how many matched. |
 | `filter` | internal method | Applies `--grep` to a read, or fails the filter closed and reports why. |
@@ -100,9 +103,14 @@ deciding who talks to whom stays the calling agent's job.
 | `rotate_output` | instance method | Rewrites the transcript keeping its recent tail, recording what was dropped. |
 | `output_bytes` | instance method | Output bytes carried by one transcript line. |
 | `tail_offset` | instance method | Byte offset of the first whole line within the keep bound of the end. |
-| `output_bytes_from` | instance method | Output bytes carried by the region being kept, without parsing events. |
+| `output_bytes_from` | instance method | Stream bytes the region being kept accounts for — its output and any gap it already records — counting only whole records, without parsing them. |
+| `whole_record?` | instance predicate | Whether a transcript line is a record the reader will parse, decided on its last byte; a line with no trailing newline is parsed instead. |
+| `parseable?` | instance predicate | Whether one line parses as JSON. |
+| `NEWLINE_BYTE` | constant | The byte `whole_record?` treats as a line terminator. |
+| `CLOSE_BRACE_BYTE` | constant | The byte a whole NDJSON record ends on. |
 | `output_size` | instance method | Current size of a session's transcript file. |
-| `rotate_log` | internal method | Rotates the transcript once it reaches the ceiling. |
+| `rotate_log` | internal method | Rotates the transcript once it reaches the ceiling, backing off rather than retrying an attempt that failed. |
+| `ROTATE_RETRY_SECONDS` | constant | How long a failed rotation waits before it is attempted again. |
 | `output_path` | instance method | Returns one session's NDJSON transcript path. |
 | `socket_path` | instance method | Returns one session's control-socket path. |
 | `exist?` | instance predicate | Reports whether a session directory exists. |
@@ -110,7 +118,6 @@ deciding who talks to whom stays the calling agent's job.
 | `create` | instance method | Creates a session directory and forces owner-only permissions. |
 | `remove` | instance method | Deletes a session directory and its contents. |
 | `write_meta` | instance method | Replaces `meta.json` atomically, with owner-only permissions. |
-| `write_atomic` | internal method | Writes a whole file to a private temp path and renames it over the target. |
 | `read_meta` | instance method | Reads `meta.json`, returning nil when absent or unparseable. |
 | `update_meta` | instance method | Merges fields into existing metadata, or nil when the session is unknown. |
 | `open_output` | instance method | Opens the append-only transcript for the supervisor's lifetime, owner-only and unbuffered. |
@@ -151,7 +158,14 @@ deciding who talks to whom stays the calling agent's job.
 | `resolve_orphaned_pending` | internal method | Replies to a send that would otherwise never be answered because the supervisor is exiting. |
 | `terminate_child` | internal method | Kills and reaps a still-running child. |
 | `safe_close` | internal method | Closes an IO, tolerating one already closed. |
-| `log_event` | internal method | Appends one timestamped NDJSON event to the transcript. |
+| `log_event` | internal method | Appends one timestamped NDJSON event to the transcript, recording a write that failed as a gap rather than losing it. |
+| `append_log` | internal method | Writes one event, preceded by the `truncated` event accounting for any pending gap; nil when the event did not reach the file. |
+| `write_record` | internal method | Writes one NDJSON record, preceded by the torn marker when the last write failed; nil when nothing can be trusted to have landed. |
+| `gap_line` | internal method | The `truncated` event that accounts for output no write could record. |
+| `note_log_gap` | internal method | Adds an unrecordable event's output bytes to the pending gap. |
+| `writable_log` | internal method | The transcript handle, reopened if it has gone away, or nil while it cannot be opened. |
+| `gap_field` | internal method | The `transcript_gap_bytes` field, present only while a hole is still owed. |
+| `TORN_MARKER` | constant | Line written ahead of the first record after a failed write, so any fragment that write left cannot parse. |
 | `REGEX_MATCH_TIMEOUT` | constant | How long one `--wait-for-regex` match may run before the pattern is abandoned. |
 | `REGEX_TIMEOUT_ERROR` | constant | The regex-timeout error class, or an unraised stand-in on Ruby without one. |
 | `positive_int` | internal method | Coerces a request value to a positive integer, falling back to a default. |
@@ -188,6 +202,7 @@ deciding who talks to whom stays the calling agent's job.
 | `graceful_stop` | internal method | Asks the supervisor to stop over its control socket, tolerating an unreachable one. |
 | `kill_remaining` | internal method | Force-kills any surviving child and supervisor, tolerating already-dead pids. |
 | `extract_options` | internal method | Extracts session flags before the first `--`, leaving the wrapped command untouched. |
+| `flag_to_validate?` | internal predicate | Whether a flag-shaped token in this position is one a mistyped spelling should be refused for. |
 | `scan_flags` | internal method | Walks the pre-separator tokens, consuming flags and rejecting a mistyped one that precedes the first operand. |
 | `unknown_flag_error` | internal method | Rejects a flag-shaped token that matches no session flag, instead of letting it be typed at the child. |
 | `suggestion` | internal method | Offers the dash-for-underscore correction when that exact spelling is a real flag, and nothing otherwise. |
@@ -301,7 +316,8 @@ deciding who talks to whom stays the calling agent's job.
 | `spawn_supervisor` | internal method | Re-invokes rune's executable as the detached supervisor for one session. |
 
 > Note: `conclude`, `handshake`, `with_raw_terminal`, `connect`, `name_base`, `socket_live?`,
-> `terminal_size`, `forward_resize`, `forward_pending_resize` and `with_resize_forwarding` are
+> `terminal_size`, `forward_resize`, `forward_pending_resize`, `reset_log_state`,
+> `write_atomic` and `with_resize_forwarding` are
 > intentionally absent from the table above. They exist and are exercised by the suite, but
 > SpecSync's Ruby extractor does not surface them from their position in the class body
 > (rune#20 / spec-sync#479), and documenting an export it cannot see fails the contract check.
@@ -574,6 +590,56 @@ deciding who talks to whom stays the calling agent's job.
     the recent tail and records what it dropped in a `truncated` event, so cursors stay absolute: a
     cursor taken before a rotation still names the same position in the stream, and `read` reports
     `dropped_bytes` rather than silently returning less than was asked for.
+41w. A transcript write that fails is *recorded*, not merely survived. The in-memory cursor has
+    already advanced — those bytes really were produced — so a hole nothing accounts for makes every
+    cursor `send` hands out unresolvable by `read`, permanently and silently. Reproduced on a full
+    filesystem by the durability prototype this is taken from, and carried over rather than
+    re-derived here: `send` answered `cursor: 1849946` while `read` reported 187221 with
+    `dropped_bytes` nil, `read --since=1849946` returned "" for the rest of the session, and freeing
+    the disk made it worse because logging resumed over the hole without a word. Output that no
+    write could record is carried and emitted as a `truncated` event by the next write that
+    succeeds — the same vehicle rotation already uses — so `read` resolves a pre-hole cursor again
+    and reports `dropped_bytes`. While the hole is still owed there is nowhere on disk to record it,
+    so the supervisor reports `transcript_gap_bytes` on `status` and on the `send` reply that hands
+    out the unresolvable cursor; that is the only place the skew is known at all.
+41x. "Recorded" means exactly "its own write returned". A write that fails part-way leaves a
+    fragment, and a fragment can be a *complete* JSON record that merely never got its newline —
+    which a later append would silently terminate, counting a gap twice. So each record is written
+    on its own, and the first record after a failure is preceded by `TORN_MARKER`, which makes any
+    dangling fragment unparseable. Swept here across every split point of the record carrying a gap:
+    0 disagreements in 91 cases between the reconstructed cursor and the supervisor's own.
+41y. A cursor is mapped through *each* dropped region, not past one running total. `since - dropped`
+    is correct only while the dropped region is a **prefix** of the stream, which rotation
+    guarantees and a failed write does not: a hole in the middle shifts output the cursor is not in
+    front of, and every cursor issued before the hole then resolves |hole| bytes early — already
+    delivered output, handed back as new, which re-fires prompt detection and every "did my command
+    finish" check built on it. Measured on 25 chunks x 4000B, a 48_000-byte mid-stream hole and 25
+    more (cursor 248_000, dropped 48_000): `from(100_000)` returned 148_000 bytes beginning at the
+    start of the stream, 48_000 of them already delivered, against 100_000 beginning after the hole.
+    Each region is recorded as (retained offset, cumulative dropped) at load, a cursor landing
+    inside one clamps **forward** to its end — those bytes are gone either way, and later output is
+    honest where earlier output is not — and a single prefix collapses to exactly the old
+    arithmetic, byte for byte, at every probe of every rotation case.
+41z. A rotation counts exactly the bytes the reader will reconstruct from the region it keeps, since
+    the head event it writes is `total_output - kept`. Two ways that was wrong, both permanent and
+    silent, both measured here on ~11MB transcripts rotated with the region in the kept tail: a
+    `truncated` event inside the tail was not counted, so a hole recorded mid-stream was counted
+    twice and every later cursor sat **+400_000** bytes past the end of the stream; and a fragment
+    left by a torn write *was* counted although `Transcript.load` cannot parse it, so every later
+    cursor sat low — **-4096/-16384/-40960** for 1/4/10 torn writes, scaling with the
+    outage because `TORN_MARKER` terminates each fragment into a countable line of its own. That
+    this is worse than 0.8.0's flat -4096, where a fragment and the record after it merged into one
+    unparseable line, is the prototype's measurement carried over and was not re-derived here. A
+    real outage moves both dials at once and they do not cancel: a torn write plus the gap it opened
+    measured **+16384**. All four cases, and a healthy transcript that must not move at all, measure
+    0 once a line counts only if it is a whole record and a `truncated` in the tail counts as the
+    bytes it names. The test is the line's last byte rather than a parse, because parsing the kept
+    region cost 96MB per rotation (41n); `TORN_MARKER` is what makes that exact, since a fragment it
+    terminated ends in `n` and cannot parse either. The one shape a byte test cannot decide is a
+    fragment the file simply ends on, of which there is at most one, so a line with no trailing
+    newline is parsed outright: swept over every split point of every record shape, with braces,
+    quotes, escapes and the marker's own bytes inside the payload, 0 disagreements in 1760 cases,
+    against 10 with that branch removed.
 41j. The supervisor holds a bounded *window* of output, not all of it. Cursors remain absolute byte
     offsets into the whole stream, because `read` serves them client-side from the transcript file;
     the process itself only needs the attach backlog and whatever the current send has produced,
@@ -858,3 +924,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-15 | CHG-0050-extract-the-transcript-out-of-sessioncommand-reconstruction-cursors-search-an: Extract the transcript out of SessionCommand: reconstruction, cursors, search and rendering are one subject |
 | 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
 | 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |
+| 2026-08-17 | CHG-0057-make-transcript-cursors-survive-a-mid-stream-gap-record-where-each-dropped-regi: Make transcript cursors survive a mid-stream gap: record where each dropped region sits and map cursors through the list |

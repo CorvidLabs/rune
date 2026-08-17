@@ -13,6 +13,12 @@ produced the numbers quoted in `CHANGELOG.md`.
   turn-accounting measurement for the send path.
 - `adversarial.rb`, `veto.rb`, `mutants.rb` — the shapes a fix has to keep
   working, and mutation checks that a guard is load-bearing rather than dead.
+- `transcript_gaps.rb` — every shape a dropped region can take (none, a
+  rotation's prefix, one mid-stream hole, several, a rotation over one) with a
+  cursor before, inside and after each, measured against an oracle built from
+  the layout rather than from the code under test, and the rotation accounting
+  measured against the bytes the child produced. Prints a before/after table and
+  exits non-zero on any disagreement, so it doubles as a check.
 
 These are run by hand against a scratch `RUNE_HOME`. They are not part of the
 test suite and are not expected to pass lint.

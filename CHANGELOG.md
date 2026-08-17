@@ -4,6 +4,42 @@
 
 ### Fixed
 
+- **A cursor issued before a gap in the middle of the transcript replayed output already
+  delivered.** `Transcript#from` mapped a cursor by subtracting one global dropped total, which is
+  correct only while the dropped region is a *prefix* of the stream — true for rotation, and false
+  for a write that fails mid-session and leaves a hole with output on both sides of it. Every cursor
+  from before such a hole resolved |hole| bytes too early. Measured on 25 chunks x 4000B, a
+  48_000-byte hole and 25 more: `read --since=100000` returned 148_000 bytes starting at the
+  beginning of the stream, 48_000 of which the caller already had — arriving, for an agent polling
+  `read --since=<last cursor>`, as new output for the current turn, which re-fires prompt detection
+  and every "did my command finish" check built on it. Each dropped region is now recorded as
+  `(retained offset, cumulative dropped)` and a cursor is walked through the list; one that lands
+  *inside* a region clamps forward to its end, because those bytes are gone either way and later
+  output is honest where replaying earlier output is not. A single prefix — every rotation — is byte
+  for byte the arithmetic it always was.
+
+- **A transcript write that failed was survived, not recorded.** The in-memory cursor advanced over
+  bytes nothing on disk accounted for, so every cursor `send` handed out was unresolvable by `read`
+  for the rest of the session, and logging that resumed over the hole never mentioned it. Output no
+  write could record is now carried and emitted as a `truncated` event by the next write that
+  succeeds, each record is written on its own, and the first record after a failure is preceded by a
+  marker that makes any fragment the failed write left unparseable — so "recorded" means exactly
+  "its own write returned". While the hole is still owed, `status` and the `send` reply carry
+  `transcript_gap_bytes`, the only place it is known at all.
+
+- **Rotation counted bytes the reader does not, in both directions.** A rotation's head event is
+  `total_output - kept`, so the scan of the kept region has to count exactly what `Transcript.load`
+  reconstructs from it. It counted neither a `truncated` event already inside the kept tail — a hole
+  then counted twice, putting every later cursor 400_000 bytes past the end of the stream in the
+  measured case — nor did it exclude the fragment a torn write leaves, which still reads as an
+  output record while the reader skips it: -4096/-16384/-40960 bytes of permanent, silent shortfall
+  for 1/4/10 torn writes, scaling with the outage because each fragment becomes a countable line of
+  its own. (That this is *worse* than 0.8.0's flat -4096, where a fragment and the record after it
+  merged into one unparseable line, is carried over from the prototype's measurement and was not
+  re-derived here.) A real outage moves both dials and they do not cancel: +16384 measured
+  for a torn write plus the gap it opened. All of those, and a healthy transcript that must not
+  move, measure 0.
+
 - **`--max-output` returned text the child never printed.** The head and tail were spliced with
   nothing between them, so the join reads as continuous output. Measured, a 201-byte transcript at
   `--max-output=200` dropped exactly the byte that turned `chsh -s /bin/zsh` into

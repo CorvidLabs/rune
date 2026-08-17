@@ -1178,7 +1178,7 @@ RSpec.describe Rune::Commands::SessionCommand do
       offset = since - loaded.dropped
       return loaded.text.dup if offset.negative?
 
-      (loaded.text.byteslice(offset..) || +'')
+      loaded.text.byteslice(offset..) || +''
     end
 
     # Everything at or after `since` that the log still holds, taken from the
@@ -1198,7 +1198,7 @@ RSpec.describe Rune::Commands::SessionCommand do
 
     def probe_points(ops)
       abs = 0
-      ops.flat_map do |kind, bytes, _marker|
+      ops.flat_map do |_kind, bytes, _marker|
         start = abs
         abs += bytes
         [start, start + 1, start + (bytes / 2), start + bytes - 1]
