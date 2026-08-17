@@ -1,6 +1,6 @@
 ---
 module: parsers
-version: 9
+version: 10
 status: active
 files:
   - lib/rune/parsers/table_parser.rb
@@ -51,6 +51,9 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | `scroll_down` | instance method | SD: scrolls the screen down, blanking the lines it exposes. |
 | `DEFAULT_ROWS` | constant | Rows assumed when no size is given. |
 | `DEFAULT_COLUMNS` | constant | Columns assumed when no size is given. |
+| `MAX_ROWS` | constant | Ceiling on a caller-supplied row count, since the grid is allocated eagerly. |
+| `MAX_COLUMNS` | constant | Ceiling on a caller-supplied column count, for the same reason. |
+| `dimensions` | class method | The size a render will actually use, given what the caller asked for. |
 | `CSI` | constant | The ECMA-48 CSI grammar: parameters, then intermediates, then a final byte. |
 | `IGNORED` | constant | Escape forms consumed and dropped, because anything not consumed is printed. |
 | `INCOMPLETE` | constant | A sequence the stream ended in the middle of, its terminator not yet arrived. |
@@ -117,6 +120,14 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
    a hang rather than a wrong answer.
 11. `ScreenRenderer.render` returns an empty string for nil or empty input, tolerates invalid
     UTF-8, and bounds work by rendering only the tail of a long transcript.
+12. The rendering size is a caller's to supply and is resolved by `ScreenRenderer.dimensions`, which
+    is also what a caller reports when it has to say which geometry a screen was rendered at. Absent
+    or nonsensical dimensions become the defaults, and dimensions past `MAX_ROWS`/`MAX_COLUMNS` are
+    clamped rather than allocated — the size now arrives from outside the process (a session records
+    its child's winsize in a JSON file and reads it back), and the grid is allocated eagerly, so an
+    unbounded value would be an allocation an untrusted file could ask for. This ceiling is a
+    library backstop for a size that reached the renderer without passing through whatever recorded
+    it; a caller that owns the size clamps it where it records it, and `session` clamps tighter.
 
 ## Behavioral Examples
 

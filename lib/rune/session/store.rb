@@ -230,8 +230,28 @@ module Rune
       # whose byte offsets match the new supervisor's cursors.
       def reset_transcript(name) = FileUtils.rm_f(output_path(name))
 
+      # Written to a temp file and renamed, never truncated in place.
+      #
+      # Every other rune process answers "does this session exist, and is it
+      # alive?" by reading this file, so any instant where it is short or empty
+      # is an instant where `send` says "No such session", `list` reports
+      # `state: dead`, and `read --screen` loses the recorded geometry and falls
+      # back to the default. That used to be rare because meta was written a
+      # handful of times per session; recording the child's winsize made it a
+      # per-resize write, and a human dragging a window edge emits one per
+      # frame. Measured through a real attach dragged across 250 shapes in 7.5s,
+      # with another process doing what `alive_session` does: 90 of 294,728
+      # reads came back unreadable, and 0 of 312,582 once this landed. `rename`
+      # is atomic within a directory, so a reader sees either the whole previous
+      # file or the whole new one.
+      #
+      # The temp name carries the writer's pid because two processes do write
+      # this file — the CLI records `state`/`supervisor_pid` while the
+      # supervisor records `state`/`child_pid`/winsize — and a shared temp path
+      # would let them interleave into one corrupt file that then gets renamed
+      # into place, which is worse than the torn read it replaces.
       def write_meta(name, meta)
-        write_private(meta_path(name)) { |file| file.write(JSON.generate(meta)) }
+        write_atomic(meta_path(name), JSON.generate(meta))
         meta
       end
 
@@ -345,6 +365,26 @@ module Rune
       def write_private(path, &block)
         File.open(path, File::WRONLY | File::CREAT | File::TRUNC, FILE_MODE, &block)
         File.chmod(FILE_MODE, path)
+        path
+      end
+
+      # Serialise first, write the whole thing to a private temp file, then
+      # rename over the target — the same shape `rotate_output` already uses for
+      # the transcript, and for the same reason: readers of these files are
+      # other processes with no lock to take.
+      #
+      # `rename` preserves the temp file's inode, so the 0600 mode
+      # `write_private` set survives; the target's own previous mode is
+      # irrelevant because it is unlinked by the rename.
+      def write_atomic(path, contents)
+        temp = "#{path}.#{Process.pid}.writing"
+        begin
+          write_private(temp) { |file| file.write(contents) }
+          File.rename(temp, path)
+        rescue StandardError
+          FileUtils.rm_f(temp)
+          raise
+        end
         path
       end
     end

@@ -1611,6 +1611,224 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # `attach` resizes the child to whatever terminal took it over, so a fixed
+  # 40x120 render is wrong for the whole time a human is attached from a window
+  # of any other shape. Measured end to end against two independent emulators
+  # before this: all 40 rendered rows differed from what a real 30x100 attach
+  # was showing; after, none did.
+  describe 'the screen renders at the size the child is actually running at' do
+    # Lays its output out against the pty three ways at once — how many lines it
+    # emits (so a shorter terminal scrolls and a taller one does not), how wide
+    # each line is (so a narrower terminal wraps it), and what it prints — and
+    # repaints all of it on SIGWINCH, as every full-screen agent CLI does.
+    def size_painting_child
+      script = <<~CHILD
+        require 'io/console'
+        STDOUT.sync = true
+        def paint
+          rows, cols = STDOUT.winsize
+          print "\\e[H\\e[2J"
+          (1..(rows + 3)).each { |line| print format('N%02d', line) + "\\n" }
+          print('x' * (cols + 5))
+          print "\\nsize \#{rows}x\#{cols}\\n"
+        end
+        Signal.trap('WINCH') { paint }
+        paint
+        sleep
+      CHILD
+      ['ruby', '-e', script]
+    end
+
+    # Exactly the frame `Attachment#forward_resize` sends, over its own
+    # short-lived control connection.
+    def resize(name, rows, cols)
+      Rune::Session::Client.new(store.socket_path(name)).request({ op: 'resize', rows: rows, cols: cols })
+    end
+
+    def wait_for_repaint(name, marker)
+      wait_until(reason: "a repaint at #{marker}") do
+        session('read', "--name=#{name}", '--screen').data[:screen].to_s.include?(marker)
+      end
+    end
+
+    it 'follows the child to a new terminal size instead of rendering at the default' do
+      start_session('win1', size_painting_child)
+      wait_for_repaint('win1', 'size 40x120')
+      resize('win1', 24, 80)
+      wait_for_repaint('win1', 'size 24x80')
+
+      screen = session('read', '--name=win1', '--screen').data[:screen]
+
+      # Rows: 27 lines fit in a 40-row grid, so the old render kept N01. A real
+      # 24-row terminal scrolled it away.
+      expect(screen).not_to include('N01')
+      expect(screen).to include('N27')
+      # Columns: 85 characters is one line at 120 columns and two at 80.
+      expect(screen.lines.map(&:chomp)).to include('x' * 80, 'x' * 5)
+    end
+
+    it 'reports the size it rendered at, so a caller can tell a real geometry from the fallback' do
+      start_session('win2', size_painting_child)
+      wait_for_repaint('win2', 'size 40x120')
+      resize('win2', 30, 100)
+      wait_for_repaint('win2', 'size 30x100')
+
+      result = session('read', '--name=win2', '--screen')
+
+      expect(result.data[:screen_rows]).to eq(30)
+      expect(result.data[:screen_cols]).to eq(100)
+      expect(store.read_meta('win2')).to include(rows: 30, cols: 100)
+    end
+
+    it 'renders send --screen at the same size as read --screen' do
+      start_session('win3', ['bash', '--norc', '-i'])
+      resize('win3', 12, 40)
+      wait_until(reason: 'the resize to be recorded') { store.read_meta('win3')[:rows] == 12 }
+
+      result = session('send', '--name=win3', '--screen', '--settle-ms=400', '--timeout-ms=15000',
+                       '--', 'printf "y%.0s" $(seq 1 45); echo')
+
+      expect(result.data[:screen_rows]).to eq(12)
+      expect(result.data[:screen_cols]).to eq(40)
+      expect(result.data[:screen].lines.map(&:chomp)).to include('y' * 40)
+    end
+
+    # A session directory written before the size was recorded, which is every
+    # session that predates this. The fallback is the previous behaviour, so
+    # such a transcript renders exactly as it always did rather than failing.
+    it 'falls back to the documented default when no size was ever recorded' do
+      start_session('win4', size_painting_child)
+      wait_for_repaint('win4', 'size 40x120')
+      session('stop', '--name=win4')
+      store.write_meta('win4', store.read_meta('win4').except(:rows, :cols))
+
+      result = session('read', '--name=win4', '--screen')
+
+      expect(result.data[:screen_rows]).to eq(Rune::Parsers::ScreenRenderer::DEFAULT_ROWS)
+      expect(result.data[:screen_cols]).to eq(Rune::Parsers::ScreenRenderer::DEFAULT_COLUMNS)
+      expect(result.data[:screen]).to include('size 40x120')
+    end
+
+    # meta.json is a file on disk. A hand-edited or truncated one must not be
+    # able to turn `read --screen` into a crash or an arbitrary allocation.
+    it 'ignores a recorded size that is not a usable terminal' do
+      start_session('win5', size_painting_child)
+      wait_for_repaint('win5', 'size 40x120')
+      session('stop', '--name=win5')
+      store.update_meta('win5', rows: 10**12, cols: 'wide')
+
+      result = session('read', '--name=win5', '--screen')
+
+      expect(result).to be_success
+      expect(result.data[:screen_rows]).to eq(Rune::Parsers::ScreenRenderer::MAX_ROWS)
+      expect(result.data[:screen_cols]).to eq(Rune::Parsers::ScreenRenderer::DEFAULT_COLUMNS)
+      expect(result.data[:screen_size_recorded]).to be(false)
+    end
+
+    # The size pair alone cannot answer this: a session attached from a 40-row
+    # terminal records exactly the fallback numbers. Nothing distinguished the
+    # two until `screen_size_recorded`, so the docs could not honestly claim a
+    # caller was able to tell.
+    it 'distinguishes a recorded 40x120 from the 40x120 default' do
+      start_session('win6', size_painting_child)
+      wait_for_repaint('win6', 'size 40x120')
+      before = session('read', '--name=win6', '--screen').data
+
+      resize('win6', Rune::Parsers::ScreenRenderer::DEFAULT_ROWS, Rune::Parsers::ScreenRenderer::DEFAULT_COLUMNS)
+      wait_until(reason: 'the resize to be recorded') { store.read_meta('win6')[:rows] == 40 }
+      after = session('read', '--name=win6', '--screen').data
+
+      expect(before.values_at(:screen_rows, :screen_cols)).to eq(after.values_at(:screen_rows, :screen_cols))
+      expect(before[:screen_size_recorded]).to be(false)
+      expect(after[:screen_size_recorded]).to be(true)
+    end
+
+    # The supervisor sets the pty to the default and deliberately does not
+    # record it: recording would write meta a second time during launch, against
+    # the parent's own update, and an absent size already renders at exactly
+    # those dimensions.
+    it 'records nothing until the child is actually resized' do
+      start_session('win7', size_painting_child)
+      wait_for_repaint('win7', 'size 40x120')
+
+      expect(store.read_meta('win7')).not_to include(:rows, :cols)
+      expect(session('read', '--name=win7', '--screen').data[:screen]).to include('size 40x120')
+    end
+
+    # A pty's winsize fields are 16-bit, so the control socket can be handed
+    # 65535x65535 and the kernel will take it. Rendering is what pays: the
+    # recorded size drives an eagerly allocated grid on every later `--screen`,
+    # for the rest of the session's life, which is the denial of service
+    # CHG-0056 clamped one layer down.
+    it 'clamps an absurd resize where it is recorded, not where it is rendered' do
+      start_session('win8', size_painting_child)
+      wait_for_repaint('win8', 'size 40x120')
+      resize('win8', 65_535, 65_535)
+      # Clamped at the pty too, so the child, the record and the render agree —
+      # a recorded size the child never had would be the original bug again.
+      wait_for_repaint('win8', "size #{Rune::Session::Supervisor::MAX_ROWS}x" \
+                               "#{Rune::Session::Supervisor::MAX_COLUMNS}")
+
+      result = session('read', '--name=win8', '--screen')
+
+      expect(store.read_meta('win8')).to include(rows: Rune::Session::Supervisor::MAX_ROWS,
+                                                 cols: Rune::Session::Supervisor::MAX_COLUMNS)
+      expect(result.data.values_at(:screen_rows, :screen_cols))
+        .to eq([Rune::Session::Supervisor::MAX_ROWS, Rune::Session::Supervisor::MAX_COLUMNS])
+    end
+  end
+
+  # Recording the winsize turned meta.json from a file written a handful of
+  # times per session into one written per resize, and a human dragging a window
+  # edge emits a SIGWINCH per frame. Every other rune process answers "does this
+  # session exist, and is it alive?" out of this file.
+  describe 'meta.json is replaced, never truncated in place' do
+    it 'swaps a new file in rather than emptying the one readers are holding' do
+      store.create('meta1')
+      store.write_meta('meta1', name: 'meta1', state: 'running')
+      before = File.stat(store.meta_path('meta1')).ino
+
+      store.write_meta('meta1', name: 'meta1', state: 'running', rows: 30, cols: 100)
+
+      # A different inode is the observable difference between `rename` and
+      # O_TRUNC: truncating keeps the file a concurrent reader already opened
+      # and empties it under them, which is exactly the window where `send`
+      # answered "No such session".
+      expect(File.stat(store.meta_path('meta1')).ino).not_to eq(before)
+      expect(store.read_meta('meta1')).to include(rows: 30, cols: 100)
+    end
+
+    it 'leaves the replacement owner-only and drops its temp file' do
+      store.create('meta2')
+      store.write_meta('meta2', name: 'meta2', state: 'running')
+
+      expect(File.stat(store.meta_path('meta2')).mode & 0o777).to eq(Rune::Session::Store::FILE_MODE)
+      expect(Dir.children(store.session_dir('meta2')).grep(/writing/)).to be_empty
+    end
+
+    # The window an O_TRUNC write leaves open is proportional to how long the
+    # write takes, so the padding is what makes this deterministic rather than a
+    # 0.02%-per-read coin flip: with it, the unpatched store leaves the file
+    # short for most of every write and this fails on the first few reads.
+    it 'never shows a reader a partial file, however many writes it races' do
+      store.create('meta3')
+      store.write_meta('meta3', name: 'meta3', state: 'running', pad: 'p' * 200_000)
+      writer = fork do
+        200.times { |i| store.update_meta('meta3', rows: 20 + (i % 40), cols: 80 + (i % 40)) }
+        exit!(0)
+      end
+      unreadable = 0
+      reads = 0
+      until Process.waitpid(writer, Process::WNOHANG)
+        reads += 1
+        unreadable += 1 unless store.read_meta('meta3')
+      end
+
+      expect(reads).to be > 100
+      expect(unreadable).to eq(0)
+    end
+  end
+
   describe 'a send that lands while the child is still talking' do
     # The characteristic failure measured against a real agent CLI is not a
     # truncated answer: it is the *previous* turn's answer, whole and

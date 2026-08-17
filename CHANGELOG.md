@@ -47,6 +47,58 @@
   nothing after the first operand is examined — so `session start --name=x claude --resume`,
   `run cargo clippy --tests`, `send --name=x -- --settle_ms` and `--- section ---` are all
   untouched.
+- **`--screen` rendered at a hardcoded 40x120 while the child ran at whatever size a human's
+  terminal was.** `attach` resizes the child to the terminal that took it over and follows it as
+  that terminal is resized, so for the entire time anyone was attached from a window that was not
+  40 rows tall, rune's distinguishing output described a screen the child never drew. The supervisor
+  now records the child's winsize in `meta.json` whenever it changes it, and both `read --screen`
+  and `send --screen` render at it and report it as `screen_rows`/`screen_cols`.
+
+  Measured end to end against a child that lays its output out against its winsize three ways at
+  once, with pyte 0.8.2 and GNU screen 4.00.03 replaying the same bytes as independent oracles that
+  agreed with each other exactly. Driven over the control socket: **36/37 rows wrong before and 0/31
+  after** at 30x100, 30/31 → 0/25 at 24x80, 18/19 → 0/13 at 12x40, 50/51 → 0/51 at 50x200, and 0/41
+  both ways at 40x120 where the sizes coincide. Driven through a real `rune session attach` in a
+  real 30x100 pty, against the bytes that terminal itself received: **29/30 before, 0/30 after** —
+  and that with a child that ignores SIGWINCH entirely, because the supervisor replays its backlog
+  into the attaching terminal at that terminal's size.
+
+  **`screen_size_recorded` is what tells a recorded size from the fallback.** The numbers cannot: a
+  session attached from a 40-row terminal records exactly the fallback's 40x120. It is false for a
+  session nobody has resized (where 40x120 is not a guess — it is the size the supervisor gave the
+  pty), for a session directory predating this, and for a recorded size that is not a usable
+  terminal, which is discarded or clamped rather than allocated.
+
+  A resize arriving over the control socket is clamped to 300x1000, past any real terminal, and the
+  clamp lands on the pty as well as on the record so the child, the record and the render always
+  agree. A pty's winsize fields are 16-bit, and a recorded 65535x65535 would have made every later
+  `--screen` drive a grid that size for the rest of the session's life — the denial of service
+  v0.8.0 clamped inside the renderer, reappearing one layer up with the amplification persisted to
+  disk. One `read --screen` over a hostile 683KB `\e[999L` transcript: 0.76s at 40x120, 3.41s at the
+  ceiling, 17.72s without it.
+
+  **One case is documented rather than fixed.** The whole retained transcript is rendered at the
+  child's *current* size, so output painted before a resize is re-flowed at the new one. For a
+  full-screen agent that is right, and for an attaching terminal it is exactly right (the 0/30 above
+  is that case). It is unresolved for a child that never repaints *and* whose pty is resized under
+  an already-attached terminal, where that terminal reflows glyphs it has already drawn and there is
+  no reference answer to match: shrunk from 40x120 to 24x80 mid-stream, GNU screen kept only the
+  cursor row, pyte kept nothing, and the two disagreed with each other on one row of what remained.
+  rune keeps the content and re-flows it, differing from both; the old fixed size scored better
+  there on raw row counts (15 wrong against 24) only because a mostly blank screen coincidentally
+  matches a mostly blank oracle.
+
+- **`meta.json` was truncated in place while other processes were reading it.** Every rune process
+  answers "does this session exist, and is it alive?" out of that file with no lock to take, so an
+  instant where it was short was an instant where `send` said "No such session", `list` reported
+  `state: dead`, and `read --screen` fell back to the default geometry. Rare while meta was written
+  a handful of times per session; not rare once the child's winsize is recorded there, because a
+  human dragging a window edge emits a SIGWINCH per frame. It is now serialised first, written whole
+  to a private per-pid temp file, and renamed over the target, the same shape transcript rotation
+  already used. Measured through a real `rune session attach` dragged across 250 window shapes in
+  7.5 seconds, with another process doing exactly what `alive_session` does: **90 of 294,728 reads
+  came back unreadable before, 0 of 312,582 after**. Amplified by padding meta and rewriting it 200
+  times against a concurrent reader: 303 unreadable reads before, 0 after.
 
 ## [v0.8.0] - 2026-08-16
 

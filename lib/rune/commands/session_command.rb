@@ -449,7 +449,7 @@ module Rune
           prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }
           .merge(transcript.dropped.positive? ? { dropped_bytes: transcript.dropped } : {})
           .merge(busy_fields(options))
-          .merge(options[:screen] ? { screen: transcript.screen } : {})
+          .merge(options[:screen] ? screen_fields(transcript, options[:name]) : {})
       end
 
       # The screen as it stands once the send has settled. Read from the
@@ -459,7 +459,45 @@ module Rune
       def screen_after(name, screen)
         return {} unless screen
 
-        { screen: Session::Transcript.load(store.output_path(name)).screen }
+        screen_fields(Session::Transcript.load(store.output_path(name)), name)
+      end
+
+      # Rendered at the size the child's pty is actually set to, which is not
+      # the size it was started at: `attach` resizes the child to the human's
+      # terminal, so for the whole time anyone is attached from a window that is
+      # not 40x120 a fixed default renders a screen the child never drew. The
+      # supervisor records the current winsize in meta on every resize; this
+      # reads it back.
+      #
+      # The size is reported alongside the screen because a caller cannot
+      # otherwise tell a real geometry from the fallback, and the numbers alone
+      # cannot carry that distinction either: a session attached from a 40-row
+      # terminal records exactly the fallback's own 40x120.
+      #
+      # `screen_size_recorded` is the field that can. False means the size shown
+      # is the documented default, for one of three reasons — nobody has resized
+      # this child (where the default is not a guess: it is what the supervisor
+      # set the pty to), the session directory predates rune recording a size at
+      # all, or meta held a size the renderer refused as unusable.
+      def screen_fields(transcript, name)
+        rows, columns, recorded = window_size(name)
+        { screen: transcript.screen(rows: rows, columns: columns),
+          screen_rows: rows, screen_cols: columns, screen_size_recorded: recorded }
+      end
+
+      # The child's last recorded winsize, resolved through the renderer so an
+      # absent one (an old session directory) or a nonsensical one (hand-edited
+      # meta, a pty whose size was never set) becomes the documented default
+      # rather than a crash.
+      #
+      # "Recorded" is decided by comparing the resolved size against what meta
+      # actually held, not by whether the keys are present, so a value that was
+      # clamped or discarded on the way through is reported as the default it
+      # became.
+      def window_size(name)
+        meta = store.read_meta(name) || {}
+        rows, columns = Parsers::ScreenRenderer.dimensions(meta[:rows], meta[:cols])
+        [rows, columns, rows == meta[:rows] && columns == meta[:cols]]
       end
 
       def bound_output(text, options, transcript = nil)

@@ -26,6 +26,20 @@ module Rune
     class ScreenRenderer
       DEFAULT_ROWS = 40
       DEFAULT_COLUMNS = 120
+      # Ceilings on a *caller-supplied* size. The grid is allocated eagerly, so
+      # a dimension arriving from outside this process — a session's recorded
+      # winsize, read back out of a JSON file — must not be able to ask for an
+      # arbitrary allocation.
+      #
+      # A last-resort backstop, not the operating limit. A caller that owns the
+      # size is expected to clamp it where it records it, tighter and against
+      # what a terminal can actually be: `Session::Supervisor` clamps a resize to
+      # 300x1000 before it ever reaches meta.json. These bounds exist for a size
+      # that reached the renderer without passing through anything that did —
+      # a hand-edited meta, a directory written by another version — where the
+      # answer that matters is "a bounded grid" rather than any particular one.
+      MAX_ROWS = 1000
+      MAX_COLUMNS = 2000
       # Bounds the work for a long-lived session, whose transcript grows without
       # limit. Only the tail can still be on screen: a full repaint cycle of a
       # 40x120 terminal is a few KB, so this is orders of magnitude of headroom.
@@ -88,13 +102,31 @@ module Rune
       class << self
         # Renders `text` and returns the visible screen, with trailing blank
         # lines removed and each line right-trimmed.
-        def render(text, rows: DEFAULT_ROWS, columns: DEFAULT_COLUMNS, tail_bytes: DEFAULT_TAIL_BYTES)
+        def render(text, rows: nil, columns: nil, tail_bytes: DEFAULT_TAIL_BYTES)
           return '' if text.nil? || text.empty?
 
           new(rows: rows, columns: columns).render(tail(text, tail_bytes))
         end
 
+        # The size a render will actually use, given what the caller asked for.
+        # Exposed rather than kept private because a caller that reports which
+        # geometry a screen was rendered at must report the effective one: a
+        # session records its child's winsize on disk, and "unknown" (an old
+        # session directory), "0x0" (a pty whose size was never set) and
+        # "garbage" all have to resolve to something before they are shown.
+        def dimensions(rows, columns)
+          [dimension(rows, DEFAULT_ROWS, MAX_ROWS), dimension(columns, DEFAULT_COLUMNS, MAX_COLUMNS)]
+        end
+
         private
+
+        # `exception: false` rather than a rescue because every way this can
+        # fail is the same answer: nil, a string that is not a number, a hash
+        # out of a mangled JSON file.
+        def dimension(value, fallback, ceiling)
+          value = Integer(value, exception: false)
+          value&.positive? ? [value, ceiling].min : fallback
+        end
 
         # Starting mid-stream can only mislead about the first line.
         #
@@ -124,7 +156,8 @@ module Rune
         end
       end
 
-      def initialize(rows: DEFAULT_ROWS, columns: DEFAULT_COLUMNS)
+      def initialize(rows: nil, columns: nil)
+        rows, columns = self.class.dimensions(rows, columns)
         @screen = Screen.new(rows: rows, columns: columns)
       end
 
