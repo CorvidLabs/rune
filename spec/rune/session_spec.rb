@@ -385,16 +385,23 @@ RSpec.describe Rune::Commands::SessionCommand do
       expect(result.data[:output]).to include('SUBMITTED:typed')
     end
 
+    # Reports on SIGWINCH as well as at startup: a child that reads its winsize
+    # before `apply_window_size` lands sees 0x0 and is corrected by the WINCH
+    # that follows. See the 'terminal size' group for why that race exists.
     it 'gives the child a usable window size instead of leaving the pty at 0x0' do
       reporter = ['ruby', '-e',
-                  "require 'io/console'; STDOUT.sync = true; puts 'SIZE:' + STDIN.winsize.inspect; STDIN.gets"]
+                  "require 'io/console'; STDOUT.sync = true; " \
+                  "Signal.trap('WINCH') { puts 'RESIZED:' + STDIN.winsize.inspect }; " \
+                  "puts 'SIZE:' + STDIN.winsize.inspect; STDIN.gets"]
       start_session('s22', reporter)
+      default = "[#{Rune::Session::Supervisor::DEFAULT_ROWS}, #{Rune::Session::Supervisor::DEFAULT_COLUMNS}]"
 
-      wait_until(reason: 'child to report its window size') do
-        session('read', '--name=s22').data[:output].include?('SIZE:')
+      wait_until(reason: 'child to report the default window size') do
+        session('read', '--name=s22').data[:output].include?(default)
       end
-      expect(session('read', '--name=s22').data[:output])
-        .to include("SIZE:[#{Rune::Session::Supervisor::DEFAULT_ROWS}, #{Rune::Session::Supervisor::DEFAULT_COLUMNS}]")
+
+      output = session('read', '--name=s22').data[:output]
+      expect(output).to include("SIZE:#{default}").or include("RESIZED:#{default}")
     end
   end
 
@@ -2894,14 +2901,24 @@ RSpec.describe Rune::Commands::SessionCommand do
       ['ruby', '-e', script]
     end
 
+    # The child ends up at the default, but may observe 0x0 first. `PTY.spawn`
+    # returns the master only once the child is already running, so
+    # `apply_window_size` cannot land before a child that reads its winsize
+    # immediately — it gets the size via the SIGWINCH that follows instead. Seen
+    # on a Ruby 3.1 CI runner as `SIZE:[0, 0]` followed by `RESIZED:[40, 120]`,
+    # where every other version won the race. Asserting only the first line
+    # asserted the scheduler, so this asserts the guarantee rune actually makes:
+    # the child is at the default, by whichever of the two paths delivered it.
     it 'starts headless at the documented default' do
       start_session('s35', size_reporter)
+      default = "[#{Rune::Session::Supervisor::DEFAULT_ROWS}, #{Rune::Session::Supervisor::DEFAULT_COLUMNS}]"
 
-      wait_until(reason: 'the child to report its size') do
-        session('read', '--name=s35').data[:output].include?('SIZE:')
+      wait_until(reason: 'the child to report the default size') do
+        session('read', '--name=s35').data[:output].include?(default)
       end
-      expect(session('read', '--name=s35').data[:output])
-        .to include("SIZE:[#{Rune::Session::Supervisor::DEFAULT_ROWS}, #{Rune::Session::Supervisor::DEFAULT_COLUMNS}]")
+
+      output = session('read', '--name=s35').data[:output]
+      expect(output).to include("SIZE:#{default}").or include("RESIZED:#{default}")
     end
 
     it 'adopts an attaching terminal\'s size and restores the default on detach' do

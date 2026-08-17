@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 62,
-  "id": "CHG-0062-bound-rune-run-timeout-when-the-child-is-still-printing-and-let-a-second-sign",
+  "sequence": 63,
+  "id": "CHG-0063-assert-the-geometry-rune-guarantees-not-the-scheduler-that-usually-delivers-it",
   "acknowledged_collisions": []
 }

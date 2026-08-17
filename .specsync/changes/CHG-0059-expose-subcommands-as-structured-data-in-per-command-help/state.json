@@ -9,7 +9,7 @@
   "canonical_applied": true,
   "base_commit": "7041cb9163a91f82075fe50e1be202ceba717a09",
   "created_at": 1786985338,
-  "updated_at": 1786989175,
+  "updated_at": 1786999211,
   "affected_specs": [
     "cli",
     "session"

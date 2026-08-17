@@ -1,9 +1,9 @@
 {
-  "timestamp": 1786999367,
+  "timestamp": 1786998527,
   "commit": "ffa04d03e4ce1f5593018372a17545019cc7de72",
-  "contract_digest": "8ff05f7ab4bcae02f358ffefaee90634e1e57abb70a9d4c2ffc87ec8a36d5d59",
-  "workspace_digest": "1dc68f41461c663d9d22591e0f090f83861b3e4c20114972563d476cf083ceb0",
-  "acceptance_input_digest": "6159ad4de34983e5cfbac4b180973d8d90665c20c18d7cb9968a2b8a006fc5d0",
+  "contract_digest": "a17a25a5b50b065365eff4e43631fa3f52771712ad046e6cf0ccfc6ff8c76c9a",
+  "workspace_digest": "13696125bdf57ee8ab2a8ce865fb9ee360bf3f5356dd9bc3eb70eee5a4f03d88",
+  "acceptance_input_digest": "41686da285f0d082611a9fa35f53d47f61f6580fd80eaa94320e83b1cfca091e",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,30 +11,10 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "4e5d355027080ada1c7022d93df1af1766799b5874d2c38e41773e97617d289f",
-        "entry_digest": "af318fcb07b8494a0524221c994fbe317db62f4d4f55981fdee9754e43aac4e6",
+        "payload_digest": "db095eb8c4800913004d9fbd8956a1b55b2b2a3b64ec2f4e04a0058ecf5f5bc8",
+        "entry_digest": "79db6573cd71d2d0011a0bf19208719362361d58c5d1087ab306a75913542bb3",
         "owners": [
           "@exact:delivery"
-        ]
-      },
-      {
-        "path": "ROADMAP.md",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "4fa1737de4a420eb456ea674deeddae77394ab5644fe0d721961289692a562e9",
-        "entry_digest": "3905ffb0c8e9352eba898563f0199cee16c11a0640c61b5982d90fe643968806",
-        "owners": [
-          "@exact:delivery"
-        ]
-      },
-      {
-        "path": "lib/rune/commands/session_command.rb",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "8ad2ff496cd7205a4917cbe9fb113470f62429a05ef469e39321240d413a771e",
-        "entry_digest": "594a3f92058122e023c2b4d2f8ef1cd23da528abd32545dedbfad684e908f48d",
-        "owners": [
-          "session"
         ]
       },
       {

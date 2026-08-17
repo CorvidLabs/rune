@@ -1,6 +1,6 @@
 ---
 module: session
-version: 28
+version: 29
 status: active
 files:
   - lib/rune/session/store.rb
@@ -830,6 +830,14 @@ deciding who talks to whom stays the calling agent's job.
     reports nothing, even if its child is in fact alive.
 49. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
     additive.
+49a. The child ends up at the default geometry, but may observe `0x0` first. `PTY.spawn` returns the
+    master only once the child is already running, so `apply_window_size` cannot land before a child
+    that reads its winsize immediately; such a child is corrected by the SIGWINCH that follows.
+    Observed on a Ruby 3.1 CI runner as `SIZE:[0, 0]` then `RESIZED:[40, 120]`, where every other
+    version won the race. Closing it would mean opening the pty, setting its size, and spawning onto
+    the slave by hand instead of using `PTY.spawn` — a change to the spawn path that has not been
+    measured, so this is recorded as a limitation rather than fixed in a hurry. A child that reads
+    its size once at startup and never handles WINCH is the case that loses.
 50. `--max-output` and `--tail` bound `send` as well as `read`. Both flags were parsed for every
     subcommand and applied only by `read`, so `send --max-output=120` returned everything under
     `status: ok` — a caller that asked for a bound was told it succeeded and did not get one.
@@ -1035,3 +1043,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
 | 2026-08-17 | CHG-0059-expose-subcommands-as-structured-data-in-per-command-help: Expose subcommands as structured data in per-command help |
 | 2026-08-17 | CHG-0060-bound-send-output-with-max-output-and-tail-and-make-the-two-mutually-exclus: Bound send output with --max-output and --tail, and make the two mutually exclusive |
+| 2026-08-17 | CHG-0063-assert-the-geometry-rune-guarantees-not-the-scheduler-that-usually-delivers-it: Assert the geometry rune guarantees, not the scheduler that usually delivers it |
