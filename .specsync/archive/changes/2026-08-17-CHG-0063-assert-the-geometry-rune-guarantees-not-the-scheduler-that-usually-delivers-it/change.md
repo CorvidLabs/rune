@@ -1,6 +1,6 @@
 ---
 id: CHG-0063-assert-the-geometry-rune-guarantees-not-the-scheduler-that-usually-delivers-it
-state: accepted
+state: archived
 type: feature
 base_commit: ffa04d03e4ce1f5593018372a17545019cc7de72
 ---

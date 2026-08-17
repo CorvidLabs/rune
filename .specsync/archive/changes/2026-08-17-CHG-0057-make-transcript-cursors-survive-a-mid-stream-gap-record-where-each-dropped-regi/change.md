@@ -1,6 +1,6 @@
 ---
 id: CHG-0057-make-transcript-cursors-survive-a-mid-stream-gap-record-where-each-dropped-regi
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 75fb0141d5eac0a757cd000f4b1ed994178b52cf
 ---

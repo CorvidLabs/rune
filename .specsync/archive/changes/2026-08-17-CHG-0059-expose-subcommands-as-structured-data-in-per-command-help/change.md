@@ -1,6 +1,6 @@
 ---
 id: CHG-0059-expose-subcommands-as-structured-data-in-per-command-help
-state: accepted
+state: archived
 type: feature
 base_commit: 7041cb9163a91f82075fe50e1be202ceba717a09
 ---

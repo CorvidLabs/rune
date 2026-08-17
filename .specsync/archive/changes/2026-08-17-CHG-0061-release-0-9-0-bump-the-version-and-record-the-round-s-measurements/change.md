@@ -1,6 +1,6 @@
 ---
 id: CHG-0061-release-0-9-0-bump-the-version-and-record-the-round-s-measurements
-state: accepted
+state: archived
 type: feature
 base_commit: 7041cb9163a91f82075fe50e1be202ceba717a09
 ---

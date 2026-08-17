@@ -1,6 +1,6 @@
 ---
 id: CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors
-state: accepted
+state: archived
 type: feature
 base_commit: 7041cb9163a91f82075fe50e1be202ceba717a09
 ---

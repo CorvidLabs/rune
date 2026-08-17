@@ -1,6 +1,6 @@
 ---
 id: CHG-0060-bound-send-output-with-max-output-and-tail-and-make-the-two-mutually-exclus
-state: accepted
+state: archived
 type: feature
 base_commit: 7041cb9163a91f82075fe50e1be202ceba717a09
 ---

@@ -1,6 +1,6 @@
 ---
 id: CHG-0062-bound-rune-run-timeout-when-the-child-is-still-printing-and-let-a-second-sign
-state: accepted
+state: archived
 type: feature
 base_commit: 05aa9661a7dbc4444ca61cbff7936c0a40b4ce4b
 ---
