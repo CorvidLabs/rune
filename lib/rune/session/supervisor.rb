@@ -190,7 +190,7 @@ module Rune
         @output_log = @store.open_output(@name)
         @log_bytes = @store.output_size(@name)
         server = build_server
-        reader, writer, pid = PTY.spawn(CHILD_ENV, *@command)
+        reader, writer, pid = PTY.spawn(CHILD_ENV, *ExecArgv.for_spawn(@command, argv: true))
         @child_pid = pid
         @writer = writer
         # Recorded before anything else that could fail. A supervisor that dies

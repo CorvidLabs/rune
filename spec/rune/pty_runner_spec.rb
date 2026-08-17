@@ -5,6 +5,46 @@ require 'rune/script'
 require 'tmpdir'
 
 RSpec.describe Rune::PTYRunner do
+  # `--` is documented as the fence past which the wrapped command's argv passes
+  # through untouched. Ruby routes a spawn through /bin/sh whenever it gets a
+  # lone String with a metacharacter in it, and splatting a one-element array is
+  # exactly that — so the documented-safe path was a shell-injection sink.
+  describe 'a single-element argv array' do
+    around do |example|
+      Dir.mktmpdir('rune-exec') do |dir|
+        @dir = dir
+        File.write(File.join(dir, 'my'), "#!/bin/sh\necho DECOY\n")
+        File.write(File.join(dir, 'my program'), "#!/bin/sh\necho REAL\n")
+        FileUtils.chmod(0o755, [File.join(dir, 'my'), File.join(dir, 'my program')])
+        example.run
+      end
+    end
+
+    it 'execs the file whose name contains a space, not the prefix before it' do
+      result = described_class.new([File.join(@dir, 'my program')], timeout_seconds: 5).run
+
+      expect(result.data[:clean_output]).to include('REAL')
+      expect(result.data[:clean_output]).not_to include('DECOY')
+    end
+
+    it 'does not evaluate shell metacharacters in it' do
+      result = described_class.new(['echo A; echo B'], timeout_seconds: 5).run
+
+      # 127 is the whole point: nothing ran. The message echoes the command
+      # name, so assert on the outcome rather than on the absence of a letter.
+      expect(result.data[:exit_code]).to eq(127)
+      expect(result.data[:clean_output]).to start_with('Command not found')
+    end
+
+    # A String command is a different contract: it is documented as a command
+    # LINE, and every caller of that form depends on it being interpreted.
+    it 'still interprets a String command as a command line' do
+      result = described_class.new('echo hi', timeout_seconds: 5).run
+
+      expect(result.data[:clean_output]).to eq("hi\n")
+    end
+  end
+
   # A timeout that captured nothing is the least actionable result rune
   # produces. A field report spent three to five minutes per attempt on one and
   # concluded rune was discarding the child's output; it is not, which is what

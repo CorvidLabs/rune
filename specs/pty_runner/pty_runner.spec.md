@@ -9,6 +9,7 @@ files:
   - lib/rune/signal_handler.rb
   - lib/rune/utf8_stream_decoder.rb
   - lib/rune/output_limiter.rb
+  - lib/rune/exec_argv.rb
 ---
 # PTY Runner
 
@@ -24,6 +25,8 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `Script` | class | Interactive step DSL passed to `PTYRunner.new(script:)`. Constructor: `Script.new(&block)` (or `Script.define(&block)`, an alias) evaluates the block via `instance_eval`; no I/O happens until `PTYRunner#run` executes the declared steps. |
 | `Rune` | module | Top-level rune namespace. |
 | `pty_available?` | class predicate | Reports whether Ruby's PTY stdlib loaded successfully. |
+| `ExecArgv` | module | Turns a caller's command into arguments spawn will treat the way the caller meant. |
+| `for_spawn` | module function | Forces an argv array to exec directly; leaves a String command line alone. |
 | `run` | instance method | Executes, captures, sanitizes, bounds (if requested), and returns one PTY-backed command result. |
 | `detect_prompt?` | instance predicate | Delegates prompt recognition to `PromptDetector`. |
 | `spawn_and_stream` | internal method | Spawns the PTY and coordinates input, output, signals, and child reaping for the default single-stream mode. |

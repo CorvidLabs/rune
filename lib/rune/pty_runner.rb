@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'exec_argv'
+
 # The pty stdlib is unavailable on some platforms (e.g. Windows) and in some
 # sandboxed/containerized environments. Rescuing here keeps the rest of rune
 # (version, help, anything not touching PTYRunner) usable even when it's
@@ -51,7 +53,8 @@ module Rune
                    separate_streams: false, &on_output)
       # rubocop:enable Metrics/ParameterLists
       @command = command.is_a?(Array) ? Shellwords.join(command) : command.to_s
-      @spawn_arguments = command.is_a?(Array) ? command.map(&:to_s) : [@command]
+      @argv_form = command.is_a?(Array)
+      @spawn_arguments = @argv_form ? command.map(&:to_s) : [@command]
       @input = input
       @script = script
       @timeout_seconds = timeout_seconds
@@ -204,7 +207,7 @@ module Rune
       exit_code = nil
       env = { 'PAGER' => 'cat', 'GIT_PAGER' => 'cat' }
 
-      PTY.spawn(env, *@spawn_arguments) do |r, w, pid|
+      PTY.spawn(env, *ExecArgv.for_spawn(@spawn_arguments, argv: @argv_form)) do |r, w, pid|
         on_pid&.call(pid)
         SignalHandler.with_traps(pid) do |forward_signal|
           write_input(w, input) if input

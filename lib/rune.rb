@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'rune/version'
+require_relative 'rune/exec_argv'
 require_relative 'rune/result'
 require_relative 'rune/renderer'
 require_relative 'rune/help'
