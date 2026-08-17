@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml/badge.svg)](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml)
 [![Ruby](https://img.shields.io/badge/ruby-3.0%20%E2%80%93%204.0-CC342D?logo=ruby&logoColor=white)](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml)
-[![Dependencies](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](rune.gemspec)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 A Ruby CLI tool and library designed from the ground up to be **human & AI agent first-class**.
