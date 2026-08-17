@@ -1814,6 +1814,11 @@ RSpec.describe Rune::Commands::SessionCommand do
     # write takes, so the padding is what makes this deterministic rather than a
     # 0.02%-per-read coin flip: with it, the unpatched store leaves the file
     # short for most of every write and this fails on the first few reads.
+    #
+    # How many times the reader got round its loop is deliberately not asserted.
+    # It counts scheduler turns, not anything about atomicity — the property is
+    # that no read ever saw a partial file — and on a loaded machine the same
+    # correct code came round only 88 times and failed a `> 100` floor.
     it 'never shows a reader a partial file, however many writes it races' do
       store.create('meta3')
       store.write_meta('meta3', name: 'meta3', state: 'running', pad: 'p' * 200_000)
@@ -1822,13 +1827,10 @@ RSpec.describe Rune::Commands::SessionCommand do
         exit!(0)
       end
       unreadable = 0
-      reads = 0
       until Process.waitpid(writer, Process::WNOHANG)
-        reads += 1
         unreadable += 1 unless store.read_meta('meta3')
       end
 
-      expect(reads).to be > 100
       expect(unreadable).to eq(0)
     end
   end
@@ -1902,6 +1904,423 @@ RSpec.describe Rune::Commands::SessionCommand do
       crash = events.find { |event| event['event'] == 'crash' }
       expect(crash['error']).to eq('TypeError')
       expect(crash['message']).to eq('boom')
+    end
+  end
+
+  describe 'a rotation that cannot be written' do
+    # `rotate_output` closed the caller's handle before it had a replacement to
+    # hand back, so any later failure left the supervisor holding a closed handle
+    # it had no idea was closed. `log_event`'s rescue then swallowed every write
+    # for the rest of the session's life, silently.
+    def unwritable(name)
+      session_store = store
+      session_store.create(name)
+      session_store.write_meta(name, name: name, state: 'running')
+      handle = session_store.open_output(name)
+      handle.write("#{JSON.generate(event: 'output', ts: 1.0, bytes: 3, text: 'abc')}\n")
+      File.chmod(0o500, session_store.session_dir(name))
+      [session_store, handle]
+    end
+
+    it 'leaves the caller a handle it can still write to' do
+      session_store, handle = unwritable('rotfail1')
+
+      begin
+        expect { session_store.rotate_output('rotfail1', handle, 3) }.to raise_error(SystemCallError)
+
+        expect(handle).not_to be_closed
+        expect { handle.write("still here\n") }.not_to raise_error
+      ensure
+        File.chmod(0o700, session_store.session_dir('rotfail1'))
+      end
+    end
+
+    it 'leaves no half-written replacement behind' do
+      session_store, handle = unwritable('rotfail2')
+
+      begin
+        expect { session_store.rotate_output('rotfail2', handle, 3) }.to raise_error(SystemCallError)
+
+        expect(Dir.children(session_store.session_dir('rotfail2')).grep(/rotating/)).to be_empty
+      ensure
+        File.chmod(0o700, session_store.session_dir('rotfail2'))
+      end
+    end
+
+    # The property that actually matters: the cursor `send` hands out has to stay
+    # resolvable by `read`. Constants are shrunk so a rotation is reached in a few
+    # hundred events rather than 32MB of them.
+    it 'keeps the transcript level with the cursor right through the outage' do
+      stub_const('Rune::Session::Store::MAX_LOG_BYTES', 300_000)
+      stub_const('Rune::Session::Store::LOG_KEEP_BYTES', 250_000)
+      session_store = store
+      session_store.create('rotfail3')
+      session_store.write_meta('rotfail3', name: 'rotfail3', state: 'running')
+      supervisor = Rune::Session::Supervisor.new(name: 'rotfail3', command: ['true'], store: session_store)
+      supervisor.instance_variable_set(:@output_log, session_store.open_output('rotfail3'))
+      supervisor.instance_variable_set(:@log_bytes, 0)
+      emit = ->(count) { count.times { supervisor.send(:append, 'z' * 3_000) } }
+      on_disk = -> { Rune::Session::Transcript.load(session_store.output_path('rotfail3')).cursor }
+
+      emit.call(120)
+      File.chmod(0o500, session_store.session_dir('rotfail3'))
+      begin
+        emit.call(200)
+
+        expect(on_disk.call).to eq(supervisor.send(:transcript_bytes))
+      ensure
+        File.chmod(0o700, session_store.session_dir('rotfail3'))
+      end
+
+      # And recording resumes rather than staying dead once the cause clears.
+      emit.call(30)
+      expect(on_disk.call).to eq(supervisor.send(:transcript_bytes))
+    end
+
+    # With the handle surviving, @log_bytes stays over the ceiling and every
+    # further event would retry — and each retry seeks and scans the tail it
+    # means to keep before discovering it cannot write (8_388_576 bytes, 4.8ms,
+    # at the real constants) on the one thread that also drains the pty.
+    it 'backs off instead of retrying on every event' do
+      session_store = store
+      session_store.create('rotfail4')
+      session_store.write_meta('rotfail4', name: 'rotfail4', state: 'running')
+      supervisor = Rune::Session::Supervisor.new(name: 'rotfail4', command: ['true'], store: session_store)
+      supervisor.instance_variable_set(:@output_log, session_store.open_output('rotfail4'))
+      attempts = 0
+      allow(session_store).to receive(:rotate_output) do
+        attempts += 1
+        raise Errno::EACCES
+      end
+
+      10.times { supervisor.send(:rotate_log) }
+
+      expect(attempts).to eq(1)
+    end
+  end
+
+  describe 'a transcript write that fails outright' do
+    # Distinct from a rotation that fails: the handle is fine, the filesystem
+    # refuses. The in-memory cursor has already advanced, so a hole nothing
+    # accounts for makes every cursor `send` hands out unresolvable by `read`,
+    # permanently. Reproduced on a real full filesystem (RUNE_HOME on a 20MB
+    # ramdisk): 852_000 bytes went unrecorded under `dropped: 0`, and freeing the
+    # disk resumed logging over the hole without a word.
+    #
+    # `refusals` writes fail, then recover — the shape of a disk filling and
+    # being freed — without needing a ramdisk to run in CI.
+    def refusing_log(path, refusals:)
+      # rubocop:disable Style/FileOpen -- handed to a supervisor that writes for
+      # the rest of the example; the block form would close it first.
+      real = File.open(path, File::WRONLY | File::CREAT | File::APPEND, 0o600)
+      # rubocop:enable Style/FileOpen
+      real.sync = true
+      handle = Object.new
+      handle.define_singleton_method(:closed?) { false }
+      handle.define_singleton_method(:close) { real.close }
+      handle.define_singleton_method(:write) do |payload|
+        raise Errno::ENOSPC if (refusals -= 1) >= 0
+
+        real.write(payload)
+      end
+      handle
+    end
+
+    def gapped_supervisor(name, refusals:)
+      session_store = store
+      session_store.create(name)
+      session_store.write_meta(name, name: name, state: 'running')
+      supervisor = Rune::Session::Supervisor.new(name: name, command: ['true'], store: session_store)
+      log = refusing_log(session_store.output_path(name), refusals: refusals)
+      supervisor.instance_variable_set(:@output_log, log)
+      [supervisor, session_store]
+    end
+
+    it 'accounts for every byte the outage lost, once a write succeeds again' do
+      supervisor, session_store = gapped_supervisor('gap1', refusals: 20)
+
+      30.times { supervisor.send(:append, 'z' * 1_000) }
+
+      loaded = Rune::Session::Transcript.load(session_store.output_path('gap1'))
+      expect(loaded.cursor).to eq(supervisor.send(:transcript_bytes))
+      expect(loaded.dropped).to eq(20_000)
+    end
+
+    it 'reports the hole in-band while it is still owed' do
+      supervisor, = gapped_supervisor('gap2', refusals: 500)
+
+      3.times { supervisor.send(:append, 'z' * 1_000) }
+
+      expect(supervisor.send(:gap_field)).to eq(transcript_gap_bytes: 3_000)
+    end
+
+    it 'says nothing about a gap when there is none' do
+      supervisor, = gapped_supervisor('gap3', refusals: 0)
+
+      3.times { supervisor.send(:append, 'z' * 1_000) }
+
+      expect(supervisor.send(:gap_field)).to eq({})
+    end
+
+    # A write that fails part-way leaves a fragment, and a fragment can be a
+    # complete JSON object that merely never got its newline — which, once more
+    # text is appended, silently swallows the next good record too. Measured on a
+    # real full filesystem: one 4_938-byte line that parses as neither.
+    it 'keeps a torn fragment from swallowing the record that follows it' do
+      session_store = store
+      session_store.create('gap4')
+      session_store.write_meta('gap4', name: 'gap4', state: 'running')
+      path = session_store.output_path('gap4')
+      supervisor = Rune::Session::Supervisor.new(name: 'gap4', command: ['true'], store: session_store)
+      # rubocop:disable Style/FileOpen -- as above.
+      real = File.open(path, File::WRONLY | File::CREAT | File::APPEND, 0o600)
+      # rubocop:enable Style/FileOpen
+      real.sync = true
+      torn = false
+      handle = Object.new
+      handle.define_singleton_method(:closed?) { false }
+      handle.define_singleton_method(:write) do |payload|
+        next real.write(payload) if torn
+
+        torn = true
+        # Half a record lands, then the write fails: exactly what ENOSPC does.
+        real.write(payload.byteslice(0, payload.bytesize / 2))
+        raise Errno::ENOSPC
+      end
+      supervisor.instance_variable_set(:@output_log, handle)
+
+      supervisor.send(:append, 'a' * 1_000)
+      supervisor.send(:append, 'b' * 1_000)
+
+      loaded = Rune::Session::Transcript.load(path)
+      # The second append survives whole; only the torn first one is lost, and
+      # its bytes are accounted for rather than vanishing.
+      expect(loaded.text).to include('b' * 1_000)
+      expect(loaded.cursor).to eq(supervisor.send(:transcript_bytes))
+    end
+
+    # Rotation's head event is `total_output - kept`, so anything the kept region
+    # accounts for and `output_bytes_from` does not gets counted twice.
+    it 'counts a truncated event inside the kept region' do
+      session_store = store
+      session_store.create('gap5')
+      path = session_store.output_path('gap5')
+      lines = [JSON.generate(event: 'output', ts: 1.0, bytes: 10, text: 'x' * 10),
+               JSON.generate(event: 'truncated', ts: 1.0, dropped_bytes: 400_000),
+               JSON.generate(event: 'output', ts: 1.0, bytes: 10, text: 'y' * 10)]
+      File.write(path, lines.map { |line| "#{line}\n" }.join)
+
+      expect(session_store.output_bytes_from(path, 0)).to eq(400_020)
+    end
+
+    it 'does not count a torn fragment the reader will skip' do
+      session_store = store
+      session_store.create('gap6')
+      path = session_store.output_path('gap6')
+      fragment = JSON.generate(event: 'output', ts: 1.0, bytes: 999, text: 'z' * 999).byteslice(0, 40)
+      File.binwrite(path, "#{fragment}#{Rune::Session::Supervisor::TORN_MARKER}" \
+                          "#{JSON.generate(event: 'output', ts: 1.0, bytes: 10, text: 'y' * 10)}\n")
+
+      expect(session_store.output_bytes_from(path, 0)).to eq(10)
+    end
+  end
+
+  describe 'teardown records the child as gone only once it is' do
+    # `cleanup` wrote `state: 'exited'` before it terminated the child, so a
+    # supervisor dying in that window left a concluded record beside a live
+    # process — and any check that trusted the state field was blind to exactly
+    # the case it existed for. `conclude` already kills first on the normal path;
+    # this is the abnormal one, reached when no rescue in `run` did.
+    it 'has already reaped the child when "exited" reaches meta' do
+      session_store = store
+      session_store.create('order1')
+      session_store.write_meta('order1', name: 'order1', state: 'running')
+      reader, writer, pid = PTY.spawn('ruby', '-e', 'Signal.trap("HUP","IGNORE"); loop { sleep 1 }')
+      supervisor = Rune::Session::Supervisor.new(name: 'order1', command: ['true'], store: session_store)
+      supervisor.instance_variable_set(:@child_pid, pid)
+      supervisor.instance_variable_set(:@output_log, session_store.open_output('order1'))
+      alive_when_recorded = nil
+      recorder = session_store.method(:update_meta)
+      allow(session_store).to receive(:update_meta) do |name, fields|
+        alive_when_recorded = Rune::Session::Store.alive?(pid) if fields[:state] == 'exited'
+        recorder.call(name, fields)
+      end
+
+      begin
+        supervisor.send(:cleanup, nil)
+      ensure
+        [reader, writer].each { |io| io.close unless io.closed? }
+      end
+
+      expect(alive_when_recorded).to be false
+      expect(session_store.read_meta('order1')[:state]).to eq('exited')
+      expect(Rune::Session::Store.alive?(pid)).to be false
+    end
+  end
+
+  describe 'a child that outlived its supervisor' do
+    # Reported, never refused. An earlier attempt refused the archive and sent
+    # the caller to `rune session stop`, which SIGKILLs the recorded pid's whole
+    # process group — so whenever its liveness test was wrong about a recycled
+    # pid, the remedy killed a stranger. It asked the process *group* on the
+    # premise that a recycled pid sits in its parent's group; measured here,
+    # 87.9% of live processes lead their own group.
+    def survivor = ['ruby', '-e', 'Signal.trap("HUP","IGNORE"); loop { sleep 1 }']
+
+    # A pid that is certainly dead: spawned and reaped, so nothing of ours holds
+    # it and nothing has had the chance to reuse it yet.
+    def reaped_pid
+      pid = Process.spawn('true', out: File::NULL, err: File::NULL)
+      Process.wait(pid)
+      pid
+    end
+
+    # A session whose supervisor is gone, pointed at `child` as its child.
+    def orphaned_session(name, child, started: nil)
+      session_store = store
+      session_store.create(name)
+      session_store.write_meta(name, name: name, command: ['x'], state: 'running',
+                                     child_pid: child, supervisor_pid: reaped_pid,
+                                     child_started_at: started || Rune::Session::Store.process_start_time(child))
+      session_store
+    end
+
+    def listed(name)
+      session('list').data[:sessions].find { |entry| entry[:name] == name }
+    end
+
+    it 'names the live child in list' do
+      child = Process.spawn(*survivor, out: File::NULL, err: File::NULL)
+      orphaned_session('orph1', child)
+
+      begin
+        expect(listed('orph1')[:orphaned_child_pid]).to eq(child)
+      ensure
+        Process.kill('KILL', child)
+        Process.wait(child)
+      end
+    end
+
+    # The blind spot of the check this replaces: it skipped any session recorded
+    # exited/stopped/failed, which is precisely where a supervisor that died
+    # mid-teardown leaves its record.
+    it 'names it even when meta claims the session already exited' do
+      child = Process.spawn(*survivor, out: File::NULL, err: File::NULL)
+      session_store = orphaned_session('orph2', child)
+      session_store.update_meta('orph2', state: 'exited', exit_code: 0)
+
+      begin
+        expect(listed('orph2')[:orphaned_child_pid]).to eq(child)
+      ensure
+        Process.kill('KILL', child)
+        Process.wait(child)
+      end
+    end
+
+    it 'names it on the archive reply and archives anyway' do
+      child = Process.spawn(*survivor, out: File::NULL, err: File::NULL)
+      orphaned_session('orph3', child)
+
+      begin
+        result = session('archive', '--name=orph3')
+
+        expect(result).to be_success
+        expect(result.data[:orphaned_child_pid]).to eq(child)
+        expect(result.data[:archived_to]).to include('orph3')
+        expect(Rune::Session::Store.alive?(child)).to be true
+      ensure
+        Process.kill('KILL', child)
+        Process.wait(child)
+      end
+    end
+
+    # The case the abandoned group check got wrong. A live process that merely
+    # wears the recorded number is not this session's child, and saying it is
+    # would point an operator at a stranger.
+    it 'says nothing about a live process that only wears the recorded number' do
+      stranger = Process.spawn(*survivor, out: File::NULL, err: File::NULL, pgroup: true)
+      orphaned_session('recyc1', stranger, started: 'Thu Jan  1 00:00:00 1970')
+
+      begin
+        expect(Process.getpgid(stranger)).to eq(stranger)
+        expect(listed('recyc1')[:orphaned_child_pid]).to be_nil
+        expect(session('archive', '--name=recyc1').data[:orphaned_child_pid]).to be_nil
+        expect(Rune::Session::Store.alive?(stranger)).to be true
+      ensure
+        Process.kill('KILL', stranger)
+        Process.wait(stranger)
+      end
+    end
+
+    # No recorded identity is not evidence of an orphan. Sessions started before
+    # the field existed, and any supervisor that died before writing it, answer
+    # "unknown" — which is silence, not a guess from the bare pid.
+    it 'says nothing when the child identity was never recorded' do
+      child = Process.spawn(*survivor, out: File::NULL, err: File::NULL)
+      session_store = store
+      session_store.create('legacy1')
+      session_store.write_meta('legacy1', name: 'legacy1', command: ['x'], state: 'running',
+                                          child_pid: child, supervisor_pid: reaped_pid)
+
+      begin
+        expect(listed('legacy1')[:orphaned_child_pid]).to be_nil
+      ensure
+        Process.kill('KILL', child)
+        Process.wait(child)
+      end
+    end
+
+    # A human on a TTY gets the warning as a line of its own. Folded into the
+    # archive envelope it would be one key in a JSON blob, which is exactly where
+    # a person skimming a successful archive would not look.
+    it 'warns a human archiving a session that still has a live child' do
+      io = StringIO.new
+      session_command.human_render({ action: 'archive', name: 'x', archived_to: 'y',
+                                     orphaned_child_pid: 4242 }, io)
+
+      expect(io.string).to include('child pid 4242 is still running')
+      expect(io.string).to include('"archived_to":"y"')
+    end
+
+    it 'says nothing extra when an archive leaves nothing behind' do
+      io = StringIO.new
+      session_command.human_render({ action: 'archive', name: 'x', archived_to: 'y' }, io)
+
+      expect(io.string).to eq(%({"name":"x","archived_to":"y"}\n))
+    end
+
+    it 'marks the orphan in a human session list' do
+      io = StringIO.new
+      session_command.human_render({ action: 'list',
+                                     sessions: [{ name: 's', state: 'dead', command: ['x'],
+                                                  orphaned_child_pid: 4242 }] }, io)
+
+      expect(io.string).to include('child pid 4242 is still running with no supervisor')
+    end
+
+    it 'says nothing about a session whose supervisor is alive and well' do
+      start_session('healthy1', survivor)
+
+      expect(listed('healthy1')[:state]).to eq('running')
+      expect(listed('healthy1')[:orphaned_child_pid]).to be_nil
+    end
+
+    # End to end, with a real supervisor really killed. `start` returns before
+    # the child's interpreter has installed its trap, so the pty hangup would
+    # otherwise kill the child and there would be no orphan to find.
+    it 'reports a child left behind by a SIGKILLed supervisor' do
+      result = start_session('orph4', survivor)
+      child = result.data[:child_pid]
+      supervisor = result.data[:supervisor_pid]
+      wait_until(reason: 'the child to install its HUP trap') do
+        (store.read_meta('orph4') || {})[:child_started_at]
+      end
+      sleep 0.8
+      Process.kill('KILL', supervisor)
+      wait_until(reason: 'the supervisor to die') { !Rune::Session::Store.alive?(supervisor) }
+
+      expect(Rune::Session::Store.alive?(child)).to be true
+      expect(listed('orph4')[:orphaned_child_pid]).to eq(child)
     end
   end
 

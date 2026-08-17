@@ -111,6 +111,19 @@ module Rune
       # Hard cap on a whole send, when the caller does not set one.
       DEFAULT_TIMEOUT_MS = 120_000
       UNDELIVERED_INPUT_ERROR = 'previous input is still being delivered to the child'
+      # How long a failed rotation waits before it is attempted again.
+      ROTATE_RETRY_SECONDS = 30.0
+      # Written ahead of the first record to follow a write that failed. A write
+      # that fails part-way leaves a fragment at the end of the file, and a
+      # fragment can be a *complete* JSON object that simply never got its
+      # newline — indistinguishable, once more text is appended, from a record
+      # that landed. Measured on a real full filesystem: 280 of 300 writes failed
+      # and one left a fragment that then swallowed the next good record into a
+      # single 4_938-byte line that parses as neither. The marker makes the
+      # fragment unreadable on its own terms instead: appended to any dangling
+      # fragment it produces a line that cannot parse, so the reader skips only
+      # that, and `|torn` closes no string and is valid JSON nowhere.
+      TORN_MARKER = "|torn\n"
       # Recorded as the session's exit code when the supervisor itself died
       # rather than the child. 70 is sysexits' EX_SOFTWARE: an internal fault,
       # distinct from any status the child could have returned.
@@ -157,7 +170,6 @@ module Rune
         @accepted_at = {}
         @close_after_drain = []
         @stopping = false
-        @log_bytes = 0
         @submit_at = nil
         @exit_code = nil
         @finished = false
@@ -165,6 +177,7 @@ module Rune
         # costs nothing.
         @rows = nil
         @cols = nil
+        init_log_state
       end
 
       def run
@@ -181,6 +194,7 @@ module Rune
         # supervisor. The window cannot be closed entirely — the pid does not
         # exist until spawn returns — but it should contain nothing but this.
         record_running(pid)
+        record_child_identity(pid)
         apply_window_size(writer)
         log_event('start', command: Shellwords.join(@command), pid: pid)
         event_loop(server, reader, writer)
@@ -196,6 +210,19 @@ module Rune
       end
 
       private
+
+      # Bookkeeping for the transcript *file*, as opposed to the in-memory window
+      # set up above. `@rotate_retry_at` is when a rotation that failed may be
+      # attempted again; nil means no rotation has failed.
+      def init_log_state
+        @log_bytes = 0
+        @rotate_retry_at = nil
+        # Output bytes that never reached the transcript because a write failed,
+        # nil while there is nothing owed. Carried, not forgotten: it is what the
+        # next successful write records as a `truncated` event. Non-nil also
+        # means the file may end mid-record, which is what gates TORN_MARKER.
+        @log_gap = nil
+      end
 
       # Without setsid the supervisor stays in the launching shell's session
       # and dies with it (SIGHUP on terminal close), which would defeat the
@@ -254,6 +281,21 @@ module Rune
 
       def record_running(pid)
         @store.update_meta(@name, state: 'running', child_pid: pid, supervisor_pid: Process.pid)
+      end
+
+      # The child's start time as the OS reports it, which is what makes the
+      # recorded pid identifiable later. Once this supervisor is gone, a bare
+      # child pid cannot be told apart from a stranger that recycled the number,
+      # and every question anyone asks of it afterwards — `list`, `archive` — is
+      # really a question about that pair.
+      #
+      # Deliberately a second write rather than part of `record_running`: this
+      # one shells out to `ps`, and the pid must reach disk before anything that
+      # slow. A supervisor that dies in between simply leaves the field absent,
+      # and an absent field is reported as "unknown", never as "orphaned".
+      def record_child_identity(pid)
+        started = Store.process_start_time(pid)
+        @store.update_meta(@name, child_started_at: started) if started
       end
 
       def event_loop(server, reader, writer)
@@ -771,8 +813,15 @@ module Rune
           cursor: transcript_bytes,
           prompt_detected: PromptScanner.prompt_at_end?(slice),
           busy_at_send: pending.busy_at_send
-        }.merge(flags))
+        }.merge(flags).merge(gap_field))
       end
+
+      # Present only while a hole is still owed, which is the one window in which
+      # `read` cannot report it: until a write succeeds there is nowhere on disk
+      # to record the gap, so the supervisor's memory is the only place the skew
+      # is known at all. On a send's reply because that is where the caller is
+      # handed the cursor the skew makes unresolvable.
+      def gap_field = @log_gap ? { transcript_gap_bytes: @log_gap } : {}
 
       def handle_stop(client)
         respond(client, stopping: true)
@@ -786,7 +835,7 @@ module Rune
           child_pid: @child_pid,
           supervisor_pid: Process.pid,
           cursor: transcript_bytes
-        }
+        }.merge(gap_field)
       end
 
       # Queued like everything else, then closed once it has drained. `puts` +
@@ -819,10 +868,21 @@ module Rune
       # for the life of the session and `archive` preserved it, so the cost
       # outlived the session that paid it.
       def rotate_log
+        return if @rotate_retry_at && monotonic < @rotate_retry_at
+
         @output_log = @store.rotate_output(@name, @output_log, transcript_bytes)
         @log_bytes = @store.output_size(@name)
+        @rotate_retry_at = nil
+      # A rotation that fails now costs only the rotation: `rotate_output` closes
+      # the caller's handle last, so recording continues into the oversized file.
+      # Backed off rather than retried on the next event, because @log_bytes stays
+      # over the ceiling and every attempt seeks and scans the tail it means to
+      # keep before it discovers it cannot write. Measured at the real
+      # LOG_KEEP_BYTES: one failed attempt scans 8_388_576 bytes in 4.8ms, so at
+      # one attempt per log event a 500KB/s session would spend ~600ms of every
+      # second inside that scan — on the single thread that also drains the pty.
       rescue IOError, SystemCallError
-        nil
+        @rotate_retry_at = monotonic + ROTATE_RETRY_SECONDS
       end
 
       def crashed(error)
@@ -852,12 +912,24 @@ module Rune
         [
           -> { resolve_orphaned_pending },
           -> { drain_replies },
+          # The child goes first, and the record of its death second. The other
+          # order wrote `state: 'exited'` while the child was still running, so a
+          # supervisor that died in that window — the abnormal teardowns that
+          # reach here, where `conclude` never ran — left a concluded record next
+          # to a live process. Anything reading meta then believed a session was
+          # over while its child held a pty, and any check that trusted the state
+          # field was blind to exactly the case it existed for.
+          #
+          # `conclude` already kills before recording on the normal path, so this
+          # only aligns teardown with it; `terminate_child` is idempotent, and
+          # each step here has its own rescue, so a child that will not die still
+          # gets the record written after it.
+          -> { terminate_child },
           # Whatever brought us here, the session is over. Leaving meta saying
           # "running" makes every later command report a session that is not
           # there, with no exit code to explain it — and `list` then shows a
           # live session backed by nothing.
           -> { finish(EXIT_SUPERVISOR_CRASHED) unless @finished },
-          -> { terminate_child },
           -> { (@clients + @attached).each { |client| safe_close(client) } },
           -> { safe_close(server) },
           -> { FileUtils.rm_f(@store.socket_path(@name)) },
@@ -943,16 +1015,74 @@ module Rune
         nil
       end
 
+      # SystemCallError covers ENOSPC and friends: losing the transcript is bad,
+      # losing the running session because the disk filled is worse. But a write
+      # that fails is now *recorded*, not merely survived. The in-memory cursor
+      # has already advanced — those bytes really were produced — so a hole
+      # nothing accounts for makes every cursor `send` hands out unresolvable by
+      # `read`, permanently. Reproduced on a real full filesystem (RUNE_HOME on a
+      # 20MB ramdisk): 852_000 bytes of output went unrecorded, the transcript
+      # reported `dropped: 0`, and freeing the disk made it worse, because
+      # logging resumed over the hole without a word.
+      #
+      # The lost bytes are carried until a write succeeds and then emitted as a
+      # `truncated` event — the same vehicle rotation already uses to keep cursors
+      # absolute, so `read` resolves a pre-hole cursor again and reports
+      # `dropped_bytes` instead of silently returning less.
       def log_event(event, **fields)
-        return unless @output_log
+        # Checked before the record is generated, not inside `append_log`:
+        # serializing an `output` event materializes the child's text into a JSON
+        # string, which is the single most expensive thing on this path, and
+        # there is no point paying it for a write that cannot happen.
+        return note_log_gap(event, fields) unless writable_log?
 
         line = JSON.generate({ event: event, ts: Time.now.to_f }.merge(fields))
-        @output_log.puts line
-        @log_bytes += line.bytesize + 1
+        written = append_log(line)
+        return note_log_gap(event, fields) unless written
+
+        @log_bytes += written
         rotate_log if @log_bytes >= Store::MAX_LOG_BYTES
-      # SystemCallError covers ENOSPC and friends: losing the transcript is bad,
-      # losing the running session because the disk filled is worse.
+      end
+
+      def writable_log? = !(@output_log.nil? || @output_log.closed?)
+
+      # Bytes appended, or nil if the event did not reach the file. Any owed gap
+      # goes first and as its own record, so "recorded" means exactly "its own
+      # write returned".
+      #
+      # Deliberately does not reopen a handle that has gone away. The prototype
+      # this is taken from did, as insurance; but `rotate_output` no longer closes
+      # one without a replacement, so the case is unreachable, and reopening by
+      # name would let a supervisor that outlived its session write into the
+      # transcript of the *next* session started under that name.
+      def append_log(line)
+        gap = @log_gap ? write_record(gap_line) : 0
+        return nil unless gap
+
+        written = write_record(line)
+        written && (gap + written)
+      end
+
+      # One NDJSON record, preceded by the torn marker when the last write failed.
+      # Returns bytes written, or nil when nothing can be trusted to have landed.
+      def write_record(record)
+        payload = @log_gap ? "#{TORN_MARKER}#{record}\n" : "#{record}\n"
+        @output_log.write(payload)
+        @log_gap = nil
+        payload.bytesize
       rescue IOError, SystemCallError
+        nil
+      end
+
+      def gap_line = JSON.generate(event: 'truncated', ts: Time.now.to_f, dropped_bytes: @log_gap)
+
+      # Only `output` events carry stream bytes, so only they widen the hole. A
+      # lost `start`/`exit` still opens one, at zero bytes, because a reader must
+      # not inherit a transcript with events missing from the middle and no sign
+      # of it — and because a non-nil gap is also the flag that says the file may
+      # end mid-record.
+      def note_log_gap(event, fields)
+        @log_gap = (@log_gap || 0) + (event == 'output' ? fields[:bytes].to_i : 0)
         nil
       end
 

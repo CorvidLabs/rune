@@ -117,8 +117,20 @@ module Rune
         case data[:action]
         when 'list' then render_list(data, io)
         when 'send', 'read' then render_output(data, io)
+        when 'archive' then render_archive(data, io)
         else io.puts(JSON.generate(data.except(:action)))
         end
+      end
+
+      # The orphan warning is printed after the archive line rather than folded
+      # into the JSON blob, because this is the last moment the pid is reachable
+      # by name and a human skimming a one-line envelope would miss it.
+      def render_archive(data, io)
+        io.puts(JSON.generate(data.except(:action, :orphaned_child_pid)))
+        return unless data[:orphaned_child_pid]
+
+        io.puts "\e[33m! child pid #{data[:orphaned_child_pid]} is still running and this session no " \
+                "longer names it. Check it with 'ps -p #{data[:orphaned_child_pid]}'.\e[0m"
       end
 
       # A human reading a driven TUI agent wants the stripped text, not its
@@ -603,7 +615,7 @@ module Rune
         return list_all_projects if options[:all_projects]
 
         Result.success({ action: 'list', project: store.project,
-                         sessions: store.names.map { |name| describe(name) } })
+                         sessions: with_orphans(store.names.map { |name| describe(name) }, store) })
       end
 
       def list_archived
@@ -616,9 +628,76 @@ module Rune
       def list_all_projects
         sessions = Session::Store.projects(store.home).flat_map do |project|
           scoped = Session::Store.new(home: store.home, project: project)
-          scoped.names.map { |name| describe(name, scoped).merge(project: project) }
+          described = scoped.names.map { |name| describe(name, scoped).merge(project: project) }
+          with_orphans(described, scoped)
         end
         Result.success({ action: 'list', all_projects: true, sessions: sessions })
+      end
+
+      # ---- orphaned children
+      #
+      # A supervisor killed with SIGKILL leaves its child running, reparented to
+      # pid 1 and still holding the pty. Nothing in rune owns that process any
+      # more, and nothing used to say so: `list` showed the session `dead` and
+      # `archive` filed it away, both without a word about the pid still burning
+      # CPU behind them.
+      #
+      # This reports and never blocks. An earlier attempt refused the archive and
+      # sent the caller to `rune session stop`, which kills the recorded child's
+      # whole process group — so the moment its liveness test was wrong about a
+      # recycled pid, the remedy killed a stranger. It was wrong often: that test
+      # asked the process *group*, on the premise that a recycled pid sits in its
+      # parent's group, and on this machine 87.9% of live processes lead their own
+      # group. Two runs of it killed unrelated live groups (pids 92948 and 80847).
+      # Reporting cannot do that, so the accuracy question stops being a safety
+      # question and becomes an honesty one.
+      #
+      # The state field is deliberately not consulted. The refusal skipped any
+      # session recorded `exited`/`stopped`/`failed`, which is exactly where the
+      # bug lives: `Supervisor#cleanup` used to write `state: 'exited'` before it
+      # terminated the child, so a supervisor dying in that window left a
+      # concluded record next to a live process and the check waved it through.
+      # `state` is a claim by a process that is now dead; the pair below is
+      # evidence.
+      def with_orphans(described, scoped)
+        orphans = orphaned_pids(described.map { |entry| entry[:name] }, scoped)
+        return described if orphans.empty?
+
+        described.map do |entry|
+          pid = orphans[entry[:name]]
+          pid ? entry.merge(orphaned_child_pid: pid) : entry
+        end
+      end
+
+      # Sessions whose supervisor is gone but whose recorded child is provably
+      # still the same process, still running. Batched into one `ps` for the
+      # whole listing, and skipped entirely when nothing qualifies, because
+      # `list` runs while several agents are working and has to stay cheap.
+      def orphaned_pids(names, scoped)
+        candidates = names.filter_map { |name| orphan_candidate(name, scoped) }
+        return {} if candidates.empty?
+
+        live = Session::Store.process_start_times(candidates.map { |candidate| candidate[1] })
+        candidates.each_with_object({}) do |(name, pid, started), found|
+          found[name] = pid if live[pid] == started
+        end
+      end
+
+      # `[name, pid, recorded start time]`, or nil when the question cannot be
+      # asked soundly. A live supervisor disqualifies the session because its
+      # child is *supposed* to be running — "orphan" means nothing owns it. A
+      # missing `child_started_at` disqualifies it because that is a session
+      # started before this field existed, or one whose supervisor died in the
+      # window before it was written: the honest answer there is silence, not a
+      # guess from the bare pid.
+      def orphan_candidate(name, scoped)
+        meta = scoped.read_meta(name) || {}
+        pid = Session::Store.positive_pid(meta[:child_pid])
+        started = meta[:child_started_at]
+        return nil if pid.nil? || started.nil? || started.to_s.empty?
+        return nil if Session::Store.alive?(meta[:supervisor_pid])
+
+        [name, pid, started]
       end
 
       # State is always recomputed from real process liveness. A supervisor
@@ -806,8 +885,17 @@ module Rune
         rejection = archive_rejection(options[:name])
         return rejection if rejection
 
+        # Read before the move, because the move is what makes the pid
+        # unreachable: once the directory is out of the live namespace, `list`
+        # will not show the session and `stop` answers "no such session", so this
+        # reply is the last place the number appears. Reported rather than
+        # refused — see `with_orphans` for why refusing was worse than the gap it
+        # covered.
+        orphan = orphaned_pids([options[:name]], store)[options[:name]]
         target = store.archive(options[:name], stamp: Time.now.strftime('%Y%m%d-%H%M%S'))
-        Result.success({ action: 'archive', name: options[:name], archived_to: File.basename(target) })
+        Result.success({ action: 'archive', name: options[:name],
+                         archived_to: File.basename(target),
+                         orphaned_child_pid: orphan }.compact)
       end
 
       def archive_rejection(name)
@@ -997,7 +1085,14 @@ module Rune
           io.puts "#{icon} #{scope}\e[1m#{session[:name]}\e[0m  #{session[:state]}#{idle_suffix(session)}  " \
                   "#{Array(session[:command]).join(' ')}"
           io.puts "    \e[90m#{session[:last_line]}\e[0m" if session[:last_line]
+          render_orphan(session, io)
         end
+      end
+
+      def render_orphan(session, io)
+        return unless session[:orphaned_child_pid]
+
+        io.puts "    \e[33m! child pid #{session[:orphaned_child_pid]} is still running with no supervisor\e[0m"
       end
 
       # Idle time is the fastest read on "is this one stuck": a running agent

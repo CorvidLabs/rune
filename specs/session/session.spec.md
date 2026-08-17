@@ -91,6 +91,10 @@ deciding who talks to whom stays the calling agent's job.
 | `default_home` | class method | Resolves `RUNE_HOME`, treating an empty value as unset, else `~/.rune`. |
 | `valid_name?` | class predicate | Accepts only session names safe to use as a directory component. |
 | `alive?` | class predicate | Asks the OS whether a pid exists; `EPERM` counts as alive, a bad value as dead. |
+| `process_start_times` | class method | Start times for the pids that still exist, keyed by pid, read from `ps` under `LC_ALL=C`. |
+| `process_start_time` | class method | Start time for one pid, or nil when it is gone. |
+| `parse_start_times` | class method | Parses `ps -o pid=,lstart=` output into a pid-to-start-time map. |
+| `positive_pid` | class method | Coerces a value to a positive pid, or nil when it is not one. |
 | `with_bindable_path` | class method | Runs a bind/connect against a path short enough for `sockaddr_un`, chdir-ing into the session directory when the absolute path is too long. |
 | `sessions_dir` | instance method | Returns the directory holding every session. |
 | `session_dir` | instance method | Returns one session's directory. |
@@ -98,11 +102,24 @@ deciding who talks to whom stays the calling agent's job.
 | `MAX_LOG_BYTES` | constant | Ceiling on a session's transcript file before it is rotated. |
 | `LOG_KEEP_BYTES` | constant | How much recent output a rotation keeps. |
 | `rotate_output` | instance method | Rewrites the transcript keeping its recent tail, recording what was dropped. |
+| `prepare_rotation` | instance method | Writes the replacement transcript to a temp path, without touching the caller's open handle. |
 | `output_bytes` | instance method | Output bytes carried by one transcript line. |
 | `tail_offset` | instance method | Byte offset of the first whole line within the keep bound of the end. |
 | `output_bytes_from` | instance method | Output bytes carried by the region being kept, without parsing events. |
+| `whole_record?` | instance method | Whether a transcript line is a record the reader will parse, decided on its last byte. |
+| `parseable?` | instance method | Whether a line parses as JSON, used only for the file's unterminated last line. |
+| `NEWLINE_BYTE` | constant | The newline byte `whole_record?` tests for. |
+| `CLOSE_BRACE_BYTE` | constant | The closing-brace byte that ends every complete record. |
 | `output_size` | instance method | Current size of a session's transcript file. |
 | `rotate_log` | internal method | Rotates the transcript once it reaches the ceiling. |
+| `ROTATE_RETRY_SECONDS` | constant | How long a failed rotation waits before it is attempted again. |
+| `TORN_MARKER` | constant | Written ahead of the first record after a failed write, so a leftover fragment cannot parse. |
+| `append_log` | internal method | Appends one record plus any owed gap event, returning bytes written or nil. |
+| `write_record` | internal method | Writes one NDJSON record, prefixed by the torn marker when the last write failed. |
+| `gap_line` | internal method | The `truncated` event recording output bytes a failed write lost. |
+| `note_log_gap` | internal method | Adds a failed event's stream bytes to the hole still owed. |
+| `gap_field` | internal method | `transcript_gap_bytes` while a hole is owed, empty otherwise. |
+| `writable_log?` | internal predicate | Whether the transcript handle is present and open. |
 | `output_path` | instance method | Returns one session's NDJSON transcript path. |
 | `socket_path` | instance method | Returns one session's control-socket path. |
 | `exist?` | instance predicate | Reports whether a session directory exists. |
@@ -203,6 +220,8 @@ deciding who talks to whom stays the calling agent's job.
 | `name_error` | internal method | Builds the message for a missing or invalid session name. |
 | `no_such_session` | internal method | Builds the message for an unknown session name. |
 | `render_list` | internal method | Renders the session list for a terminal. |
+| `render_orphan` | internal method | Prints the warning line naming a session's orphaned child pid, if it has one. |
+| `render_archive` | internal method | Renders an `archive` reply, printing the orphaned-child warning after the envelope. |
 | `store` | internal method | Returns the memoized store for this invocation. |
 | `SUBCOMMANDS` | constant | User-facing session subcommands, used for help and error messages. |
 | `START_TIMEOUT` | constant | How long `start` waits for the supervisor to report ready. |
@@ -240,6 +259,9 @@ deciding who talks to whom stays the calling agent's job.
 | `CODENAMES` | constant | Word list paired with a tool name to form generated session names. |
 | `archive_session` | internal method | Archives a stopped session after validating it. |
 | `archive_rejection` | internal method | Returns the failure that blocks an archive, or nil to proceed. |
+| `with_orphans` | internal method | Adds `orphaned_child_pid` to each listed session whose child provably outlived its supervisor. |
+| `orphaned_pids` | internal method | Maps session names to child pids that are provably still alive, in one batched `ps`. |
+| `orphan_candidate` | internal method | One session's `[name, pid, recorded start time]`, or nil when the question cannot be asked soundly. |
 | `still_running` | internal method | Message explaining that a session must be stopped before archiving. |
 | `list_archived` | internal method | Lists this project's archived sessions. |
 | `list_all_projects` | internal method | Lists live sessions across every project, labelled by project. |
@@ -685,7 +707,68 @@ deciding who talks to whom stays the calling agent's job.
     same codename and the loser would fail on a name it never asked for, with many others free —
     which is precisely the parallel-agent case an optional `--name` exists to serve. An explicit
     `--name` still fails on contention: that name was the request.
-45. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
+46. A rotation that cannot be written costs only the rotation. `rotate_output` closes the caller's
+    handle after the replacement is in place, never before, and removes any half-written temp file
+    on the way out. Closing first meant a failure anywhere later left the supervisor holding a
+    closed handle it had no idea was closed, and `log_event`'s own rescue then swallowed every
+    subsequent write — recording stopped silently and permanently. Measured on a real EACCES
+    directory: 200 further events left the transcript 564,000 bytes behind the cursor, and restoring
+    write permission widened the gap to 654,000 rather than resuming. A failed rotation is then
+    backed off for `ROTATE_RETRY_SECONDS` rather than retried on the next event, because
+    `@log_bytes` stays over the ceiling and every attempt seeks and scans the tail it means to keep
+    before it discovers it cannot write — 8,388,576 bytes in 4.8ms at the real bound, on the single
+    thread that also drains the pty.
+46a. A transcript write that fails is recorded, not merely survived. The in-memory cursor has
+    already advanced, so a hole nothing accounts for makes every cursor `send` hands out
+    unresolvable by `read`, permanently — reproduced with RUNE_HOME on a full 20MB ramdisk, where
+    852,000 bytes of output went unrecorded under `dropped: 0` and freeing the disk resumed logging
+    over the hole without a word. The lost byte count is carried and emitted as a `truncated` event
+    by the next write that succeeds, the same vehicle rotation uses, so a pre-hole cursor resolves
+    again and `read` reports `dropped_bytes` rather than silently returning less. Re-measured on the
+    same ramdisk: skew −873,000 during the outage and 0 after recovery. While the hole is still owed
+    there is nowhere on disk to record it, so `send` replies and `status` carry
+    `transcript_gap_bytes` — the only window in which the skew is knowable at all.
+46b. A write that fails part-way leaves a fragment, and a fragment can be a complete JSON object
+    that merely never got its newline — which, once more text is appended, silently swallows the
+    next good record too. Measured on that ramdisk: 280 of 300 writes failed and one left a
+    4,938-byte line parsing as neither record. `TORN_MARKER` is therefore written ahead of the first
+    record to follow a failure, so the fragment terminates into a line that cannot parse and only it
+    is lost. `Store#whole_record?` and `Transcript.load` must then agree exactly on which lines
+    count, because one feeds a rotation's head event and the other reconstructs the stream: the test
+    is a byte comparison (records are one line ending `}`, a marked fragment ends `n`) with the
+    file's unterminated last line parsed outright, since that is the one shape bytes cannot settle.
+    Swept over every split point of 36 record shapes with braces, quotes, escapes, raw newlines and
+    the marker's own bytes in the payload: 8,832 lines compared, 0 disagreements, and 10 cases the
+    byte test alone would have got wrong on that last line.
+47. Teardown kills the child before it records the session as exited. `cleanup` used to write
+    `state: 'exited'` first, so a supervisor dying in that window left a concluded record beside a
+    live process holding a pty. `conclude` already had this order on the normal path; the abnormal
+    one now matches it. `terminate_child` is idempotent and each teardown step keeps its own rescue,
+    so a child that will not die still gets the record written after it.
+48. A child that outlived its supervisor is *reported*, never made a reason to refuse. `list` and
+    the `archive` reply carry `orphaned_child_pid` when a session's supervisor is gone and its
+    recorded child is provably still running. Nothing is blocked and nothing is signalled; the
+    operator is told the number while it is still reachable, because archiving moves the session out
+    of the live namespace and that reply is the last place the pid appears.
+48a. "Provably" means the pair (pid, start time), not the bare pid and not its process group. The
+    supervisor records the child's start time as `ps` reports it, under `LC_ALL=C` because `lstart`
+    is formatted through the locale (`Fri Aug 14 13:41:13 2026` under C, `ven. 14 août 13:41:13
+    2026` under fr_FR). A bare `alive?` answers yes for any process that recycled the number. Asking
+    the process group is not a fix and was measured to be actively wrong in both directions: 1,222
+    of 1,390 live processes on the development machine (87.9%) lead their own group, and 130 of the
+    200 most recently allocated pids (65.0%), so a group question answers "alive" for a stranger
+    about as often as a bare pid does — while a child that is *not* a group leader is missed
+    entirely. An earlier design refused the archive on that test and directed the caller to
+    `rune session stop`, which SIGKILLs the recorded pid's whole process group; two runs of it
+    killed unrelated live groups.
+48b. The recorded `state` is deliberately not consulted. A check that skipped sessions recorded
+    `exited`/`stopped`/`failed` was blind to exactly the case invariant 47 describes. `state` is a
+    claim by a process that is now dead; the pid/start-time pair is evidence.
+48c. Where the question cannot be asked soundly, the answer is silence rather than a guess. A
+    session with no recorded `child_started_at` — started before the field existed, or by a
+    supervisor that died in the window between recording the pid and recording the start time —
+    reports nothing, even if its child is in fact alive.
+49. `rune run` and `rune watch` behavior and result shapes are unchanged; this module is purely
     additive.
 
 ## Behavioral Examples
@@ -705,6 +788,9 @@ deciding who talks to whom stays the calling agent's job.
 - `rune session read --name grok --tail 50` returns the last 50 lines of transcript without
   sending anything.
 - `rune session list` shows each session's state, distinguishing `running` from `dead`.
+- `rune session list` adds `orphaned_child_pid` to any session whose supervisor is gone while its
+  recorded child is provably still running, and `rune session archive` carries the same field on its
+  reply. Neither blocks and neither signals the process.
 - `rune session attach --name grok` drops your terminal into the running agent; Ctrl-] detaches and
   leaves it running, so `rune session send --name grok ...` still works afterwards.
 - `rune session stop --name grok` kills and reaps the session; running it twice succeeds both times.
@@ -732,6 +818,20 @@ deciding who talks to whom stays the calling agent's job.
 
 ## Known Limitations
 
+- **An orphaned child can only be reported when its identity was recorded.** The report rests on
+  matching the recorded `child_started_at` against the live process's start time. Sessions started
+  before that field existed report nothing, and so does a session whose supervisor died in the
+  window between recording the child's pid and recording its start time — `record_running` is
+  deliberately still the first write, because a pid on disk matters more than an identity for it.
+  Silence therefore means "not known to be orphaned", never "known not to be".
+- **`lstart` resolves to one second.** Two processes wearing the same pid within a single second
+  would be indistinguishable to the identity test. Real pid reuse cannot be that fast — the pid
+  space has to wrap first, measured at 2,482 pid numbers consumed per second under a sustained spawn
+  loop on the development machine, so ~40 seconds for the 99,999-pid space — but the bound is a real
+  one and not a proof.
+- **The report needs `ps`.** Where `ps` is missing or refuses, `process_start_times` returns nothing
+  and every session reports no orphan. That is the safe direction (silence, not a false accusation),
+  but it is silent about being unavailable.
 - **A single line of 1024 bytes or more is silently discarded by a cooked-mode child's terminal.**
   This is `MAX_CANON`, a tty limit rather than a rune bound: the line discipline cannot assemble a
   longer canonical line, so it drops it and the child never sees it. Measured exactly — 1023 bytes

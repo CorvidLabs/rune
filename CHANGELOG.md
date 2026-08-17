@@ -4,6 +4,74 @@
 
 ### Fixed
 
+- **A rotation that failed silently stopped a session recording, permanently.** `rotate_output`
+  closed the caller's handle before it had a replacement to hand back, so any later failure left the
+  supervisor holding a closed handle it had no idea was closed — and `log_event`'s own rescue then
+  swallowed every subsequent write for the rest of the session's life, while the cursor `send` hands
+  out kept advancing over a transcript that had stopped growing. Reproduced on a real EACCES session
+  directory (`harnesses/rotation_eacces.rb`): 200 further events left the transcript 564,000 bytes
+  behind the cursor, and restoring write permission did not resume recording, it widened the gap to
+  654,000. The handle is now closed only once the replacement is renamed into place, and a
+  half-written temp file is removed on the way out. With the handle surviving, `@log_bytes` stays
+  over the ceiling and every further event would retry the rotation, so a failure is now backed off
+  30s: one failed attempt seeks and scans the 8,388,576-byte tail it means to keep before it
+  discovers it cannot write, 4.8ms each, on the single thread that also drains the pty — 189
+  attempts over 200 events before the backoff, 1 after.
+
+- **A transcript write that failed left every later cursor unresolvable, silently and for good.**
+  `log_event` swallowed the error while the in-memory cursor kept advancing, so `send` handed out
+  positions `read` could never resolve and nothing anywhere said so. Reproduced with RUNE_HOME on a
+  full 20MB ramdisk: 852,000 bytes of output went unrecorded under `dropped: 0`, and freeing the
+  disk made it worse, because logging resumed over the hole without a word. The lost byte count is
+  now carried and emitted as a `truncated` event by the next write that succeeds — the same vehicle
+  rotation already uses to keep cursors absolute. Re-measured on the same ramdisk: skew −873,000
+  during the outage, 0 after recovery, with `dropped` reporting the hole exactly. While the hole is
+  still owed there is nowhere on disk to put it, so `send` replies and `status` carry
+  `transcript_gap_bytes`.
+
+  A write that fails part-way also leaves a fragment, and a fragment can be a complete JSON object
+  that merely never got its newline — which then swallows the next good record into one unparseable
+  line. Measured on that ramdisk: 280 of 300 writes failed and one produced exactly that, 4,938
+  bytes parsing as neither. A `|torn` marker now precedes the first record after any failure, so
+  only the fragment is lost. `Store#whole_record?` decides the same question for rotation's
+  accounting on a byte comparison rather than by parsing the kept region — which was twice measured
+  to cost 96MB+ per rotation — and the two must agree exactly or the skew is permanent: swept over
+  every split point of 36 record shapes with braces, quotes, escapes, raw newlines and the marker's
+  own bytes in the payload, 8,832 lines compared, 0 disagreements.
+
+- **Teardown recorded the child as exited while it was still running.** `Supervisor#cleanup` wrote
+  `state: 'exited'` and only then terminated the child, so a supervisor dying inside that window
+  left a concluded record on disk beside a live process still holding a pty. `conclude` already
+  killed before recording on the normal path; the abnormal teardown now matches it. `terminate_child`
+  is idempotent and each teardown step keeps its own rescue, so a child that will not die still gets
+  the record written after it.
+
+### Added
+
+- **`orphaned_child_pid` on `list` and on the `archive` reply.** A supervisor killed with SIGKILL
+  leaves its child running, reparented to pid 1 and still holding the pty, and nothing said so:
+  `list` showed the session `dead` and `archive` filed it away, after which no rune command could
+  name the process at all. Both now report the pid when a session's supervisor is gone and its
+  recorded child is provably still running. Nothing is blocked and nothing is signalled — the
+  operator is told the number while it is still reachable.
+
+  "Provably" is the pair (pid, start time), recorded by the supervisor at spawn and compared against
+  the live process, under `LC_ALL=C` because `lstart` is formatted through the locale
+  (`Fri Aug 14 13:41:13 2026` under C, `ven. 14 août 13:41:13 2026` under fr_FR). It is deliberately
+  not the bare pid, which any recycled number satisfies, and deliberately not the process *group*:
+  measured on the development machine, 1,222 of 1,390 live processes (87.9%) lead their own group
+  and 130 of the 200 most recently allocated pids (65.0%), so a group question answers "alive" for a
+  stranger about as often as a bare pid does — and misses a real child that is not a group leader.
+  The recorded `state` is not consulted either, because a check that skipped sessions recorded
+  `exited`/`stopped`/`failed` would be blind to exactly the teardown bug fixed above.
+
+  Where the question cannot be asked soundly the answer is silence: a session with no recorded
+  `child_started_at` reports nothing even when its child is alive, and so does every session if `ps`
+  is unavailable. `lstart` resolves to one second, so two processes wearing one pid inside a single
+  second are indistinguishable — the pid space has to wrap first, measured at ~40s of sustained
+  spawning here, but that is a bound and not a proof. `harnesses/orphan_report.rb` drives all of it
+  against a real SIGKILLed supervisor.
+
 - **`--max-output` returned text the child never printed.** The head and tail were spliced with
   nothing between them, so the join reads as continuous output. Measured, a 201-byte transcript at
   `--max-output=200` dropped exactly the byte that turned `chsh -s /bin/zsh` into
