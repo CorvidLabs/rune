@@ -44,7 +44,19 @@ module Rune
       # Bounds the work for a long-lived session, whose transcript grows without
       # limit. Only the tail can still be on screen: a full repaint cycle of a
       # 40x120 terminal is a few KB, so this is orders of magnitude of headroom.
-      DEFAULT_TAIL_BYTES = 256 * 1024
+      # Measured against 5.5MB of real grok TUI output, not derived. 256KB — the
+      # value that shipped through 0.8.0 — renders 1782 bytes of screen where
+      # 512KB renders 1990 and stays there through 2MB: the smaller window was
+      # silently returning an incomplete screen for the exact children rune
+      # exists to drive. The old figure came from "a full repaint of a 40x120
+      # terminal is a few KB", which is true of a plain program and wrong by
+      # roughly 50x for a TUI spending most of its bytes on colour and cursor
+      # positioning.
+      #
+      # 512KB costs ~53ms against ~26ms on that transcript. That is paid per
+      # `--screen` read, not per pty read, and a wrong screen is worth more than
+      # 27ms.
+      DEFAULT_TAIL_BYTES = 512 * 1024
       # How far past the cut to look for an escape to resync on. Comfortably
       # more than any CSI sequence, and small enough that a stream containing
       # no escapes at all keeps essentially all of its text.

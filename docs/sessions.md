@@ -413,7 +413,7 @@ keeps the content and re-flows it, so it differs from both. Rendering at the old
 better on raw row counts there (15 wrong against 24), but only because a mostly blank screen
 coincidentally matches a mostly blank oracle — not because it showed anyone anything truer.
 
-**It is rendered from the last 256KB, and for some agents that has a visible cost.** A census of
+**It is rendered from the last 512KB, and for some agents that has a visible cost.** A census of
 grok's output over 4.5MB found 109,364 absolute cursor moves, 31,798 synchronised-update brackets,
 and **zero** erases of any kind — no `\e[K`, no `\e[2K`, no `\e[2J`, no scroll regions. An agent
 that repaints purely by positioning and overwriting depends on the terminal remembering every cell
