@@ -111,6 +111,19 @@ module Rune
       # Hard cap on a whole send, when the caller does not set one.
       DEFAULT_TIMEOUT_MS = 120_000
       UNDELIVERED_INPUT_ERROR = 'previous input is still being delivered to the child'
+      # How long a failed rotation waits before it is attempted again. Each
+      # attempt seeks and scans the tail it means to keep, and the condition
+      # that failed it (an unwritable directory, a full disk) lasts longer than
+      # one event, so retrying per event turns every log line into an 8MB scan.
+      ROTATE_RETRY_SECONDS = 30.0
+      # Written ahead of the first record to follow a write that failed. A write
+      # that fails part-way leaves a fragment at the end of the file, and a
+      # fragment can be a *complete* JSON object that simply never got its
+      # newline — indistinguishable, once more text is appended, from a record
+      # that landed. This makes it distinguishable: appended to any dangling
+      # fragment it produces a line that cannot parse, so the reader skips it.
+      # That is what lets "recorded" mean exactly "its own write returned".
+      TORN_MARKER = "|torn\n"
       # Recorded as the session's exit code when the supervisor itself died
       # rather than the child. 70 is sysexits' EX_SOFTWARE: an internal fault,
       # distinct from any status the child could have returned.
@@ -158,6 +171,12 @@ module Rune
         @close_after_drain = []
         @stopping = false
         @log_bytes = 0
+        # Output bytes that never reached the transcript because a write failed,
+        # nil while nothing is owed. Carried, not forgotten: it is what the next
+        # successful write records as a `truncated` event. Non-nil also means the
+        # file may end mid-record, which is why it gates TORN_MARKER.
+        @log_gap = nil
+        @rotate_retry_at = nil
         @submit_at = nil
         @exit_code = nil
         @finished = false
@@ -771,8 +790,15 @@ module Rune
           cursor: transcript_bytes,
           prompt_detected: PromptScanner.prompt_at_end?(slice),
           busy_at_send: pending.busy_at_send
-        }.merge(flags))
+        }.merge(flags).merge(gap_field))
       end
+
+      # Present only while a hole is still owed, which is the one window in which
+      # `read` cannot report it: until a write succeeds there is nowhere on disk
+      # to record the gap, so the supervisor's memory is the only place the skew
+      # is known at all. On a send's reply because that is where the caller is
+      # handed the cursor the skew makes unresolvable.
+      def gap_field = @log_gap ? { transcript_gap_bytes: @log_gap } : {}
 
       def handle_stop(client)
         respond(client, stopping: true)
@@ -786,7 +812,7 @@ module Rune
           child_pid: @child_pid,
           supervisor_pid: Process.pid,
           cursor: transcript_bytes
-        }
+        }.merge(gap_field)
       end
 
       # Queued like everything else, then closed once it has drained. `puts` +
@@ -819,10 +845,18 @@ module Rune
       # for the life of the session and `archive` preserved it, so the cost
       # outlived the session that paid it.
       def rotate_log
+        return if @rotate_retry_at && monotonic < @rotate_retry_at
+
         @output_log = @store.rotate_output(@name, @output_log, transcript_bytes)
         @log_bytes = @store.output_size(@name)
+        @rotate_retry_at = nil
+      # Backed off rather than retried on the next event: @log_bytes stays over
+      # the ceiling while the condition lasts, and each attempt seeks and scans
+      # the tail it means to keep. Recording itself continues either way, into
+      # the oversized file — `writable_log` reopens the handle the failed
+      # rotation closed.
       rescue IOError, SystemCallError
-        nil
+        @rotate_retry_at = monotonic + ROTATE_RETRY_SECONDS
       end
 
       def crashed(error)
@@ -943,17 +977,83 @@ module Rune
         nil
       end
 
-      def log_event(event, **fields)
-        return unless @output_log
-
-        line = JSON.generate({ event: event, ts: Time.now.to_f }.merge(fields))
-        @output_log.puts line
-        @log_bytes += line.bytesize + 1
-        rotate_log if @log_bytes >= Store::MAX_LOG_BYTES
       # SystemCallError covers ENOSPC and friends: losing the transcript is bad,
-      # losing the running session because the disk filled is worse.
+      # losing the running session because the disk filled is worse. But a write
+      # that fails is *recorded*, not merely survived. The in-memory cursor has
+      # already advanced — those bytes really were produced — so a hole nothing
+      # accounts for makes every cursor `send` hands out unresolvable by `read`,
+      # permanently: reproduced on a full filesystem, where `send` answered
+      # `cursor: 1849946` while `read` reported 187221 with `dropped_bytes` nil,
+      # and `read --since=1849946` returned "" for the rest of the session's
+      # life. Freeing the disk made it worse, because logging resumed over the
+      # 1.66MB hole without a word.
+      #
+      # The lost output bytes are carried until a write succeeds and then emitted
+      # as a `truncated` event — the same vehicle rotation already uses to keep
+      # cursors absolute, so `read` resolves a pre-hole cursor again and reports
+      # `dropped_bytes` instead of silently returning less.
+      def log_event(event, **fields)
+        line = JSON.generate({ event: event, ts: Time.now.to_f }.merge(fields))
+        written = append_log(line)
+        return note_log_gap(event, fields) unless written
+
+        @log_bytes += written
+        rotate_log if @log_bytes >= Store::MAX_LOG_BYTES
+      end
+
+      # Bytes appended, or nil if the event did not reach the file. Any pending
+      # gap goes first and as its own write: one record per write is what makes
+      # "recorded" mean "its own write returned", because a write that fails
+      # part-way can leave at most the record it was writing unfinished — and
+      # TORN_MARKER then makes that leftover unreadable rather than letting it be
+      # counted a second time when the gap is retried.
+      def append_log(line)
+        log = writable_log
+        return nil unless log
+
+        gap = @log_gap ? write_record(log, gap_line) : 0
+        return nil unless gap
+
+        written = write_record(log, line)
+        written && (gap + written)
+      end
+
+      # One NDJSON record, preceded by the torn marker when the last write
+      # failed. Returns bytes written, or nil when nothing can be trusted to have
+      # landed.
+      def write_record(log, record)
+        payload = @log_gap ? "#{TORN_MARKER}#{record}\n" : "#{record}\n"
+        log.write(payload)
+        @log_gap = nil
+        payload.bytesize
       rescue IOError, SystemCallError
         nil
+      end
+
+      def gap_line = JSON.generate(event: 'truncated', ts: Time.now.to_f, dropped_bytes: @log_gap)
+
+      # Only `output` events carry stream bytes, so only they widen the hole. A
+      # lost `start`/`exit` still opens one, at zero bytes, because a reader must
+      # not inherit a transcript with events missing from the middle and no sign
+      # of it — and because a zero-byte gap is still the flag that says the file
+      # may end mid-record.
+      def note_log_gap(event, fields)
+        @log_gap = (@log_gap || 0) + (event == 'output' ? fields[:bytes].to_i : 0)
+        nil
+      end
+
+      # Recording must not stop for the life of a session because a handle went
+      # away: a rotation that fails after closing the old handle used to leave
+      # the supervisor writing to a closed file it had no idea was closed, and
+      # every later write was swallowed. Nothing is created out of nothing — the
+      # directory is gone once a session is archived, so this simply fails and
+      # the gap keeps accumulating.
+      def writable_log
+        return @output_log if @output_log && !@output_log.closed?
+
+        @output_log = @store.open_output(@name)
+      rescue IOError, SystemCallError
+        @output_log = nil
       end
 
       def positive_int(value, fallback)

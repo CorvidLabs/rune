@@ -134,6 +134,10 @@ module Rune
       # an attach backlog actually reach for.
       MAX_LOG_BYTES = 32 * 1024 * 1024
       LOG_KEEP_BYTES = 8 * 1024 * 1024
+      # The two bytes `whole_record?` decides on. Compared as bytes rather than
+      # characters because the transcript is scanned in binary mode.
+      NEWLINE_BYTE = 0x0A
+      CLOSE_BRACE_BYTE = 0x7D
 
       def self.with_bindable_path(path)
         return yield(path) if path.bytesize < SOCKET_PATH_LIMIT
@@ -316,18 +320,63 @@ module Rune
         end
       end
 
-      # Output bytes carried by the region being kept. Reads the `bytes` field
+      # Stream bytes the region being kept accounts for. Reads the `bytes` field
       # each event already records rather than parsing the event, so a line's
       # text is never materialized.
+      #
+      # This must count exactly what `Transcript.load` counts over the same
+      # region, because the head event a rotation writes is `total_output -
+      # kept`: anything the kept region accounts for and this does not is
+      # counted twice, and anything this counts that the reader will not is a
+      # permanent shortfall in every cursor after the rotation.
+      #
+      # Two things it therefore counts that a bare `"event":"output"` scan did
+      # not. A `truncated` event inside the kept tail accounts for bytes — the
+      # ones a failed write could not record — so leaving it out double-counts
+      # the hole. And a fragment left by a torn write is *not* counted, because
+      # the reader cannot parse it and skips it: it still carries
+      # `"event":"output"` and `"bytes":N`, so counting it credits the kept
+      # region with output nothing will ever return.
       def output_bytes_from(path, offset)
         total = 0
         File.open(path, 'rb') do |handle|
           handle.seek(offset)
           while (line = handle.gets)
-            total += line[/"bytes":(\d+)/, 1].to_i if line.include?('"event":"output"')
+            next unless whole_record?(line)
+
+            if line.include?('"event":"output"')
+              total += line[/"bytes":(\d+)/, 1].to_i
+            elsif line.include?('"event":"truncated"')
+              total += line[/"dropped_bytes":(\d+)/, 1].to_i
+            end
           end
         end
         total
+      end
+
+      # Whether a transcript line is a record `Transcript.load` will parse,
+      # decided on its last byte rather than by parsing it. Parsing the kept
+      # region was already rejected on cost — 96MB of resident memory per
+      # rotation — and the byte test is exact because of `TORN_MARKER`: a
+      # fragment the marker terminated ends in `n`, never `}`, and parses
+      # nowhere either, since `|torn` closes no string.
+      #
+      # A line with no trailing newline is the file's last, so there is at most
+      # one per scan and it is parsed outright. That is the one shape the byte
+      # test cannot decide: a write cut inside a `text` field that happens to
+      # hold a `}` ends on `}` without being a record, and nothing follows it to
+      # append a marker.
+      def whole_record?(line)
+        size = line.bytesize
+        return parseable?(line) unless line.getbyte(size - 1) == NEWLINE_BYTE
+
+        size > 1 && line.getbyte(size - 2) == CLOSE_BRACE_BYTE
+      end
+
+      def parseable?(line)
+        !JSON.parse(line).nil?
+      rescue JSON::ParserError
+        false
       end
 
       def output_bytes(line)

@@ -18,48 +18,97 @@ module Rune
     # rendering are one subject, and none of them need anything from the command
     # surface but a path.
     class Transcript
-      # Text the log still holds, and how many earlier bytes rotation dropped.
-      # A `truncated` event carries that count so cursors stay absolute: one
-      # taken before a rotation still names the same position in the stream, it
-      # just points at output no longer held.
+      # Text the log still holds, and where in it the stream is not contiguous.
+      # A `truncated` event carries a dropped byte count so cursors stay
+      # absolute: one taken before the drop still names the same position in the
+      # stream, it just points at output no longer held.
+      #
+      # *Where* each drop sits is recorded, not just the total. Rotation drops a
+      # prefix, so one running total was enough for it; a write that fails drops
+      # a region in the *middle* of a stream that continues afterwards, and a
+      # single total then shifts output the drop is not in front of — every
+      # cursor issued before the hole resolving |hole| bytes early, which is
+      # already-delivered output replayed as new.
       def self.load(path)
         return new(+'', 0) unless File.exist?(path)
 
-        dropped = 0
+        gaps = []
         text = File.foreach(path).with_object(+'') do |line, buffer|
           event = JSON.parse(line, symbolize_names: true)
           case event[:event]
           when 'output' then buffer << event[:text].to_s
-          when 'truncated' then dropped += event[:dropped_bytes].to_i
+          when 'truncated' then record_gap(gaps, buffer.bytesize, event[:dropped_bytes].to_i)
           end
         rescue JSON::ParserError
           next
         end
-        new(text, dropped)
+        new(text, gaps.last&.last.to_i, gaps)
       end
 
-      attr_reader :text, :dropped
+      # One hole, as the offset into the retained text where it sits and the
+      # total dropped up to and including it. Two recorded at the same offset —
+      # a rotation's own head event over a tail that already began with one — are
+      # one hole in the stream and are merged, which keeps the prefix-only case a
+      # single entry and its arithmetic exactly what it always was. A zero-byte
+      # `truncated` (a lost event that carried no output) moves nothing and is
+      # not a hole.
+      def self.record_gap(gaps, offset, bytes)
+        return unless bytes.positive?
 
-      def initialize(text, dropped)
+        if gaps.last&.first == offset
+          gaps[-1] = [offset, gaps.last.last + bytes]
+        else
+          gaps << [offset, gaps.last&.last.to_i + bytes]
+        end
+      end
+
+      attr_reader :text, :dropped, :gaps
+
+      def initialize(text, dropped, gaps = nil)
         @text = text
         @dropped = dropped
+        # A caller that knows only a total is describing the prefix case, which
+        # is the one shape a total on its own can describe.
+        @gaps = gaps || (dropped.positive? ? [[0, dropped]] : [])
       end
 
-      # Total bytes the child has produced, including what rotation discarded,
-      # which is what a cursor counts.
+      # Total bytes the child has produced, including everything dropped, which
+      # is what a cursor counts.
       def cursor = @dropped + @text.bytesize
 
-      # Everything from an absolute cursor onwards. Rotation shifts where that
-      # lands in what is still held, so a cursor from before a rotation returns
-      # everything retained rather than nothing — the caller learns what it
-      # missed from `dropped`.
+      # Everything from an absolute cursor onwards. A drop shifts where that
+      # lands in what is still held, so a cursor from before one returns
+      # everything retained after it rather than nothing — the caller learns what
+      # it missed from `dropped`.
       def from(since)
         return @text if since.nil?
 
-        offset = since - @dropped
+        offset = retained_offset(since)
         return @text.dup if offset.negative?
 
         (@text.byteslice(offset..) || +'').scrub
+      end
+
+      # Where an absolute cursor lands in the text still held.
+      #
+      # A hole shifts what comes after it and only what comes after it, so the
+      # cursor is walked past each one in turn rather than having a single total
+      # subtracted from it. A cursor landing *inside* a hole clamps forward to
+      # the hole's end: those bytes are gone either way, and returning later
+      # output is honest where returning earlier output — already delivered, now
+      # presented as new — is not.
+      #
+      # With one hole at the head, which is every rotation, this is `since -
+      # dropped` byte for byte.
+      def retained_offset(since)
+        dropped = 0
+        @gaps.each do |offset, cumulative|
+          return since - dropped if since < offset + dropped
+          return offset if since < offset + cumulative
+
+          dropped = cumulative
+        end
+        since - dropped
       end
 
       # What a terminal would be showing. A full-screen agent interleaves its

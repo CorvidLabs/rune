@@ -1147,6 +1147,385 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # `from` used to compute `since - dropped` against one global accumulator,
+  # which is right only while the dropped region is a *prefix* of the stream —
+  # true for rotation, and false the moment a failed write records a hole in the
+  # middle of a stream that continues afterwards. Every cursor issued before such
+  # a hole then resolved |hole| bytes early: already-delivered output, handed back
+  # as new, which re-fires prompt detection and every "did my command finish"
+  # check built on it.
+  describe 'a cursor that spans a hole in the middle of the stream' do
+    # A transcript laid out byte by byte, so an example can put a hole exactly
+    # where it means to: `[:out, n, marker]` is output the log still holds,
+    # `[:gap, n]` bytes the stream lost. Rotation writes one gap, at the head; a
+    # write that fails writes one wherever the failure happened.
+    def transcript_of(ops)
+      path = File.join(@home, "transcript-#{ops.hash.abs}.ndjson")
+      File.open(path, 'wb') do |file|
+        ops.each do |kind, bytes, marker|
+          file.puts(case kind
+                    when :out then JSON.generate(event: 'output', ts: 1.0, bytes: bytes,
+                                                 text: (marker || 'a') * bytes)
+                    when :gap then JSON.generate(event: 'truncated', ts: 1.0, dropped_bytes: bytes)
+                    end)
+        end
+      end
+      Rune::Session::Transcript.load(path)
+    end
+
+    # The shipped arithmetic, so "unchanged" can be asserted rather than assumed.
+    def single_accumulator(loaded, since)
+      offset = since - loaded.dropped
+      return loaded.text.dup if offset.negative?
+
+      (loaded.text.byteslice(offset..) || +'')
+    end
+
+    # Everything at or after `since` that the log still holds, taken from the
+    # layout the example built rather than from anything under test. Bytes before
+    # `since` are never part of the answer: the caller already has them.
+    def oracle(ops, since)
+      abs = 0
+      ops.filter_map do |kind, bytes, marker|
+        text = (marker || 'a') * bytes
+        start = abs
+        abs += bytes
+        next if kind != :out || start + bytes <= since
+
+        since <= start ? text : text.byteslice(since - start, bytes)
+      end.join
+    end
+
+    def probe_points(ops)
+      abs = 0
+      ops.flat_map do |kind, bytes, _marker|
+        start = abs
+        abs += bytes
+        [start, start + 1, start + (bytes / 2), start + bytes - 1]
+      end.push(abs, abs - 1, 0).reject(&:negative?).uniq.sort
+    end
+
+    it 'answers exactly as it always did when nothing was ever dropped' do
+      ops = [[:out, 4_000, 'a'], [:out, 4_000, 'b'], [:out, 4_000, 'c']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([])
+      expect(loaded.cursor).to eq(12_000)
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(single_accumulator(loaded, since)), "at since=#{since}"
+      end
+    end
+
+    it 'answers exactly as it always did when a rotation dropped a prefix' do
+      ops = [[:gap, 48_000], [:out, 4_000, 'a'], [:out, 4_000, 'b']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([[0, 48_000]])
+      expect(loaded.cursor).to eq(56_000)
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(single_accumulator(loaded, since)), "at since=#{since}"
+      end
+    end
+
+    # The reproduction: 25 chunks, a 48_000-byte hole, 25 more. A cursor from
+    # before the hole resolved 48_000 bytes early and replayed the whole first
+    # half of the stream.
+    it 'does not replay output it has already delivered before the hole' do
+      loaded = transcript_of((1..25).map { [:out, 4_000, 'a'] } + [[:gap, 48_000]] +
+                             (1..25).map { [:out, 4_000, 'b'] })
+
+      expect(loaded.cursor).to eq(248_000)
+      expect(loaded.dropped).to eq(48_000)
+      expect(loaded.from(100_000).bytesize).to eq(100_000)
+      expect(loaded.from(100_000)[0, 4]).to eq('bbbb')
+      expect(loaded.from(148_000).bytesize).to eq(100_000)
+      expect(loaded.from(228_000).bytesize).to eq(20_000)
+    end
+
+    # Those bytes are gone whichever way the cursor is bent, so it is bent
+    # forward: later output is honest where earlier output is not.
+    it 'clamps a cursor that lands inside the hole forward to its end' do
+      loaded = transcript_of((1..25).map { [:out, 4_000, 'a'] } + [[:gap, 48_000]] +
+                             (1..25).map { [:out, 4_000, 'b'] })
+
+      expect(loaded.from(124_000)).to eq(loaded.from(148_000))
+      expect(loaded.from(124_000)[0, 4]).to eq('bbbb')
+    end
+
+    it 'resolves a cursor before, inside and after each of several holes' do
+      ops = [[:out, 4_000, 'a'], [:gap, 12_000], [:out, 4_000, 'b'], [:gap, 8_000],
+             [:out, 4_000, 'c'], [:gap, 100_000], [:out, 4_000, 'd']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([[4_000, 12_000], [8_000, 20_000], [12_000, 120_000]])
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(oracle(ops, since)), "at since=#{since}"
+      end
+    end
+
+    # A rotation drops a prefix that may already contain a hole, and the head
+    # event it writes covers both — so the whole thing collapses back to the one
+    # shape the old arithmetic could describe.
+    it 'collapses to a single prefix when a rotation drops a region holding a hole' do
+      ops = [[:gap, 60_000], [:out, 4_000, 'a'], [:out, 4_000, 'b']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([[0, 60_000]])
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(single_accumulator(loaded, since)), "at since=#{since}"
+      end
+    end
+
+    # And a rotation whose *kept* tail still holds one leaves two, in order.
+    it 'keeps a hole that survived inside the tail a rotation kept' do
+      ops = [[:gap, 60_000], [:out, 4_000, 'a'], [:gap, 9_000], [:out, 4_000, 'b']]
+      loaded = transcript_of(ops)
+
+      expect(loaded.gaps).to eq([[0, 60_000], [4_000, 69_000]])
+      expect(loaded.cursor).to eq(77_000)
+      probe_points(ops).each do |since|
+        expect(loaded.from(since)).to eq(oracle(ops, since)), "at since=#{since}"
+      end
+    end
+  end
+
+  # A transcript write that fails is *recorded*, not merely survived. The
+  # in-memory cursor has already advanced — those bytes really were produced —
+  # so a hole nothing accounts for makes every cursor `send` hands out
+  # unresolvable by `read`, permanently and without a word: reproduced on a full
+  # filesystem, where `send` answered `cursor: 1849946` while `read` reported
+  # 187221 with no `dropped_bytes`, and `read --since=1849946` returned "" for
+  # the rest of the session's life.
+  describe 'a transcript write that fails' do
+    # A handle that can be told to fail, and to fail *part-way*, which is what a
+    # filesystem running out of room actually does: it writes what fits and then
+    # raises, leaving a fragment at the end of the file.
+    def tearing_log(file)
+      log = Object.new
+      log.instance_variable_set(:@file, file)
+      log.instance_variable_set(:@mode, :ok)
+      log.instance_variable_set(:@tear, 0)
+      log.define_singleton_method(:closed?) { @file.closed? }
+      log.define_singleton_method(:close) { @file.close }
+      log.define_singleton_method(:mode=) { |value| @mode = value }
+      log.define_singleton_method(:tear=) { |value| @tear = value }
+      log.define_singleton_method(:write) do |payload|
+        case @mode
+        when :ok then @file.write(payload)
+        when :dead then raise Errno::ENOSPC
+        else
+          # A write(2) that transferred every byte returns the full count and
+          # does not error, so only a strictly short transfer raises.
+          next @file.write(payload) if @tear >= payload.bytesize
+
+          @file.write(payload.byteslice(0, @tear)) if @tear.positive?
+          raise Errno::ENOSPC
+        end
+      end
+      log
+    end
+
+    def breakable_session(name)
+      disk = store
+      disk.create(name)
+      disk.write_meta(name, name: name, state: 'running')
+      log = tearing_log(disk.open_output(name))
+      supervisor = Rune::Session::Supervisor.new(name: name, command: ['true'], store: disk)
+      supervisor.instance_variable_set(:@output_log, log)
+      supervisor.instance_variable_set(:@log_bytes, 0)
+      [supervisor, log]
+    end
+
+    # `append` is the real path: it advances the transcript window rotation's
+    # accounting reads from, then logs.
+    def emit(supervisor, chunks) = chunks.times { supervisor.send(:append, 'z' * chunk_bytes) }
+
+    def cursor_of(supervisor) = supervisor.send(:transcript_bytes)
+
+    def chunk_bytes = 3_000
+
+    def small_log_bounds
+      stub_const('Rune::Session::Store::MAX_LOG_BYTES', 300_000)
+      stub_const('Rune::Session::Store::LOG_KEEP_BYTES', 250_000)
+    end
+
+    it 'carries what it could not write and records it as soon as writing resumes' do
+      supervisor, log = breakable_session('gap1')
+      emit(supervisor, 2)
+      log.mode = :dead
+      emit(supervisor, 4)
+      log.mode = :ok
+      emit(supervisor, 1)
+
+      loaded = Rune::Session::Transcript.load(store.output_path('gap1'))
+
+      expect(loaded.dropped).to eq(4 * chunk_bytes)
+      expect(loaded.cursor).to eq(cursor_of(supervisor))
+      expect(loaded.from(cursor_of(supervisor) - 1_000).bytesize).to eq(1_000)
+    end
+
+    # The hole is in the *middle* — output was recorded before it and after it —
+    # which is the shape rotation never produced and `from` was never taught.
+    it 'leaves a cursor from before the hole resolving to what followed it, not to the whole log' do
+      supervisor, log = breakable_session('gap3')
+      emit(supervisor, 2)
+      log.mode = :dead
+      emit(supervisor, 4)
+      log.mode = :ok
+      emit(supervisor, 3)
+
+      loaded = Rune::Session::Transcript.load(store.output_path('gap3'))
+
+      expect(loaded.gaps).to eq([[2 * chunk_bytes, 4 * chunk_bytes]])
+      # A cursor taken after the first two chunks: everything since is one chunk
+      # of recorded output before the hole plus three after it — never the four
+      # in between, which nothing holds.
+      expect(loaded.from(chunk_bytes).bytesize).to eq(4 * chunk_bytes)
+      expect(loaded.from(cursor_of(supervisor) - 1).bytesize).to eq(1)
+    end
+
+    # Until a write succeeds there is nowhere on disk to record the hole, so the
+    # supervisor's own memory is the only place the skew is known at all.
+    it 'reports the skew while there is still nowhere to record it' do
+      supervisor, log = breakable_session('gap2')
+      emit(supervisor, 2)
+      log.mode = :dead
+      emit(supervisor, 3)
+
+      expect(supervisor.send(:status_payload)[:transcript_gap_bytes]).to eq(3 * chunk_bytes)
+
+      log.mode = :ok
+      emit(supervisor, 1)
+
+      expect(supervisor.send(:status_payload)).not_to have_key(:transcript_gap_bytes)
+    end
+
+    # The hazard the torn marker exists for: a partial write can leave a
+    # *complete* JSON record that merely never got its newline, which a later
+    # append would silently terminate — counting the gap a second time. Swept
+    # across every split point of the record that carries it.
+    it 'never counts a gap twice, wherever the write recording it is torn' do
+      deltas = (0..90).map do |tear|
+        name = "torn#{tear}"
+        supervisor, log = breakable_session(name)
+        emit(supervisor, 2)
+        log.mode = :dead
+        emit(supervisor, 2)
+        log.mode = :torn
+        log.tear = tear
+        emit(supervisor, 1)
+        log.mode = :ok
+        emit(supervisor, 2)
+        Rune::Session::Transcript.load(store.output_path(name)).cursor - cursor_of(supervisor)
+      end
+
+      expect(deltas.uniq).to eq([0])
+    end
+
+    # A rotation keeps a tail, and a hole recorded mid-stream can land inside it.
+    # Counting only `output` there put every later cursor past the end of the
+    # stream: measured as a 400_000-byte overshoot, with `from(cursor - 1234)`
+    # returning 401_234 bytes.
+    it 'does not count a mid-stream hole twice when a rotation keeps it' do
+      small_log_bounds
+      supervisor, log = breakable_session('rot2')
+      emit(supervisor, 60)
+      log.mode = :dead
+      emit(supervisor, 4)
+      log.mode = :ok
+      emit(supervisor, 41)
+
+      loaded = Rune::Session::Transcript.load(store.output_path('rot2'))
+
+      expect(loaded.dropped).to be > 4 * chunk_bytes
+      expect(loaded.gaps.length).to eq(2)
+      expect(loaded.cursor).to eq(cursor_of(supervisor))
+      expect(loaded.from(cursor_of(supervisor) - 1_234).bytesize).to eq(1_234)
+    end
+
+    # The fragment an *output* write leaves is the dangerous one, because it
+    # still reads as an output record to the rotation scanner: it carries
+    # `"event":"output"` and `"bytes":N` while `Transcript.load` cannot parse it
+    # and skips it. Counting it credits the kept region with output no reader
+    # will see, and the head event a rotation writes is `total_output - kept`, so
+    # every later cursor sits N low — permanently, with no `truncated` event and
+    # no warning. Worse than doing nothing at all, because the torn marker
+    # terminates each fragment into a countable line of its own: measured on a
+    # 12MB transcript with 1/4/10 torn writes buried in the kept tail,
+    # -4096/-16384/-40960 bytes of skew, against a flat -4096 without the marker.
+    it 'does not count the fragment a torn output write leaves, wherever it is torn' do
+      small_log_bounds
+      deltas = [0, 20, 44, 48, 60, 120, 900, 2_500].to_h do |tear|
+        name = "outputtorn#{tear}"
+        supervisor, log = breakable_session(name)
+        emit(supervisor, 60)
+        log.mode = :torn
+        log.tear = tear
+        emit(supervisor, 1)
+        log.mode = :ok
+        emit(supervisor, 45)
+        loaded = Rune::Session::Transcript.load(store.output_path(name))
+        # A rotation has to have happened, or the assertion is vacuous.
+        expect(loaded.dropped).to be_positive
+        [tear, loaded.cursor - cursor_of(supervisor)]
+      end
+
+      expect(deltas.reject { |_tear, delta| delta.zero? }).to eq({})
+    end
+
+    # The other face. The whole-record guard must not start dropping the records
+    # a healthy transcript is made of, which would push cursors the other way.
+    it 'still accounts for every byte of a transcript with no torn write in it' do
+      small_log_bounds
+      supervisor, = breakable_session('healthy')
+      emit(supervisor, 110)
+
+      loaded = Rune::Session::Transcript.load(store.output_path('healthy'))
+
+      expect(loaded.dropped).to be_positive
+      expect(loaded.cursor).to eq(cursor_of(supervisor))
+      expect(loaded.from(cursor_of(supervisor) - 1_234).bytesize).to eq(1_234)
+    end
+
+    # `output_bytes_from` decides on a line's last byte rather than by parsing
+    # it, because parsing every line of the kept region cost 96MB per rotation.
+    # That is only sound if it accepts exactly what `Transcript.load` parses, so
+    # the two are swept against each other over every split point of every shape
+    # the supervisor writes — with braces, quotes, escapes and the marker's own
+    # bytes inside the payload, which is where a byte test can be fooled.
+    #
+    # Two shapes, because those are the two a transcript can hold: a fragment a
+    # live supervisor left, which its next write terminated with `TORN_MARKER`,
+    # and a fragment the file simply ends on because the supervisor was killed
+    # mid-write. The second is the one the byte test cannot decide — a cut inside
+    # a `text` field holding a `}` ends on `}` without being a record — which is
+    # why a line with no trailing newline is parsed outright.
+    it 'counts exactly the lines the transcript reader parses' do
+      texts = ['x' * 8, '}}}}', 'a}b{c}d', '|torn|torn', 'brace }', '{"event":"output","bytes":9}',
+               "\e[1;31mred\e[0m}", '"quoted}"']
+      records = texts.flat_map do |text|
+        [JSON.generate(event: 'output', ts: 1.5, bytes: text.bytesize, text: text),
+         JSON.generate(event: 'truncated', ts: 1.5, dropped_bytes: text.bytesize)]
+      end
+      parses = lambda do |line|
+        !JSON.parse(line).nil?
+      rescue JSON::ParserError
+        false
+      end
+
+      lines = records.flat_map do |record|
+        (0..record.bytesize).flat_map do |split|
+          fragment = record.byteslice(0, split)
+          ["#{fragment}#{Rune::Session::Supervisor::TORN_MARKER}", fragment].reject(&:empty?)
+        end
+      end
+      disagreements = lines.reject { |line| store.whole_record?(line) == parses.call(line) }
+
+      expect(disagreements).to eq([])
+      expect(records).to all(satisfy { |record| store.whole_record?("#{record}\n") })
+    end
+  end
+
   describe 'telling working from finished' do
     # A caller was grepping the callee's own rendered UI for a busy marker,
     # which is presentation rather than API and changes without notice.
