@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0070-give-the-screen-a-cell-model-so-a-wide-glyph-occupies-the-two-columns-it-is-draw",
+  "slug": "give-the-screen-a-cell-model-so-a-wide-glyph-occupies-the-two-columns-it-is-draw",
+  "title": "Give the screen a cell model so a wide glyph occupies the two columns it is drawn in",
+  "description": "Give the screen a cell model so a wide glyph occupies the two columns it is drawn in",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "ac38dba529ff6cb4838f825b5c3c9594af36b7d1",
+  "created_at": 1787058231,
+  "updated_at": 1787077030,
+  "affected_specs": [
+    "parsers"
+  ],
+  "affected_paths": [
+    "lib/rune/parsers/screen.rb",
+    "lib/rune/parsers/character_width.rb",
+    "spec/rune/parsers/screen_renderer_spec.rb",
+    "specs/parsers/parsers.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A screen row is an array of cells, so a column index is an array index. A wide glyph occupies two columns and wraps rather than splitting at the margin; destroying either half blanks both, as a terminal does. A zero-width character attaches to the cell before it and occupies no column. The wide-glyph invariant is restored by one heal pass after each mutating operation rather than by teaching twelve operations about pairs. All five renderer gaps are closed, and the spec invariant that wrongly recorded this fix as measured-worse is corrected with the three-revision measurement that reverses it."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

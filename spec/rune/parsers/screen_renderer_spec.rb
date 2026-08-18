@@ -240,6 +240,69 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
     end
   end
 
+  # CodeQL flagged the regex `to_s` used to strip trailing blank rows as a polynomial-time risk on
+  # uncontrolled input. Measured rather than trusted — a single quantifier anchored at `\z` has no
+  # backtracking ambiguity, and both a trailing-newline run and a no-match adversarial input scale
+  # linearly to 800,000 bytes — but the regex is gone from the render path either way, replaced by
+  # popping empty rows from the array already in hand.
+  describe 'trailing blank rows' do
+    it 'drops every trailing blank row, however many' do
+      expect(described_class.render("a\r\n\r\nb\r\n\r\n\r\n\r\n\r\n", rows: 8, columns: 10)).to eq("a\n\nb")
+    end
+
+    it 'renders an entirely blank grid as an empty string' do
+      expect(described_class.render("\r\n\r\n\r\n", rows: 3, columns: 10)).to eq('')
+    end
+
+    it 'leaves a non-blank last row untouched' do
+      expect(described_class.render('a', rows: 3, columns: 10)).to eq('a')
+    end
+  end
+
+  # A row is an Array of cells, so a column index is an array index: a wide glyph takes two of
+  # them and a combining mark takes none. Under the previous String rows a cell could not hold
+  # more than one character without moving every column after it.
+  describe 'wide and zero-width characters' do
+    it 'advances two columns for a wide glyph, so an absolute column lands where a terminal puts it' do
+      expect(described_class.render("\e[H東京\e[1;5HX", rows: 3, columns: 20)).to eq('東京X')
+    end
+
+    it 'wraps rather than splitting a wide glyph at the margin' do
+      expect(described_class.render('ABCDEFGHI日', rows: 3, columns: 10)).to eq("ABCDEFGHI\n日")
+    end
+
+    it 'blanks both halves when either is overwritten, as a terminal does' do
+      expect(described_class.render("\e[H東京\e[1;1HX", rows: 3, columns: 12)).to eq('X 京')
+      expect(described_class.render("\e[H東京\e[1;2HX", rows: 3, columns: 12)).to eq(' X京')
+    end
+
+    # The operations that slice the row are the ones that separate a pair, and they are exactly
+    # what a repainting TUI uses most. These are the cases that killed the first attempt.
+    it 'heals a pair broken by delete, erase or insert rather than leaving an orphan' do
+      expect(described_class.render("\e[H東京AB\e[1;2H\e[X", rows: 3, columns: 12)).to eq('  京AB')
+      expect(described_class.render("\e[H東京AB\e[1;1H\e[P", rows: 3, columns: 12)).to eq(' 京AB')
+      expect(described_class.render("\e[H東京AB\e[1;1H\e[@", rows: 3, columns: 12)).to eq(' 東京AB')
+    end
+
+    it 'gives a combining mark no column of its own and keeps it attached' do
+      frame = described_class.render("\e[He\u0301X", rows: 3, columns: 20)
+
+      expect(frame).to eq("e\u0301X")
+      expect(frame.index('X')).to eq(2)
+    end
+
+    it 'keeps a ZWJ sequence joined instead of charging the joiner a column' do
+      frame = described_class.render("\e[H\u{1F468}\u200D\u{1F469}|", rows: 3, columns: 20)
+
+      expect(frame).to include("\u200D")
+      expect(frame.index('|')).to eq(3)
+    end
+
+    it 'leaves plain ASCII untouched' do
+      expect(described_class.render("\e[HABC\e[1;3HX", rows: 3, columns: 20)).to eq('ABX')
+    end
+  end
+
   # A TUI turns autowrap off to paint the last cell of a row without scrolling
   # the screen out from under itself.
   describe 'autowrap (DECAWM)' do
