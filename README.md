@@ -4,6 +4,19 @@
 [![Ruby](https://img.shields.io/badge/ruby-3.0%20%E2%80%93%204.0-CC342D?logo=ruby&logoColor=white)](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
+**Translations:**
+[العربية](docs/i18n/README.ar.md) ·
+[Español](docs/i18n/README.es.md) ·
+[Français](docs/i18n/README.fr.md) ·
+[हिन्दी](docs/i18n/README.hi.md) ·
+[日本語](docs/i18n/README.ja.md) ·
+[한국어](docs/i18n/README.ko.md) ·
+[Português (BR)](docs/i18n/README.pt-BR.md) ·
+[Русский](docs/i18n/README.ru.md) ·
+[简体中文](docs/i18n/README.zh-CN.md)
+
+Each is a translation of this file, which is authoritative where they disagree.
+
 A Ruby CLI tool and library designed from the ground up to be **human & AI agent first-class**.
 
 `rune` serves as a universal pseudo-terminal (PTY) runner and structured data bridge for any CLI command or interactive TUI application.
