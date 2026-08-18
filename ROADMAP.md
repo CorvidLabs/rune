@@ -193,6 +193,24 @@ output contained a marker and ignored `status`, so a *correct refusal* read as a
 the third harness error of that session, and the reason the entry above is stated with the
 control that produced it.
 
+## Known and documented, not planned for 1.0
+
+Both came out of nine agents translating the README through rune, and both are recorded rather than
+fixed because the fix measured worse than the limitation.
+
+- **There is no content search that agrees with the screen for a repainting child.** `--grep` matches
+  the ANSI-stripped transcript, so overwritten history still matches and comes back as a clean line,
+  and a cursor-painted frame is one long line — `--context` is inert there and a match can return the
+  whole frame. Grepping the *screen* instead was rejected: it loses scrollback, which is the reason
+  `--grep` exists (finding one line in a 379KB transcript), and measured, only 39 of 200 lines were
+  on screen. The help text claimed "rendered text" and was wrong; that is corrected.
+
+- **`run` and `session read` bound `clean_output` by opposite rules.** `run` bounds each field
+  independently to the same budget, so the two describe different windows; `session read` derives
+  clean from the bounded raw, so they agree. Both are right for their own contract — `run`'s flag
+  promises "BYTES each" — and unifying them would cut `run`'s readable payload by the ANSI fraction
+  on every colour-emitting child. Documented on both surfaces instead.
+
 ## What is deliberately not planned
 
 - **Incremental streaming for `rune run`.** It buffers a whole run and returns one result;

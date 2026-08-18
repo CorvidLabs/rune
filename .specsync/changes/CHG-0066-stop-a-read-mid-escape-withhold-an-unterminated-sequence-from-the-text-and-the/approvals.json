@@ -20,6 +20,13 @@
       "timestamp": 1787021434,
       "digest": "c7fb6a0dab0216d9d4372332d27d194765de8e55d2b89f8ec3ab5a84cb4b0ff2",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1787030388,
+      "digest": "f9f2bece9bb1707ae908802b779dfd35c27b1e33e5b3ba6b3c68a91c91ef1adc",
+      "note": null
     }
   ],
   "reopenings": [
@@ -156,6 +163,140 @@
       },
       "stale_acceptance_input_digest": "b1a9124f63933777e9dabd0314755718b6b13b2532baa51f322c5f89ca7d5f90",
       "current_acceptance_input_digest": "6c460dde4c7c4218ad81a4ce1b561ee1020b43c5127912f6a7897d50e71220db"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0066-stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the",
+      "actor": "claude",
+      "reason": "the post-0.9.0 findings PR (CHG-0068) moved shared specs and guides, which these changes also deliver; re-verifying against the tree as it now stands",
+      "timestamp": 1787030231,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1787021434,
+        "digest": "c7fb6a0dab0216d9d4372332d27d194765de8e55d2b89f8ec3ab5a84cb4b0ff2",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1787021428,
+        "commit": "8c9055be7093551caf654679a1f8ebb51357de50",
+        "contract_digest": "5d3f750ce9df56644bfb05cf5f136d9b57a8bcd01282bb56db27fb524280d38d",
+        "workspace_digest": "e3c967c7e06c0768b89bc7d6a2f026c6ed53f94c08dccdc68ba8f8b99496b782",
+        "acceptance_input_digest": "6c460dde4c7c4218ad81a4ce1b561ee1020b43c5127912f6a7897d50e71220db",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "97635780f8f7c797fa3d4cb22b00e07d77e61927e288e1beb0203bf938f66307",
+              "entry_digest": "03386b9df5e28443adfae0ee64baace9c783c8721517116a7046aaa013e4fb75",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/commands/session_command.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c110d92eb9429a8cd84971df5fb643b06d576c52d9a97767bc6328545672fca0",
+              "entry_digest": "625302715af36fa61cd23632502449516518e22e7c5f315407e94c4d0ebc4316",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "lib/rune/output_limiter.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "76e69815e2edcf0514ab6419a6593debf0d373ce21b003cc863508d096d8792e",
+              "entry_digest": "0b38a0c6ff1dbfe326a1eb65f5c20a09f7f279c32d9944941c141b4ad8958efa",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d56b59f430c152fa2333c482bdd2a3ea3f73ea219e5b73d6de728d76d98cb7b4",
+              "entry_digest": "3ced7d969eebb39937d5478babfe13318f9e1bc8dc75146e40e0cbaf64cc96aa",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/pty_runner/pty_runner.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "49661461dcf49fba4cfe00b0850fca11dfe468dbd87da95d8a84f70a5f7efc78",
+              "entry_digest": "376bbee10fe437cb2551d5221e4c9f8c0afc16645ff661cf40bddc3834d02f19",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "specs/pty_runner/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3070f0d5d578baa2f058503359b33d17c02641731aec9e820e782f4e58813fcf",
+              "entry_digest": "6e141c1e84e140b7147f958068fa75dd6c0e22153ff3c50fe8782499d2f7dfb7",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ab643edc41b69f29c4ecca0426a9cc739a89775437c125a4f9087ab989002487",
+              "entry_digest": "a679b71adc3844704d18d79d863d88cddd05bf1e3eb1476600ff173f83292ac0",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "6c460dde4c7c4218ad81a4ce1b561ee1020b43c5127912f6a7897d50e71220db",
+      "current_acceptance_input_digest": "f5940e3791f4a400b83b333494d108a57ab156fd26a4ce8cfa47ba79a1cc7b9c"
     }
   ]
 }

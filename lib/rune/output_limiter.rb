@@ -83,10 +83,18 @@ module Rune
       # result holds at most `max_bytes` bytes of the child's own output. Returns
       # `[bounded_text, omitted_bytes]`.
       #
-      # `omitted_bytes` is exactly the number of the child's bytes that are not in the result:
-      # `original_bytesize - max_bytes`, plus whatever the two escape-sequence trims removed. It is
-      # never affected by `scrub`'s own byte-count changes at a split multi-byte character, because
-      # every count here is taken in offsets into the original text and the scrub happens after.
+      # `omitted_bytes` is `original_bytesize - max_bytes`, plus whatever the two escape-sequence
+      # trims removed, taken in offsets into the original text — the scrub happens after, so the
+      # count is stable against `scrub`'s own byte-count changes.
+      #
+      # It is *not* "every byte of the child's output that is not in the result", which an earlier
+      # version of this comment also claimed. The two definitions diverge whenever a cut splits a
+      # multi-byte character: the orphaned fragment is in neither the result nor the count, and
+      # `scrub` may replace it with a longer U+FFFD. Measured, `kept + omitted_bytes` reconciles
+      # exactly to the source on ASCII at every budget and drifts on multi-byte text — 0-6 bytes on
+      # Hangul, up to 7 on 4-byte emoji, and 2-byte Latin-1 hits it at 121 of 245 budgets, so this
+      # is not a CJK curiosity. A caller cannot verify how much was dropped by arithmetic on
+      # non-ASCII input, and the offsets definition is the one that holds.
       #
       # The marker is not charged against `max_bytes`, so a result can exceed it by the marker's
       # length. That is deliberate, and it is not a new kind of overshoot: `scrub` already returns

@@ -91,6 +91,47 @@ RSpec.describe Rune::Commands::RunCommand do
       expect(Rune::PTYRunner).to have_received(:new).with(%w[echo hi], timeout_seconds: 5, max_output_bytes: 1024)
     end
 
+    # The old message got a correctly spelled flag wrong three ways at once: it called
+    # a flag rune owns "Unknown", it asserted a position error when the flag was already
+    # before the separator, and following its remedy hands the flag to the child instead
+    # of applying it. Two agents driving rune lost tool calls to it.
+    describe 'a flag rune owns, given a space-separated value' do
+      it 'says the value must be inline rather than calling the flag unknown' do
+        result = described_class.new.call(%w[--timeout 5 -- echo hi], {})
+
+        expect(result.error).to include('--timeout takes its value inline: --timeout=VALUE')
+        expect(result.error).not_to include('Unknown option')
+      end
+
+      it 'still offers the separator, but for handing the flag to the child deliberately' do
+        expect(described_class.new.call(%w[--timeout 5 -- echo hi], {}).error)
+          .to include('rune run -- <command> --timeout VALUE')
+      end
+
+      # Derived from FLAG_PATTERNS so it cannot drift from the parser. A hand-written
+      # table is what let `--context` ship accepted-and-ignored, so this fails the day a
+      # value flag is added to the parser and not the table.
+      it 'covers every value flag the parser owns, not a hand-maintained subset' do
+        described_class::VALUE_FLAGS.each do |flag|
+          result = described_class.new.call([flag, '5', '--', 'echo', 'hi'], {})
+
+          expect(result.error).to include("#{flag} takes its value inline"), "no inline-value message for #{flag}"
+        end
+      end
+
+      # A boolean flag takes no value, so "give the value inline" would be nonsense.
+      # The first version of the list included --separate-streams and this caught it.
+      it 'leaves a boolean flag working normally rather than demanding a value' do
+        allow(Rune::PTYRunner).to receive(:new).and_return(instance_double(Rune::PTYRunner, run: Rune::Result.success({})))
+
+        expect(described_class.new.call(%w[--separate-streams -- echo hi], {})).to be_success
+      end
+
+      it 'leaves a genuinely unknown flag on the original message' do
+        expect(described_class.new.call(%w[--tiemout=5 -- echo hi], {}).error).to include('Unknown option: --tiemout')
+      end
+    end
+
     it 'rejects combining --max-output and --tail in the same invocation' do
       result = described_class.new.call(%w[--max-output=1024 --tail=20 -- echo hi], {})
       expect(result).to be_failure

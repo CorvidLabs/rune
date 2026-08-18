@@ -68,7 +68,7 @@ When the child process exits, the slave PTY closes, and `readpartial` raises `Er
 `rune` captures raw ANSI terminal escape sequences (colors, cursor movements, clear screens).
 
 - **For Humans (TTY mode)**: Raw output is formatted using `Renderer.render_tty` with full color and interactive formatting.
-- **For AI Agents (JSON mode)**: Output is processed through `Parsers::TextSanitizer.strip_ansi(raw_output)` to strip ANSI codes, returning clean text for LLM token efficiency:
+- **For AI Agents (JSON mode)**: Output is processed through `Parsers::TextSanitizer.strip_ansi(raw_output)` to strip ANSI codes, returning clean text for LLM token efficiency. This holds unqualified only without `--max-output`: that flag bounds the two fields independently to the same budget, so they then describe different windows of the run and `clean_output` is not `strip_ansi(raw_output)`:
 
 ```ruby
 # Strips SGR ANSI color codes, cursor escape codes, and terminal controls

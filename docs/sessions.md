@@ -285,6 +285,15 @@ It matches the *cleaned* text rather than the raw stream, because a full-screen 
 frames split words across escape sequences — a pattern you can plainly see on screen will not match
 the bytes. The reply carries `grep_matches`.
 
+**Cleaned is not rendered, and the difference bites on exactly the children sessions exist to
+drive.** The cleaned text is the whole repaint stream with escapes removed, so: overwritten history
+still matches, and comes back as a clean standalone line the screen has not shown since; a
+cursor-painted frame has no line breaks at all, so it is a single grep line, `--context` does
+nothing, and one match returns the entire frame under a plausible-looking `grep_matches: 1`; and a
+pattern anchored to what you can see on screen can return `grep_matches: 0`, because adjacency on
+the screen is not adjacency in the stream. When the question is *what is displayed right now*, use
+`--screen`. `--grep` is for finding a line in a long transcript, which is what it is good at.
+
 A pattern that will not compile comes back as `grep_error` rather than an exception, and **selects
 nothing**: `output` and `clean_output` are empty and `grep_matches` is absent, which is how you tell
 "the filter never ran" from "the filter found nothing". The read itself still succeeds, so `cursor`,
@@ -356,9 +365,14 @@ Measured against grok: a 361KB transcript rendered to a 1.1KB screen, and an ans
 plainly displayed was **absent from the byte stream in 3 of 3 turns and present in the rendered
 screen in 3 of 3**. If you are matching on content, match on `screen`.
 
-Two things it is not. It is the *end state*, so anything scrolled away is gone — the transcript
-remains the record of what happened. And it is opt-in because it is only meaningful for a child that
-paints a screen: for a cooked-mode shell the byte stream already is the answer.
+Three things it is not. It is the *end state*, so anything scrolled away is gone — the transcript
+remains the record of what happened. It is opt-in because it is only meaningful for a child that
+paints a screen: for a cooked-mode shell the byte stream already is the answer. And it is **not
+bounded by the read filters** — `--since`, `--tail`, `--grep` and `--max-output` all bound
+`output`/`clean_output` and leave `screen` alone. It is bounded, just by geometry: at most
+`screen_rows x (screen_cols + 1)`, both returned in the same reply. A 219,941-byte transcript
+renders to about 2KB. So `--max-output=200 --screen` gives you a bounded reply, bounded by a rule
+you did not name.
 
 ### It renders at the size the child is actually running at
 

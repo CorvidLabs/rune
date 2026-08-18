@@ -1,6 +1,6 @@
 ---
 module: session
-version: 31
+version: 32
 status: active
 files:
   - lib/rune/session/store.rb
@@ -609,6 +609,16 @@ deciding who talks to whom stays the calling agent's job.
     split words across escape sequences, so a pattern plainly visible on screen does not match the
     bytes. The reply carries `grep_matches`; an unparseable pattern is reported as `grep_error`
     rather than raised, because a bad regex from a caller is not a reason to fail a read.
+
+    Three limits, all measured, that "filters the cleaned text" does not make obvious. Overwritten
+    history still matches and comes back as a clean standalone line, so a match can be text the
+    screen has not shown since. A cursor-painted frame contains no line breaks at all, so it is one
+    grep line: `--context` is inert and a single match returns the whole frame under a plausible
+    `grep_matches: 1`. And a pattern anchored to what is visible on screen can return
+    `grep_matches: 0`, because adjacency on the screen is not adjacency in the stream. The flag's
+    own help claimed it matched "the rendered text rather than the repaint stream", which is the
+    opposite of what it does; that is corrected. Use `--screen` when the question is what is
+    currently displayed.
 41n. Rotation costs no measurable memory. It seeks to the cut point rather than scanning what it is
     dropping, reads the byte count each event already records rather than parsing the event, and
     copies with `IO.copy_stream` so the bytes never enter Ruby. The first implementation read the
@@ -714,6 +724,17 @@ deciding who talks to whom stays the calling agent's job.
     a latency regression. `read --screen` renders the whole transcript rather than a `--since`
     slice, because a screen is the product of every escape sequence before it and replaying from a
     mid-stream cursor would show a screen the child never displayed.
+
+    `--screen` is not bounded by the read filters — not `--since`, `--tail`, `--grep` or
+    `--max-output`. It is bounded by geometry instead, at most `screen_rows x (screen_cols + 1)`,
+    and both dimensions come back in the same reply: a 219,941-byte transcript rendered to 2,113
+    bytes, and a dense 40x120 frame is 4,839 bytes of ASCII or 7,239 of CJK. So a caller passing
+    `--max-output` does get a bounded reply, just bounded by a different rule than the one they
+    named — the defect is surprise, not unboundedness, which is why two reporters declined to file
+    it. Applying the byte bound to the render was measured and rejected: rendering only the bounded
+    bytes paints a discarded frame plus rune's own elision marker into the child's screen and lost
+    9 of 10 answers, and truncating the rendered string is a no-op where it matters while needing a
+    second `omitted_bytes` in one reply, which 50a forbids.
 41s. `--screen` renders at the size the child's pty is actually set to, and reports it as
     `screen_rows`/`screen_cols`. The size is not a constant — the child starts at
     `DEFAULT_ROWS`x`DEFAULT_COLUMNS`, `attach` resizes it to the terminal that took it over, and
@@ -1083,3 +1104,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-17 | CHG-0063-assert-the-geometry-rune-guarantees-not-the-scheduler-that-usually-delivers-it: Assert the geometry rune guarantees, not the scheduler that usually delivers it |
 | 2026-08-18 | CHG-0066-stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the: Stop a read mid-escape: withhold an unterminated sequence from the text and the cursor |
 | 2026-08-18 | CHG-0067-make-tail-count-a-carriage-return-as-a-line-break-and-report-matched-on-a-reg: Make --tail count a carriage return as a line break, and report matched on a regex send's timeout |
+| 2026-08-18 | CHG-0068-correct-the-flag-message-run-gets-wrong-and-the-five-contracts-the-dogfood-foun: Correct the flag message run gets wrong, and the five contracts the dogfood found documented wrong |
