@@ -143,7 +143,7 @@ $ ruby bin/rune run --ndjson -- echo "hello stream"
 実行全体をバッファして単一の `Result` を返すので、ここでの `--ndjson` はエンベロープの選択で
 あって、逐次ストリーミングではありません。長時間実行されるコマンドや対話型コマンドの進行に
 応じた実際のライブイベントストリームについては、後述の
-[`rune watch`](#watching-a-session-live-with-rune-watch) を参照してください。こちらは出力
+[`rune watch`](#rune-watch-でセッションをライブ観察する) を参照してください。こちらは出力
 チャンクが発生するたびに 1 行の NDJSON を出力します。
 
 ## `rune run` でコマンドを実行する

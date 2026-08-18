@@ -104,7 +104,7 @@ $ ruby bin/rune version | cat
 > **`exit_code` est le code de sortie du processus enveloppé, pas un verdict sur le travail.** Il
 > répond à la question « le processus s'est-il terminé, et comment », ce qui, pour une CLI d'agent,
 > vaut presque toujours `0` — y compris pour des exécutions dont la sortie était erronée. Un
-> utilisateur a vu huit dispatches `rune run` consécutifs renvoyer `0`, dont plusieurs avaient
+> utilisateur a vu huit appels `rune run` consécutifs renvoyer `0`, dont plusieurs avaient
 > produit des conclusions qu'il a dû corriger ensuite. Si vous devez savoir si le *travail* a
 > réussi, cela doit venir de la sortie, pas de ce champ. `124` est l'exception à connaître : elle
 > signifie que rune a tué le processus au terme du `--timeout`.
@@ -144,7 +144,7 @@ Pour `rune run`, il s'agit toujours d'exactement une ligne, émise une fois la c
 `PTYRunner` met en tampon toute l'exécution et renvoie un unique `Result`, donc `--ndjson` est ici
 un choix d'enveloppe, pas un flux incrémental. Pour un véritable flux d'événements en direct au fil
 de l'avancement d'une commande longue ou interactive, voir
-[`rune watch`](#watching-a-session-live-with-rune-watch) ci-dessous, qui émet une ligne NDJSON par
+[`rune watch`](#observer-une-session-en-direct-avec-rune-watch) ci-dessous, qui émet une ligne NDJSON par
 fragment de sortie au moment où il survient.
 
 ## Exécuter des commandes avec `rune run`
@@ -202,8 +202,8 @@ résultat :
   « chacun » : les champs sont bornés *séparément*, donc sous cet indicateur ils décrivent des
   fenêtres différentes de l'exécution et `clean_output` n'est pas `strip_ansi(raw_output)` —
   `omitted_bytes` est le décompte de `clean_output` et `raw_output` porte son propre marqueur avec
-  une valeur différente. Et `omitted_bytes` est mesuré en positions dans l'original, donc il se
-  réconcilie exactement en ASCII mais dérive de quelques octets sur du texte multi-octets, où une
+  une valeur différente. Et `omitted_bytes` est mesuré en positions dans l'original, donc il
+  correspond exactement en ASCII mais dérive de quelques octets sur du texte multi-octets, où une
   coupure peut scinder un caractère. Les deux moitiés sont jointes par une ligne
   `[rune] ==== N bytes omitted by --max-output ====` plutôt que raboutées, de sorte que le texte
   renvoyé ne se lise jamais comme quelque chose que la commande aurait affiché : sans cela, une
@@ -243,7 +243,7 @@ rune watch -- ruby examples/humans/demo_tui.rb
 Le journal d'événements est par défaut un fichier temporaire protégé contre les collisions et
 accessible au seul propriétaire (`0600`), pas stderr — mélanger les événements NDJSON dans le même
 terminal que le passage en direct était la conception initiale, et l'usage réel a immédiatement
-montré que c'était un mauvais défaut (le JSON entrelacé rendait la session illisible). Le chemin
+montré que c'était un mauvais choix par défaut (le JSON entrelacé rendait la session illisible). Le chemin
 est annoncé une fois, dès le départ :
 
 ```
@@ -294,7 +294,7 @@ PTY de `rune run`, donc il ne peut pas être démontré dans un exemple redirig�
 guide. Le menu de premier niveau d'`examples/humans/demo_tui.rb` est un vrai sélecteur à flèches
 (↑/↓ + Entrée, ou `q` pour quitter) plutôt qu'un « tapez un numéro et appuyez sur Entrée », précisément
 pour exercer le transfert brut d'octets uniques et de séquences d'échappement — ce qu'un menu
-purement bufferisé par lignes ne touche jamais. Le commentaire d'en-tête
+purement mis en tampon par lignes ne touche jamais. Le commentaire d'en-tête
 d'`examples/humans/demo_tui.rb` contient des commandes prêtes à copier-coller, et
 `spec/rune/pty_watcher_spec.rb` montre comment les mécaniques sous-jacentes de transfert et de
 journalisation sont testées unitairement, y compris un test qui pilote le menu à flèches lui-même

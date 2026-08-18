@@ -1,6 +1,15 @@
 # Persistent sessions (`rune session`)
 
-**Translations:** [Português (BR)](i18n/sessions.pt-BR.md)
+**Translations:**
+[العربية](i18n/sessions.ar.md) ·
+[Español](i18n/sessions.es.md) ·
+[Français](i18n/sessions.fr.md) ·
+[हिन्दी](i18n/sessions.hi.md) ·
+[日本語](i18n/sessions.ja.md) ·
+[한국어](i18n/sessions.ko.md) ·
+[Português (BR)](i18n/sessions.pt-BR.md) ·
+[Русский](i18n/sessions.ru.md) ·
+[简体中文](i18n/sessions.zh-CN.md)
 
 Each is a translation of this file, which is authoritative where they disagree.
 

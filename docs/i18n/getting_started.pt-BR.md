@@ -141,7 +141,7 @@ No caso do `rune run`, isso continua sendo exatamente uma linha, emitida quando 
 o `PTYRunner` bufferiza a execução inteira e devolve um único `Result`, então aqui o `--ndjson` é
 uma escolha de envelope, não streaming incremental. Para um fluxo de eventos ao vivo de verdade,
 conforme um comando demorado ou interativo avança, veja o
-[`rune watch`](#watching-a-session-live-with-rune-watch) abaixo, que emite uma linha NDJSON por
+[`rune watch`](#acompanhando-uma-sessão-ao-vivo-com-o-rune-watch) abaixo, que emite uma linha NDJSON por
 bloco de saída, à medida que acontece.
 
 ## Executando comandos com o `rune run`

@@ -121,7 +121,7 @@ O motor de scripts processa as etapas em uma única passagem sem bloqueio, de mo
 
 ### Modo bruto de terminal (`io/console`)
 
-Para que as teclas de seta e outras entradas de byte único ou sequências de escape cheguem ao filho, o terminal controlador do próprio processo *pai* precisa sair do modo cozido, no qual o kernel armazena a entrada em buffer por linha e ecoa localmente as teclas até que chegue uma quebra de linha. `io/console` (requerido explicitamente, não trazido implicitamente por `pty`) adiciona `IO#raw`, que `PTYWatcher#with_raw_input` envolve em torno de toda a sessão de encaminhamento:
+Para que as teclas de seta e outras entradas de byte único ou sequências de escape sequer cheguem ao filho, o terminal controlador do próprio processo *pai* precisa sair do modo cozido, no qual o kernel armazena a entrada em buffer por linha e ecoa localmente as teclas até que chegue uma quebra de linha. `io/console` (requerido explicitamente, não trazido implicitamente por `pty`) adiciona `IO#raw`, que `PTYWatcher#with_raw_input` envolve em torno de toda a sessão de encaminhamento:
 
 ```ruby
 def with_raw_input(&block)
@@ -174,7 +174,7 @@ Deliberadamente não é stderr por padrão: o stderr compartilha o terminal do h
 real mostrou de imediato que intercalar JSON em uma sessão interativa a tornava ilegível.
 
 Se o sink de saída fechar com `EPIPE`, o `PTYWatcher` mata e recolhe o processo filho antes de devolver uma falha
-estruturada, impedindo que um processo interativo desacoplado sobreviva ao watcher.
+estruturada, impedindo que um processo interativo desanexado sobreviva ao watcher.
 
 ---
 
@@ -197,7 +197,7 @@ Tanto o `PTYRunner` quanto o `PTYWatcher` padronizam os códigos de saída Unix 
 O `rune` combina:
 1. `PTY.spawn` para emulação real de terminal.
 2. `readpartial` para leitura de stream sem deadlock.
-3. `UTF8StreamDecoder` mais `TextSanitizer` para um JSON de agente limpo e seguro nas fronteiras de bytes.
+3. `UTF8StreamDecoder` mais `TextSanitizer` para um JSON de agente limpo e seguro nas fronteiras entre blocos.
 4. `PromptDetector` para verificações inteligentes de interatividade.
 5. DSL `Script` para entrada automatizada passo a passo.
 6. `PTYWatcher` + modo bruto do `io/console` para sessões ao vivo, bidirecionais e conduzidas por humanos, com um log NDJSON que o agente pode acompanhar.

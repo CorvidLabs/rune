@@ -3,7 +3,16 @@
 > **Guide for Developers & AI Agents**  
 > *Understanding how Ruby manages pseudo-terminals, interactive streams, and prompt automation in `rune`.*
 
-**Translations:** [Português (BR)](i18n/pty_architecture.pt-BR.md)
+**Translations:**
+[العربية](i18n/pty_architecture.ar.md) ·
+[Español](i18n/pty_architecture.es.md) ·
+[Français](i18n/pty_architecture.fr.md) ·
+[हिन्दी](i18n/pty_architecture.hi.md) ·
+[日本語](i18n/pty_architecture.ja.md) ·
+[한국어](i18n/pty_architecture.ko.md) ·
+[Português (BR)](i18n/pty_architecture.pt-BR.md) ·
+[Русский](i18n/pty_architecture.ru.md) ·
+[简体中文](i18n/pty_architecture.zh-CN.md)
 
 Each is a translation of this file, which is authoritative where they disagree.
 
