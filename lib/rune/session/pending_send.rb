@@ -296,10 +296,20 @@ module Rune
       end
 
       def limits(now:, child_finished:)
-        return { settled: false, timed_out: true } if now >= @deadline
+        return timed_out if now >= @deadline
         return { settled: true, child_exited: true } if child_finished
 
         nil
+      end
+
+      # A regex send reports `matched:` on the way out however it ended, which is
+      # what the comment in `answered` has always claimed and what the code did
+      # not do: `matched` was simply absent on a timeout, so a caller reading it
+      # as a tri-state saw nil for "no match" and nil for "not a regex send".
+      # `timed_out` did disambiguate, but only for a caller who knew to look.
+      def timed_out
+        answer = { settled: false, timed_out: true }
+        @regex ? answer.merge(matched: false) : answer
       end
 
       # Ordered by precedence: an explicit regex match beats the clock, the hard
@@ -309,7 +319,7 @@ module Rune
         matched = regex_matched?
         return { settled: false, regex_timed_out: true } if matched.nil?
         return { settled: true, matched: true } if matched
-        return { settled: false, timed_out: true } if now >= @deadline
+        return timed_out if now >= @deadline
         return { settled: true, child_exited: true } if child_finished
         # Quiet does not answer a send that is waiting for a pattern. It used
         # to, so `--wait-for-regex DONE --settle-ms 800` returned `settled:

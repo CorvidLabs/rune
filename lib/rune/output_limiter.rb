@@ -131,15 +131,26 @@ module Rune
       #
       # Needs no marker: what it keeps is a contiguous run of real output, so nothing in the result
       # is text the child never produced. It starts late, which `omitted_lines` reports.
-      def tail_lines(text, line_count)
-        lines = text.split("\n", -1)
-        lines.pop if lines.last == '' && text.end_with?("\n")
-        return [text, 0] if lines.size <= line_count
+      # A line ends at CR, LF, or CRLF — not at LF alone.
+      #
+      # Splitting on LF only made this a silent no-op on exactly the output it exists to bound. A
+      # full-screen TUI repaints with bare CRs and emits almost no LFs, so the whole transcript
+      # counted as one line, nothing was trimmed, and `truncated`/`omitted_lines` were absent from
+      # the reply — which reads as "nothing was dropped". Measured on `linha1\rlinha2\r…linha5\r`:
+      # `session read --tail=2` returned all five lines and no truncation fields, and `run --tail=2`
+      # bounded `clean_output` to two while returning `raw_output` whole, because `clean_output` had
+      # been through `strip_ansi`'s `tr("\r", "\n")` and the raw had not. rune treated CR as a line
+      # terminator in the field it returned but not in the flag that bounds it.
+      #
+      # Segments carry their own terminator so the kept text is byte-identical to that stretch of
+      # the original — rejoining with a chosen separator would rewrite CR output as LF output.
+      LINE_WITH_TERMINATOR = /[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+\z/
 
-        omitted = lines.size - line_count
-        kept = lines.last(line_count).join("\n")
-        kept += "\n" if text.end_with?("\n")
-        [kept, omitted]
+      def tail_lines(text, line_count)
+        segments = text.scan(LINE_WITH_TERMINATOR)
+        return [text, 0] if segments.size <= line_count
+
+        [segments.last(line_count).join, segments.size - line_count]
       end
 
       # The trailing bytes of `text` that begin an escape sequence still waiting for its terminator,

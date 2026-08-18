@@ -24,7 +24,9 @@ module Rune
            'required by send/read/attach/stop.'
       flag '--settle-ms=N', 'send: return once the child has been quiet for N ms (default 800).'
       flag '--timeout-ms=N', 'send: hard cap on the whole wait (default 120000).'
-      flag '--wait-for-regex=RE', 'send: return as soon as output matches RE, without waiting out the settle window.'
+      flag '--wait-for-regex=RE',
+           'send: wait for output matching RE. Replaces the settle window rather than racing it — ' \
+           'the send then answers on a match, the child exiting, or --timeout-ms, and reports matched.'
       flag '--no-wait', 'send: write the input and return immediately, without waiting for a reply.'
       flag '--no-newline',
            'send: do not append the trailing carriage return that submits the line (Enter is CR, ' \

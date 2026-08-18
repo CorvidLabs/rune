@@ -490,6 +490,39 @@ RSpec.describe Rune::Commands::SessionCommand do
   # `strip_ansi` only matches sequences that *terminated*, so a sequence split
   # across two pty reads left `clean_output` claiming the child printed text it
   # never displayed — and `screen`, in the same reply, disagreed.
+  # `--tail` counted lines in the raw transcript, where CR is not a line break.
+  # A full-screen TUI repaints with bare CRs and almost no LFs, so the flag that
+  # exists to bound a reply matched nothing to trim and returned everything —
+  # with `truncated` and `omitted_lines` absent, which reads as "nothing was
+  # dropped". Measured against a live claude session, 84,945 bytes came back
+  # identically for --tail=3, 5, 8, 12 and 20.
+  describe '--tail against carriage-return repaint output' do
+    def repainting_child
+      ['ruby', '-e', 'STDOUT.sync = true; while STDIN.gets; print "l1\rl2\rl3\rl4\rl5\r"; end']
+    end
+
+    it 'counts a carriage return as a line break, so the bound actually applies' do
+      start_session('tl1', repainting_child)
+      session('send', '--name=tl1', '--settle-ms=400', '--timeout-ms=15000', '--', 'go')
+
+      result = session('read', '--name=tl1', '--tail=2')
+
+      expect(result.data[:truncated]).to be true
+      expect(result.data[:omitted_lines]).to be_positive
+      expect(result.data[:clean_output].lines.length).to be <= 2
+    end
+
+    it 'reports no truncation when the bound genuinely does not apply' do
+      start_session('tl2', repainting_child)
+      session('send', '--name=tl2', '--settle-ms=400', '--timeout-ms=15000', '--', 'go')
+
+      result = session('read', '--name=tl2', '--tail=500')
+
+      expect(result.data[:truncated]).to be_nil
+      expect(result.data[:omitted_lines]).to be_nil
+    end
+  end
+
   describe 'an escape sequence split across two pty reads' do
     # Prints, opens a sequence, pauses long enough to be read mid-sequence, then
     # completes it. The pause is what makes the split deterministic.
@@ -1199,8 +1232,11 @@ RSpec.describe Rune::Commands::SessionCommand do
       # at the default settle window; before it, this same shape returned
       # `settled: true, matched: nil` while the child was still working.
       expect(send.outcome(now: 4.0, child_finished: false, submitted: true, last_output_at: 3.0)).to be_nil
+      # `matched: false` because this is a regex send: the pattern is reported on
+      # the way out however the send ended, so a caller reading it as a tri-state
+      # is not told nil for both "no match" and "not a regex send".
       expect(send.outcome(now: 31.0, child_finished: false, submitted: true, last_output_at: 3.0))
-        .to eq({ settled: false, timed_out: true })
+        .to eq({ settled: false, timed_out: true, matched: false })
     end
 
     # The same scenario without a pattern still settles on quiet, which is what

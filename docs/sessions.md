@@ -219,12 +219,17 @@ line in pieces or driving a TUI that reads keystrokes.
 
 ### The other fields on a reply
 
-- `settled: true` — the child went quiet for the settle window. The normal success, but quiet has
-  three causes and this cannot tell them apart: the turn finished, the child is waiting on a human,
-  or **the child backgrounded a long command and stopped printing**. That third case is the one that
-  bites: a caller polling for the disappearance of a busy marker read a frame without it and
-  concluded the work was done, 260 seconds before it was. If you are deciding on the *absence* of
-  something, `settled` is not enough evidence on its own.
+- `settled: true` — **the wait was answered rather than timing out.** Three different things set it,
+  and the companion field tells you which: the child went quiet for the settle window (no companion
+  field), `--wait-for-regex` matched (`matched: true`), or the child exited (`child_exited: true`).
+  It does **not** on its own mean the child went quiet — a regex match sets it with no quiet period
+  at all, which is why a reply can carry `settled: true` 0.45s into a 60-second settle window.
+
+  Where it *does* mean quiet, quiet has three causes and this cannot tell them apart: the turn
+  finished, the child is waiting on a human, or **the child backgrounded a long command and stopped
+  printing**. That third case is the one that bites: a caller polling for the disappearance of a
+  busy marker read a frame without it and concluded the work was done, 260 seconds before it was. If
+  you are deciding on the *absence* of something, `settled` is not enough evidence on its own.
 - `timed_out: true` — `--timeout-ms` was reached first. A result, not a failure.
 - `matched: true` — `--wait-for-regex` matched.
 - `child_exited: true` — the child ended while the send was in flight.

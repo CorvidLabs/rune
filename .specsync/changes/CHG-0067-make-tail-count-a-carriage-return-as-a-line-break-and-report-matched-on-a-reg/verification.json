@@ -1,9 +1,9 @@
 {
-  "timestamp": 1787021428,
+  "timestamp": 1787021020,
   "commit": "8c9055be7093551caf654679a1f8ebb51357de50",
-  "contract_digest": "5d3f750ce9df56644bfb05cf5f136d9b57a8bcd01282bb56db27fb524280d38d",
-  "workspace_digest": "e3c967c7e06c0768b89bc7d6a2f026c6ed53f94c08dccdc68ba8f8b99496b782",
-  "acceptance_input_digest": "6c460dde4c7c4218ad81a4ce1b561ee1020b43c5127912f6a7897d50e71220db",
+  "contract_digest": "91a889f3e720e837f957bb74e53b340fd57cc1a4b7ed4924018e1e5aabf6f5e2",
+  "workspace_digest": "4226b5cdb6f7828bad73e86ea8375fbaa0373041dbf121c61d77ba9b5f090888",
+  "acceptance_input_digest": "89d5492faaf95d71c330df0269fdd070ae95e26b9f375b1520d95498114c7bd9",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,8 +11,18 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "97635780f8f7c797fa3d4cb22b00e07d77e61927e288e1beb0203bf938f66307",
-        "entry_digest": "03386b9df5e28443adfae0ee64baace9c783c8721517116a7046aaa013e4fb75",
+        "payload_digest": "44d57826681ffd7967ad6fd85623030ed25e4dbdba27d1272f8bfe6ca94fbec9",
+        "entry_digest": "497e6940014c54f06237a86a057c9f15f64dc9bdbdc044be3d57fee9c6f99141",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/sessions.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f7ee92a0a5e94039742adf4caea5385de7b2936046291d990804e9b7e190bc7b",
+        "entry_digest": "58a7a80e73bffb050b1d3473b348a9818c038d24fa774bfaded2a906a0634556",
         "owners": [
           "@exact:delivery"
         ]
@@ -35,6 +45,16 @@
         "entry_digest": "0b38a0c6ff1dbfe326a1eb65f5c20a09f7f279c32d9944941c141b4ad8958efa",
         "owners": [
           "pty_runner"
+        ]
+      },
+      {
+        "path": "lib/rune/session/pending_send.rb",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b84d5d35cfbb4c5c554c297f2e24caae6fd0a9cee74b7f5b89d79e697f97ea1e",
+        "entry_digest": "5e63eaa724cd354c35ae9beb697d2673498ab868d9f2f3a6ac0abd226ebd7465",
+        "owners": [
+          "session"
         ]
       },
       {

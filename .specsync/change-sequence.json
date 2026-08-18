@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 66,
-  "id": "CHG-0066-stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the",
+  "sequence": 67,
+  "id": "CHG-0067-make-tail-count-a-carriage-return-as-a-line-break-and-report-matched-on-a-reg",
   "acknowledged_collisions": []
 }

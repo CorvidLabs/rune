@@ -1,6 +1,6 @@
 ---
 module: session
-version: 30
+version: 31
 status: active
 files:
   - lib/rune/session/store.rb
@@ -360,9 +360,23 @@ deciding who talks to whom stays the calling agent's job.
    child on a full buffer, and guarantee the settle window never elapses.
 5. `send` frames its response by taking the output cursor **at send time** and returning only bytes
    after it, so output already on screen before the send is never misattributed to it.
-6. `send` returns on whichever comes first: no new output for `--settle-ms`, `--wait-for-regex`
-   matching, the child exiting, or `--timeout-ms` elapsing. A `--timeout-ms` cap returns what was
-   captured with `settled: false` and `timed_out: true` rather than failing.
+6. `send` returns on whichever comes first, and **which conditions race depends on whether a
+   pattern was given**. Without `--wait-for-regex`: no new output for `--settle-ms`, the child
+   exiting, or `--timeout-ms` elapsing. With one, quiet is **not** among them — the send answers on
+   a match, the child exiting, or `--timeout-ms`, and `--settle-ms` has no effect on it.
+
+   That is deliberate and was a fix, not an oversight. Quiet used to answer a regex send, so
+   `--wait-for-regex DONE --settle-ms 800` returned `settled: true, matched: nil` at 800ms against a
+   child that printed DONE five seconds later, 3/3 — and the documented workaround for the settle
+   defect did not work at the default settle window. An earlier version of this invariant listed
+   four racing conditions, and `--help` described the flag as an accelerator that returns "without
+   waiting out the settle window"; both read as though settle still applied, and callers lost whole
+   `--timeout-ms` windows to the difference.
+
+   A `--timeout-ms` cap returns what was captured with `settled: false` and `timed_out: true` rather
+   than failing. A regex send additionally reports `matched: false` there, so the field is present
+   however the send ended and a caller reading it as a tri-state is not told `nil` for both "no
+   match" and "not a regex send".
 7. The settle clock only starts once output arrives that is **not** the pty's echo of the input. A
    pty in cooked mode echoes whatever is written straight back, so counting the echo as "the child
    started answering" would settle a send on the caller's own words while the child was still
@@ -1068,3 +1082,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-17 | CHG-0060-bound-send-output-with-max-output-and-tail-and-make-the-two-mutually-exclus: Bound send output with --max-output and --tail, and make the two mutually exclusive |
 | 2026-08-17 | CHG-0063-assert-the-geometry-rune-guarantees-not-the-scheduler-that-usually-delivers-it: Assert the geometry rune guarantees, not the scheduler that usually delivers it |
 | 2026-08-18 | CHG-0066-stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the: Stop a read mid-escape: withhold an unterminated sequence from the text and the cursor |
+| 2026-08-18 | CHG-0067-make-tail-count-a-carriage-return-as-a-line-break-and-report-matched-on-a-reg: Make --tail count a carriage return as a line break, and report matched on a regex send's timeout |

@@ -13,7 +13,149 @@
       "timestamp": 1787015478,
       "digest": "c625bb263bc6fbc2af989d726e185022fcad093e15a970498ec3f9599288803e",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1787021434,
+      "digest": "c7fb6a0dab0216d9d4372332d27d194765de8e55d2b89f8ec3ab5a84cb4b0ff2",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0066-stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the",
+      "actor": "claude",
+      "reason": "the tail and send-contract fixes (CHG-0067) moved shared specs, which these changes also deliver; re-verifying against the tree as it now stands",
+      "timestamp": 1787021283,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1787015478,
+        "digest": "c625bb263bc6fbc2af989d726e185022fcad093e15a970498ec3f9599288803e",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1787015474,
+        "commit": "4abd95c8461be099fc5030a740ea456ec7d242d1",
+        "contract_digest": "5d3f750ce9df56644bfb05cf5f136d9b57a8bcd01282bb56db27fb524280d38d",
+        "workspace_digest": "f67f09ee06a740a8159440394c45e01537452ae6632107b75d314ac6dcee2461",
+        "acceptance_input_digest": "b1a9124f63933777e9dabd0314755718b6b13b2532baa51f322c5f89ca7d5f90",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "97635780f8f7c797fa3d4cb22b00e07d77e61927e288e1beb0203bf938f66307",
+              "entry_digest": "03386b9df5e28443adfae0ee64baace9c783c8721517116a7046aaa013e4fb75",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/commands/session_command.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b61ed4151161d19f54dcf325d329cc0d0a80286ae10256d41b05d951552d7439",
+              "entry_digest": "90276c0f40403b695b4f31c231c1e8f1202afe03eb8d4cb21d58f58509ccd995",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "lib/rune/output_limiter.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d7fe4c40083a7ee41a6779649901affa9cfa22217929ae3e233700d8ba521da5",
+              "entry_digest": "e4e464c68458026b668adbae0c15b49a8e5d1e364d3091a1f985084abae7b467",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "72ebd9065eb82f6aece95d64ad2f20ad82e77b1351da7b66150e7b342521f875",
+              "entry_digest": "af27406e74bef103f239fa8bdba537428dc82ea183874c44025234549a5fe003",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/pty_runner/pty_runner.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "b98216a2d9eb705a08384b14f362a956cc6942706ec3e03f489db1465246c4f6",
+              "entry_digest": "eb433c5b6b6adf42cd92f59dafe42a4648156fa659d0310b6d807248fe573fb6",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "specs/pty_runner/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3070f0d5d578baa2f058503359b33d17c02641731aec9e820e782f4e58813fcf",
+              "entry_digest": "6e141c1e84e140b7147f958068fa75dd6c0e22153ff3c50fe8782499d2f7dfb7",
+              "owners": [
+                "pty_runner"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c1691f65297638a869b5dd9df171b45f33dcae91adc81575227fce35318e03da",
+              "entry_digest": "1de920eef1133512fe6b037ae6ab1829d4a285a7446f0cd5067cf4410a3a25b4",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "b1a9124f63933777e9dabd0314755718b6b13b2532baa51f322c5f89ca7d5f90",
+      "current_acceptance_input_digest": "6c460dde4c7c4218ad81a4ce1b561ee1020b43c5127912f6a7897d50e71220db"
+    }
+  ]
 }
