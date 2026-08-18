@@ -1,6 +1,6 @@
 ---
 id: CHG-0069-guard-the-flags-watch-was-executing-and-bound-the-two-fields-max-output-was-not
-state: accepted
+state: archived
 type: feature
 base_commit: ad76e2237bb8215f77d4cd7bb8358cc6083a61f2
 ---

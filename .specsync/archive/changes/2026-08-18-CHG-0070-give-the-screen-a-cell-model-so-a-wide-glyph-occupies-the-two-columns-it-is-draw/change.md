@@ -1,6 +1,6 @@
 ---
 id: CHG-0070-give-the-screen-a-cell-model-so-a-wide-glyph-occupies-the-two-columns-it-is-draw
-state: accepted
+state: archived
 type: feature
 base_commit: ac38dba529ff6cb4838f825b5c3c9594af36b7d1
 ---

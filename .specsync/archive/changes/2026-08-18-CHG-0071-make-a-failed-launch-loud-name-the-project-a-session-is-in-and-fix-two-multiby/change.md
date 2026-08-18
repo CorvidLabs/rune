@@ -1,6 +1,6 @@
 ---
 id: CHG-0071-make-a-failed-launch-loud-name-the-project-a-session-is-in-and-fix-two-multiby
-state: accepted
+state: archived
 type: feature
 base_commit: 5f4d77b08f0d96682520e66e7eeb5411ed5a5da3
 ---
