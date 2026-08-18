@@ -1,5 +1,18 @@
 # Getting Started with rune
 
+**Translations:**
+[العربية](i18n/getting_started.ar.md) ·
+[Español](i18n/getting_started.es.md) ·
+[Français](i18n/getting_started.fr.md) ·
+[हिन्दी](i18n/getting_started.hi.md) ·
+[日本語](i18n/getting_started.ja.md) ·
+[한국어](i18n/getting_started.ko.md) ·
+[Português (BR)](i18n/getting_started.pt-BR.md) ·
+[Русский](i18n/getting_started.ru.md) ·
+[简体中文](i18n/getting_started.zh-CN.md)
+
+Each is a translation of this file, which is authoritative where they disagree.
+
 `rune` is a Ruby CLI and library built to be equally usable by a human at a terminal and an AI
 agent driving it programmatically. Every command returns the same structured `Result` — only the
 *rendering* changes based on how you're calling it.

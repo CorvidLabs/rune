@@ -3,6 +3,10 @@
 > **Guide for Developers & AI Agents**  
 > *Understanding how Ruby manages pseudo-terminals, interactive streams, and prompt automation in `rune`.*
 
+**Translations:** [Português (BR)](i18n/pty_architecture.pt-BR.md)
+
+Each is a translation of this file, which is authoritative where they disagree.
+
 ---
 
 ## 1. Overview: What is a Pseudo-TTY (PTY)?
