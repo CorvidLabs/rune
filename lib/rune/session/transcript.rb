@@ -86,6 +86,15 @@ module Rune
         offset = retained_offset(since)
         return @text.dup if offset.negative?
 
+        # `--since` is a byte offset a caller can compute, so unlike a cursor
+        # rune itself issued it can land inside a character. `.scrub` then
+        # replaced each orphaned continuation with U+FFFD under `status: ok` —
+        # `--since=1` on `こY` returned two replacement characters then `Y`,
+        # and `--since=1` was *longer* than `--since=0`. Snap forward to the
+        # next character start instead: the split character is not available
+        # from this offset, and nothing is invented.
+        offset += 1 while offset < @text.bytesize &&
+                          (byte = @text.getbyte(offset)) && byte.between?(0x80, 0xBF)
         (@text.byteslice(offset..) || +'').scrub
       end
 

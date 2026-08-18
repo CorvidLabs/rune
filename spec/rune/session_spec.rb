@@ -648,6 +648,8 @@ RSpec.describe Rune::Commands::SessionCommand do
 
       expect(result).to be_success
       expect(result.data[:output]).to be_valid_encoding
+      expect(result.data[:output]).not_to include("\uFFFD")
+      expect(result.data[:clean_output]).not_to include("\uFFFD")
     end
 
     it 'honours --since so a caller can page from a prior cursor' do
@@ -1635,6 +1637,46 @@ RSpec.describe Rune::Commands::SessionCommand do
       probe_points(ops).each do |since|
         expect(loaded.from(since)).to eq(oracle(ops, since)), "at since=#{since}"
       end
+    end
+  end
+
+  # `--since` is a raw byte offset. A caller doing arithmetic on one
+  # (`--since=$((cursor-200))`) can land inside a multi-byte character.
+  # `.scrub` then replaced each orphaned continuation with U+FFFD under
+  # `status: ok`, so a consumer could not tell rune's slicing from a
+  # replacement the child actually emitted. Measured on `こY` (E3 81 93 59):
+  # `--since=1` returned two U+FFFD then `Y`; `--since=2` returned one.
+  # Cursors rune itself issues never land here — `UTF8StreamDecoder` holds a
+  # trailing incomplete sequence — so this is only the caller-arithmetic case.
+  describe 'a --since offset that lands inside a multi-byte character' do
+    # こ is U+3053, bytes E3 81 93. Offsets 1 and 2 are continuation bytes.
+    let(:text) { 'こY' }
+    let(:loaded) { Rune::Session::Transcript.new(text, 0) }
+
+    it 'snaps forward to the next character start rather than inventing U+FFFD' do
+      expect(loaded.from(0)).to eq('こY')
+      expect(loaded.from(1)).to eq('Y')
+      expect(loaded.from(2)).to eq('Y')
+      expect(loaded.from(3)).to eq('Y')
+      expect(loaded.from(4)).to eq('')
+    end
+
+    it 'never returns a replacement character the child did not emit' do
+      (0..text.bytesize).each do |since|
+        slice = loaded.from(since)
+        expect(slice).to be_valid_encoding
+        expect(slice).not_to include("\uFFFD")
+      end
+    end
+
+    it 'snaps a 4-byte emoji the same way' do
+      loaded = Rune::Session::Transcript.new('X😀Y', 0)
+
+      expect(loaded.from(0)).to eq('X😀Y')
+      expect(loaded.from(1)).to eq('😀Y')
+      2.upto(4) { |since| expect(loaded.from(since)).to eq('Y') }
+      expect(loaded.from(5)).to eq('Y')
+      expect(loaded.from(6)).to eq('')
     end
   end
 
