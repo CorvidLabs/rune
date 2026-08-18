@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0069-guard-the-flags-watch-was-executing-and-bound-the-two-fields-max-output-was-not",
+  "slug": "guard-the-flags-watch-was-executing-and-bound-the-two-fields-max-output-was-not",
+  "title": "Guard the flags watch was executing, and bound the two fields max-output was not",
+  "description": "Guard the flags watch was executing, and bound the two fields max-output was not",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "ad76e2237bb8215f77d4cd7bb8358cc6083a61f2",
+  "created_at": 1787038047,
+  "updated_at": 1787038297,
+  "affected_specs": [
+    "watch",
+    "pty_runner",
+    "session",
+    "cli"
+  ],
+  "affected_paths": [
+    "lib/rune/command.rb",
+    "lib/rune/commands/run_command.rb",
+    "lib/rune/commands/watch_command.rb",
+    "lib/rune/commands/session_command.rb",
+    "lib/rune/pty_runner.rb",
+    "lib/rune/session/transcript.rb",
+    "spec/rune/commands/watch_command_spec.rb",
+    "spec/rune/pty_runner_spec.rb",
+    "spec/rune/session_spec.rb",
+    "specs/watch/watch.spec.md",
+    "specs/pty_runner/pty_runner.spec.md",
+    "specs/session/session.spec.md",
+    "specs/cli/cli.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "rune watch refuses a flag-shaped token it does not own instead of executing it as the command, sharing run's guard rather than copying it. rune session read honours --since when --grep is given, searching the slice rather than the whole transcript. max-output and tail bound clean_stdout and clean_stderr as well as the merged fields. Each fix has tests that fail against deliberately reverted code, including a drift guard for watch's flag list. Export documentation follows the two constants and one method that moved from RunCommand to Command."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 68,
-  "id": "CHG-0068-correct-the-flag-message-run-gets-wrong-and-the-five-contracts-the-dogfood-foun",
+  "sequence": 69,
+  "id": "CHG-0069-guard-the-flags-watch-was-executing-and-bound-the-two-fields-max-output-was-not",
   "acknowledged_collisions": []
 }

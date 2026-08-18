@@ -130,8 +130,18 @@ module Rune
       # splits words across escape sequences, so a pattern plainly visible on
       # screen does not match the bytes — which would make search appear broken
       # in exactly the situation it exists for.
-      def grep(pattern, context: 0)
-        lines = Parsers::TextSanitizer.strip_ansi(@text).lines
+      def grep(pattern, context: 0) = self.class.grep_text(@text, pattern, context: context)
+
+      # Greps a given stretch of transcript rather than always the whole of it.
+      #
+      # `read --since=N --grep=RE` sliced the transcript to the cursor and then handed the slice to
+      # a grep that ignored it and searched `@text`, so `--since` had no effect on a grepped read at
+      # all. Measured: a read from a cursor recorded *after* the first line still returned that
+      # line, and `grep_matches` counted it. A caller paging a long transcript with
+      # `--since=<last cursor>` got the whole history back on every page, under a match count that
+      # looked like it had filtered.
+      def self.grep_text(text, pattern, context: 0)
+        lines = Parsers::TextSanitizer.strip_ansi(text).lines
         matches = lines.each_index.select { |index| pattern.match?(lines[index]) }
         windows = matches.flat_map do |index|
           ([index - context, 0].max..[index + context, lines.size - 1].min).to_a

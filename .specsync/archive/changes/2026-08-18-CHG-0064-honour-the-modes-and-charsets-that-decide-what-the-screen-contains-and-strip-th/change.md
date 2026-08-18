@@ -1,6 +1,6 @@
 ---
 id: CHG-0064-honour-the-modes-and-charsets-that-decide-what-the-screen-contains-and-strip-th
-state: accepted
+state: archived
 type: feature
 base_commit: cc8bb3c25e807fe07de3cf66687302d97f1ddddb
 ---

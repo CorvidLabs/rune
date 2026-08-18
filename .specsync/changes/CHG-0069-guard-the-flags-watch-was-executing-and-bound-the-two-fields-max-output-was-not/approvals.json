@@ -1,0 +1,33 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787038084,
+      "digest": "4c75a772348974c4e7436b1c62048c69df496e193c04980909b93f0cbd30bfe8",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787038105,
+      "digest": "33e699eb9baeed95ea42d9f3f590c6fe5b311af1ccb06cb4d932b44e146830a8",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787038144,
+      "digest": "c94fbf53c54c9849203f069b3e27b5099737b803485ac25b9c52c7cf94b74ff7",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1787038297,
+      "digest": "351fbb5c5a60597a54463c7905c1ac128cd4751a189c81949945d300897a4f65",
+      "note": null
+    }
+  ],
+  "reopenings": []
+}

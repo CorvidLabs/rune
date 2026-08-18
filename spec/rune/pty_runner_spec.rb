@@ -352,6 +352,49 @@ RSpec.describe Rune::PTYRunner do
       expect(result.data[:omitted_bytes]).to eq(4800)
     end
 
+    # Removes the elision line and the newlines that join it, whatever byte count it carries —
+    # `raw_output` and `clean_output` carry different ones under the same budget.
+    def without_marker(text)
+      text.sub(/\n?\[rune\] ==== \d+ bytes? omitted by --max-output ====\n?/, '')
+    end
+
+    # The guard above uses `print "a" * 5000` — no newline, no ANSI — so the two fields are
+    # byte-identical and it cannot see the one thing that actually differs between them. These
+    # pin the real shape: each field is bounded to the budget, and under `--max-output` they
+    # describe DIFFERENT windows, which is the documented consequence of "BYTES each".
+    it 'bounds both fields on realistic output, where the two windows are not the same' do
+      child = ['ruby', '-e', '60.times { |i| printf("\e[1;32mrow %02d padded out here\e[0m\n", i) }']
+      result = described_class.new(child, max_output_bytes: 200).run
+      marker = Rune::OutputLimiter.elision_marker(result.data[:omitted_bytes])
+
+      expect(result.data[:clean_output].sub(marker, '').bytesize).to eq(200)
+      # raw carries its own marker with a different count, so strip by shape rather than value.
+      # The budget is a ceiling rather than an exact size on raw: `truncate_middle` trims a
+      # dangling escape at the cut, so a colour-emitting child lands under it — 197 here.
+      expect(without_marker(result.data[:raw_output]).bytesize).to be <= 200
+      # The divergence the old fixture was blind to, asserted rather than assumed.
+      expect(Rune::Parsers::TextSanitizer.strip_ansi(result.data[:raw_output]))
+        .not_to eq(result.data[:clean_output])
+    end
+
+    # `--separate-streams` surfaces the same output twice more, and those fields were not bounded
+    # at all: a 200-byte budget returned 10,506 bytes across the four.
+    it 'bounds clean_stdout and clean_stderr too, not only the merged view' do
+      child = ['ruby', '-e', 'print "a" * 5000; $stderr.print "b" * 5000']
+      result = described_class.new(child, max_output_bytes: 200, separate_streams: true).run
+
+      expect(without_marker(result.data[:clean_stdout]).bytesize).to eq(200)
+      expect(without_marker(result.data[:clean_stderr]).bytesize).to eq(200)
+    end
+
+    it 'leaves the separate streams unbounded when no bound was asked for' do
+      child = ['ruby', '-e', 'print "a" * 5000; $stderr.print "b" * 5000']
+      result = described_class.new(child, separate_streams: true).run
+
+      expect(result.data[:clean_stdout].bytesize).to eq(5000)
+      expect(result.data[:clean_stderr].bytesize).to eq(5000)
+    end
+
     it 'leaves output untouched when max_output_bytes is larger than the actual output' do
       runner = described_class.new('echo hi', max_output_bytes: 1_000_000)
       result = runner.run

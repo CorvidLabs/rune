@@ -616,7 +616,9 @@ module Rune
         pattern, reason = compile_grep(options[:grep])
         return [+'', grep_failure(options[:grep], reason)] unless pattern
 
-        filtered, matches = transcript.grep(pattern, context: options[:context_lines].to_i)
+        # The sliced text, not the whole transcript: `--since` had no effect on a grepped read
+        # because this discarded the slice it was handed.
+        filtered, matches = Session::Transcript.grep_text(text, pattern, context: options[:context_lines].to_i)
         [filtered, { grep: options[:grep], grep_matches: matches }]
       end
 

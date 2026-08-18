@@ -63,7 +63,37 @@ module Rune
       end
 
       def command_subcommands = @command_subcommands ||= []
+
+      # Rejects a flag-shaped token that reached the wrapped command's argv.
+      #
+      # `run` and `watch` both own flags and both hand everything they do not recognise to the
+      # child, so an unrecognised flag is executed rather than reported. `run` guarded this and
+      # `watch` did not: measured through a real controlling terminal, `rune watch --timeout 5 --
+      # echo hi` exited 127 with the child never running, because `--timeout` was exec'd as the
+      # program. That is the worse failure of the two — `run` at least says something.
+      #
+      # Shared here rather than copied because the two had already drifted once: `run` grew the
+      # inline-value branch and `watch` had no guard at all to grow it in.
+      def flag_error(leftovers, value_flags)
+        unknown = leftovers.take_while { |token| flag_shaped?(token) }.first
+        return nil unless unknown
+
+        name = unknown.split('=', 2).first
+        template = value_flags.include?(name) ? INLINE_VALUE_ERROR : UNKNOWN_FLAG_ERROR
+        format(template, name: name, command: command_name)
+      end
     end
+
+    # A flag the command owns, spelled correctly, whose value was given with a space. The general
+    # message below got this wrong three ways: it called a flag rune owns "Unknown", it asserted a
+    # position error when the flag was already before the separator, and following its remedy hands
+    # the flag to the child instead of applying it.
+    INLINE_VALUE_ERROR = '%<name>s takes its value inline: %<name>s=VALUE. To pass it to the ' \
+                         'command instead: rune %<command>s -- <command> %<name>s VALUE'
+
+    UNKNOWN_FLAG_ERROR = "Unknown option: %<name>s. rune's own flags are recognized only before " \
+                         'the wrapped command; to pass this one to that command instead, put the ' \
+                         'command first or use a separator: rune %<command>s -- <command> %<name>s'
 
     # Override in subclasses
     def call(args, options)

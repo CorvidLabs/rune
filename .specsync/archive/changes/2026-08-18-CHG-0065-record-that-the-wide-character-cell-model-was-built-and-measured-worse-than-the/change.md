@@ -1,6 +1,6 @@
 ---
 id: CHG-0065-record-that-the-wide-character-cell-model-was-built-and-measured-worse-than-the
-state: accepted
+state: archived
 type: feature
 base_commit: 1749093b9563a42e245ceeb6d6f7eb59fb23fb63
 ---
