@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml/badge.svg)](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml)
 [![Ruby](https://img.shields.io/badge/ruby-3.0%20%E2%80%93%204.0-CC342D?logo=ruby&logoColor=white)](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue)](../../LICENSE)
 
 Una herramienta de línea de comandos y biblioteca en Ruby diseñada desde el principio para tratar a **humanos y agentes de IA como ciudadanos de primera clase**.
 

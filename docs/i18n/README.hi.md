@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml/badge.svg)](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml)
 [![Ruby](https://img.shields.io/badge/ruby-3.0%20%E2%80%93%204.0-CC342D?logo=ruby&logoColor=white)](https://github.com/CorvidLabs/rune/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue)](../../LICENSE)
 
 एक Ruby CLI उपकरण और लाइब्रेरी, जिसे शुरू से ही **मनुष्यों और AI एजेंटों — दोनों के लिए प्रथम-श्रेणी** बनाने के उद्देश्य से डिज़ाइन किया गया है।
 
