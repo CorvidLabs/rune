@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0071-make-a-failed-launch-loud-name-the-project-a-session-is-in-and-fix-two-multiby",
+  "slug": "make-a-failed-launch-loud-name-the-project-a-session-is-in-and-fix-two-multiby",
+  "title": "Make a failed launch loud, name the project a session is in, and fix two multibyte defects",
+  "description": "Make a failed launch loud, name the project a session is in, and fix two multibyte defects",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "5f4d77b08f0d96682520e66e7eeb5411ed5a5da3",
+  "created_at": 1787065644,
+  "updated_at": 1787082616,
+  "affected_specs": [
+    "session",
+    "parsers"
+  ],
+  "affected_paths": [
+    "lib/rune/commands/session_command.rb",
+    "lib/rune/parsers/character_width.rb",
+    "lib/rune/parsers/screen_renderer.rb",
+    "spec/rune/session_spec.rb",
+    "spec/rune/parsers/screen_renderer_spec.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "rune session start returns status error when the command is not on PATH, while a child that exits zero immediately still succeeds. The no-such-session error names the project the session is actually in and points at a remedy that shows it. CharacterWidth gives Indic nonspacing marks no column while leaving spacing marks at one, matching wcwidth. ScreenRenderer resync searches by byte offset rather than character index, so a multi-byte head is dropped whole instead of cut mid-character. Each has tests that fail against deliberately reverted code."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

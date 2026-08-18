@@ -201,7 +201,13 @@ module Rune
         # dropping to the next escape in a stream that has none would discard
         # the whole screen.
         def resync(window)
-          escape = window.byteslice(0, RESYNC_SCAN_BYTES).to_s.index("\e")
+          # `.b` first, because `String#index` counts characters and `byteslice` counts bytes. On a
+          # multi-byte head the two differ by however many extra bytes it holds, so the slice landed
+          # early — measured on `日本語テキスト\e[1mAFTER`, the ESC is at character 7 and byte 21, and
+          # resync cut at 7: it returned `"\xAA\x9Eテキスト\e[1mAFTER"`, both cutting a character in
+          # half and failing to drop the pre-ESC remainder it exists to drop. `byteindex` would say
+          # this directly but arrived in Ruby 3.2, and this gem supports 3.0.
+          escape = window.byteslice(0, RESYNC_SCAN_BYTES).to_s.b.index("\e")
           return window if escape.nil? || escape.zero?
 
           window.byteslice(escape..).to_s

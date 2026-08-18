@@ -298,8 +298,55 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
       expect(frame.index('|')).to eq(3)
     end
 
+    # The first width table covered Latin, Greek, Cyrillic, Hebrew, Arabic and Thai and omitted
+    # every Indic script, so `हिन्दी` was charged six columns for six codepoints. Nonspacing marks
+    # only: U+093F is a *spacing* mark and takes a column in wcwidth and in xterm, so zeroing every
+    # Indic mark would be wrong in the other direction.
+    it 'gives Indic nonspacing marks no column, and spacing marks one' do
+      width = Rune::Parsers::CharacterWidth
+      expect(width.of("\u094D")).to eq(0)
+      expect(width.of("\u0941")).to eq(0)
+      expect(width.of("\u09CD")).to eq(0)
+      expect(width.of("\u0BCD")).to eq(0)
+      expect(width.of("\u093F")).to eq(1)
+    end
+
+    it 'charges हिन्दी the five columns wcwidth and xterm charge it' do
+      expect('हिन्दी'.each_char.sum { |c| Rune::Parsers::CharacterWidth.of(c) }).to eq(5)
+    end
+
     it 'leaves plain ASCII untouched' do
       expect(described_class.render("\e[HABC\e[1;3HX", rows: 3, columns: 20)).to eq('ABX')
+    end
+  end
+
+  # `resync` drops whatever precedes the first escape in a truncated window, so a render never
+  # starts mid-sequence. It searched with `String#index`, which counts characters, and sliced with
+  # `byteslice`, which counts bytes — so on a multi-byte head it cut early, both splitting a
+  # character and leaving the remainder it exists to drop.
+  describe 'resynchronising a window that was cut mid-stream' do
+    def resync(window)
+      described_class.singleton_class.instance_method(:resync).bind(described_class).call(window)
+    end
+
+    it 'drops the remainder before the first escape when the head is multi-byte' do
+      expect(resync("日本語テキスト\e[1mAFTER")).to eq("\e[1mAFTER")
+    end
+
+    it 'produces no invalid bytes, so the cut never lands inside a character' do
+      expect(resync("日本語テキスト\e[1mAFTER")).to be_valid_encoding
+    end
+
+    it 'still drops an ASCII remainder' do
+      expect(resync("plain text\e[1mAFTER")).to eq("\e[1mAFTER")
+    end
+
+    it 'leaves a window that already starts at an escape alone' do
+      expect(resync("\e[1mAFTER")).to eq("\e[1mAFTER")
+    end
+
+    it 'leaves a window with no escape at all alone, rather than discarding the screen' do
+      expect(resync('no escapes here')).to eq('no escapes here')
     end
   end
 

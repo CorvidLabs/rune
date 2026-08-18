@@ -50,6 +50,16 @@ RSpec.describe Rune::Commands::SessionCommand do
     described_class.new.call(args.map(&:to_s), {})
   end
 
+  # Runs a block as though the caller were in a different working directory, which is what a rune
+  # project is. `Dir.chdir` is process-global, so the block is kept to the one call.
+  def in_project(dirname, &block)
+    Dir.mktmpdir do |root|
+      other = File.join(root, dirname)
+      Dir.mkdir(other)
+      Dir.chdir(other, &block)
+    end
+  end
+
   def start_session(name, command)
     result = session('start', "--name=#{name}", '--', *command)
     raise "start failed: #{result.error}" if result.failure?
@@ -780,6 +790,66 @@ RSpec.describe Rune::Commands::SessionCommand do
         (store.read_meta('s14') || {})[:state] == 'exited'
       end
       expect(store.read_meta('s14')[:exit_code]).to eq(7)
+    end
+  end
+
+  # A session started in one directory and read from another got "No such session", and the remedy
+  # that error printed — `rune session list` — is scoped to the caller's own project and returns
+  # nothing, which reads as proof the session died. Two people who had read the guide's warning
+  # about directory scoping hit it anyway; one went off to debug the child.
+  # `start` with a binary that is not on PATH returned status "ok" with exit_code 127, so a caller
+  # checking the field whose job is to say whether the call worked saw success. It was documented
+  # as "check state instead", which is the wrong shape of answer — an envelope should not need a
+  # footnote to be read correctly. Reported from a real drive where it cost an hour.
+  describe 'a launch that never happened' do
+    it 'reports failure rather than success with a field to check' do
+      result = session('start', '--name=ghost', '--', 'definitely_not_a_real_binary_xyz')
+
+      expect(result).to be_failure
+      expect(result.error).to include('127').and include('PATH')
+    end
+
+    # A child that exits 0 immediately launched fine and had nothing to do. Treating any prompt
+    # exit as a failure would break every short-lived child, so only 127 fails.
+    it 'still succeeds for a child that exits cleanly and at once' do
+      expect(session('start', '--name=quick', '--', 'true')).to be_success
+    end
+
+    # The record is kept deliberately. `start` failing loudly is the fix; deleting the transcript
+    # that shows *why* would replace one quiet failure with another, and `list` reporting it as
+    # exited with 127 is exactly the diagnosis a caller needs.
+    it 'keeps the record visibly dead rather than deleting the evidence' do
+      session('start', '--name=ghost2', '--', 'definitely_not_a_real_binary_xyz')
+
+      entry = session('list').data[:sessions].find { |s| s[:name] == 'ghost2' }
+
+      # `dead` rather than `exited`: the supervisor is abandoned with the launch, so what `list`
+      # reports is a session whose supervisor is gone and whose child exited 127 — which is the
+      # diagnosis, and is what the record is kept for.
+      expect(entry[:exit_code]).to eq(127)
+      expect(entry[:state]).not_to eq('running')
+    end
+  end
+
+  describe 'a session that exists in another project' do
+    it 'names the project it is in, rather than claiming it does not exist' do
+      start_session('scoped', %w[cat])
+
+      error = in_project('elsewhere') { session('read', '--name=scoped') }.error
+
+      expect(error).to include('scoped').and include('another project').or include('exists in')
+      expect(error).not_to include('No such session')
+    end
+
+    it 'points at a remedy that actually shows it' do
+      start_session('scoped2', %w[cat])
+
+      expect(in_project('elsewhere') { session('read', '--name=scoped2') }.error)
+        .to include('--all-projects')
+    end
+
+    it 'keeps the plain message for a session that exists nowhere' do
+      expect(session('read', '--name=neverexisted').error).to include('No such session')
     end
   end
 
