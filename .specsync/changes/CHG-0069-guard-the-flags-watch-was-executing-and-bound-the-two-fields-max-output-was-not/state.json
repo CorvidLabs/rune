@@ -9,7 +9,7 @@
   "canonical_applied": true,
   "base_commit": "ad76e2237bb8215f77d4cd7bb8358cc6083a61f2",
   "created_at": 1787038047,
-  "updated_at": 1787067164,
+  "updated_at": 1787038297,
   "affected_specs": [
     "watch",
     "pty_runner",

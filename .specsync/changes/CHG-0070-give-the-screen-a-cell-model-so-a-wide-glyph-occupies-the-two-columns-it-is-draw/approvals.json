@@ -17,8 +17,8 @@
     {
       "gate": "acceptance",
       "actor": "claude",
-      "timestamp": 1787068416,
-      "digest": "dc26719468e43a557dc40e24d3b62ed0177a3fa47a8cfed7f6d1813687ed9b09",
+      "timestamp": 1787077030,
+      "digest": "5a8b36036f9fa0ef21b11b85ed05bb515a4e8433ff2eef0e8dbc42712179a4f8",
       "note": null
     }
   ],
@@ -27,8 +27,8 @@
       "schema_version": 1,
       "change_id": "CHG-0070-give-the-screen-a-cell-model-so-a-wide-glyph-occupies-the-two-columns-it-is-draw",
       "actor": "claude",
-      "reason": "the envelope and multibyte fixes (CHG-0071) moved shared specs and lib files these changes also deliver; re-verifying against the tree as it now stands",
-      "timestamp": 1787066388,
+      "reason": "addressed a CodeQL polynomial-regex finding on Screen#to_s (PR #66 review comment) by dropping the flagged regex from the render path and popping trailing empty rows from the array already in hand instead",
+      "timestamp": 1787075808,
       "from_state": "accepted",
       "to_state": "verifying",
       "superseded_approval": {
@@ -135,7 +135,7 @@
         "requirement_ids": []
       },
       "stale_acceptance_input_digest": "4fafd52ed068ecd269e10c9fedbebb9959b05ad3c9e746c938fb30cec73f9be7",
-      "current_acceptance_input_digest": "0eb3b681f69886f8c08e6f14b893e2e06647e16499614537d617cedcc5e19460"
+      "current_acceptance_input_digest": "0c5fe0d006967e89c3d8b0cb4bb52f6972ddbd1f27585fa57d147dcfa45fbdd9"
     }
   ]
 }
