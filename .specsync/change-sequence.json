@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 67,
-  "id": "CHG-0067-make-tail-count-a-carriage-return-as-a-line-break-and-report-matched-on-a-reg",
+  "sequence": 68,
+  "id": "CHG-0068-correct-the-flag-message-run-gets-wrong-and-the-five-contracts-the-dogfood-foun",
   "acknowledged_collisions": []
 }

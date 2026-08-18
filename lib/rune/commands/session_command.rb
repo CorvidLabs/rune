@@ -35,16 +35,21 @@ module Rune
       flag '--screen',
            'send/read: also return the rendered terminal screen. A full-screen agent repaints, so ' \
            'the byte stream holds every frame while the screen holds only what is displayed.'
-      flag '--tail=N', 'read: keep only the last N lines.'
+      flag '--tail=N', 'send/read: keep only the last N lines, where CR ends a line as well as LF.'
       flag '--grep=RE',
-           'read: keep only lines matching RE, from the rendered text rather than the repaint ' \
-           'stream. Use with --context=N for surrounding lines. A pattern that will not compile ' \
-           'selects nothing and is reported as grep_error.'
+           'send/read: keep only lines matching RE, from the ANSI-stripped transcript — the ' \
+           'repaint stream with escapes removed, counting CR as a line break. This is NOT the ' \
+           'rendered screen: overwritten history still matches and comes back as a clean line, ' \
+           'and a cursor-painted frame is one long line, so --context is inert and a match can ' \
+           'return the whole frame. Use --screen when you need what is currently displayed. ' \
+           'A pattern that will not compile selects nothing and is reported as grep_error.'
       flag '--context=N', 'read: lines of context to keep either side of a --grep match (default 0).'
       flag '--max-output=BYTES',
-           'read: bound the returned text to BYTES of transcript, keeping head and tail. The join ' \
-           'is marked in the text with a `[rune] ==== N bytes omitted by --max-output ====` line, ' \
-           'which is rune\'s annotation rather than transcript and is not charged to BYTES.'
+           'send/read: bound the returned text to BYTES of transcript, keeping head and tail. The ' \
+           'join is marked in the text with a `[rune] ==== N bytes omitted by --max-output ====` ' \
+           'line, which is rune\'s annotation rather than transcript and is not charged to BYTES. ' \
+           'Bounds output/clean_output only: --screen is bounded by geometry instead, at most ' \
+           'screen_rows x (screen_cols + 1), both returned in the same reply.'
       flag '--all-projects', 'list: include sessions from every project, not just this one.'
       flag '--archived', 'list: show archived sessions instead of live ones.'
 

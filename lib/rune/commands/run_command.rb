@@ -11,7 +11,8 @@ module Rune
       flag '--timeout=SECONDS', 'Kill the wrapped command after N seconds (default 30). Before `--` only.'
       flag '--max-output=BYTES',
            'Bound clean_output/raw_output to BYTES each, keeping head+tail and marking the join ' \
-           'with a `[rune] ==== N bytes omitted by --max-output ====` line. ' \
+           'with a `[rune] ==== N bytes omitted by --max-output ====` line. Each field is bounded ' \
+           'separately, so they describe different windows and omitted_bytes is clean_output\'s. ' \
            'Mutually exclusive with --tail. Before `--` only.'
       flag '--tail=N',
            'Keep only the last N lines of clean_output/raw_output. ' \
@@ -64,6 +65,25 @@ module Rune
         tail_lines: [/\A--tail=(.*)\z/, '--tail', 'number of lines']
       }.freeze
 
+      # The flags that take a *value*, derived from the parser rather than hand-written.
+      # A hand-maintained list is exactly what let `--context` ship as an
+      # accepted-and-ignored flag: the table and the parser drifted, and nothing failed
+      # until a caller noticed.
+      #
+      # Boolean flags are deliberately absent. `--separate-streams` takes no value, so
+      # "give the value inline" would be nonsense advice, and it never reaches here
+      # anyway — the parser consumes it. A first draft included it on the theory that
+      # the set meant "flags rune owns"; the drift test above caught it immediately.
+      VALUE_FLAGS = FLAG_PATTERNS.values.map { |(_pattern, label, _unit)| label }.freeze
+
+      # A flag rune owns, spelled correctly, whose value was given with a space. The general
+      # unknown-option message got this wrong three ways at once: it called a flag rune owns
+      # "Unknown", it asserted a position error when the flag was already before the separator, and
+      # following its remedy literally hands `--timeout` to the child instead of applying a timeout.
+      # Two agents driving rune lost tool calls to it and one nearly filed it as a broken flag.
+      INLINE_VALUE_ERROR = '%<name>s takes its value inline: %<name>s=VALUE. To pass it to the ' \
+                           'command instead: rune run -- <command> %<name>s VALUE'
+
       private
 
       # Returns [PTYRunner_kwargs, remaining_args, error_message]. A malformed
@@ -111,6 +131,8 @@ module Rune
         return nil unless unknown
 
         name = unknown.split('=', 2).first
+        return format(INLINE_VALUE_ERROR, name: name) if VALUE_FLAGS.include?(name)
+
         "Unknown option: #{name}. rune's own flags are recognized only before the wrapped " \
           'command; to pass this one to that command instead, put the command first or use a ' \
           "separator: rune run -- <command> #{name}"

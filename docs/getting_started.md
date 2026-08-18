@@ -185,7 +185,12 @@ humans, not what the child received; do not diagnose quoting from it.
 Three more flags, all before the `--` separator, all changing the *shape* of the result:
 
 - **`--max-output=BYTES`** bounds `clean_output` and `raw_output` to BYTES each, keeping the head
-  and the tail, and adds `truncated: true` with `omitted_bytes`. The two halves are joined by a
+  and the tail, and adds `truncated: true` with `omitted_bytes`. Two things follow from "each":
+  the fields are bounded *separately*, so under this flag they describe different windows of the
+  run and `clean_output` is not `strip_ansi(raw_output)` — `omitted_bytes` is `clean_output`'s
+  count and `raw_output` carries its own marker with a different one. And `omitted_bytes` is
+  measured in offsets into the original, so it reconciles exactly on ASCII but drifts by a few
+  bytes on multi-byte text, where a cut can split a character. The two halves are joined by a
   `[rune] ==== N bytes omitted by --max-output ====` line rather than spliced, so the returned text
   never reads as something the command printed: without it, a 201-byte transcript at
   `--max-output=200` dropped exactly the byte that turned `chsh -s /bin/zsh` into

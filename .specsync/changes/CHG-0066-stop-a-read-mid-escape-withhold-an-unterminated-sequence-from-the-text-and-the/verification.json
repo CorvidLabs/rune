@@ -1,9 +1,9 @@
 {
-  "timestamp": 1787021428,
-  "commit": "8c9055be7093551caf654679a1f8ebb51357de50",
+  "timestamp": 1787030382,
+  "commit": "023f4078ec28548d58aaa35bfd985e5a843781e9",
   "contract_digest": "5d3f750ce9df56644bfb05cf5f136d9b57a8bcd01282bb56db27fb524280d38d",
-  "workspace_digest": "e3c967c7e06c0768b89bc7d6a2f026c6ed53f94c08dccdc68ba8f8b99496b782",
-  "acceptance_input_digest": "6c460dde4c7c4218ad81a4ce1b561ee1020b43c5127912f6a7897d50e71220db",
+  "workspace_digest": "219a8d47d87bb5d5b59d5cb6e37acd9d95e5eb4d0a3f20ad28438b00cf4b6ed2",
+  "acceptance_input_digest": "f5940e3791f4a400b83b333494d108a57ab156fd26a4ce8cfa47ba79a1cc7b9c",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": "lib/rune/commands/session_command.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "c110d92eb9429a8cd84971df5fb643b06d576c52d9a97767bc6328545672fca0",
-        "entry_digest": "625302715af36fa61cd23632502449516518e22e7c5f315407e94c4d0ebc4316",
+        "payload_digest": "66779f3775aca721e2c57c99d06815ce9100a8f018222f960dd1d9ae9039e6ff",
+        "entry_digest": "04ccb8c977ebba02eda47d1b320753aca97c25a136a9480d5c02995e95ef22ad",
         "owners": [
           "session"
         ]
@@ -31,8 +31,8 @@
         "path": "lib/rune/output_limiter.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "76e69815e2edcf0514ab6419a6593debf0d373ce21b003cc863508d096d8792e",
-        "entry_digest": "0b38a0c6ff1dbfe326a1eb65f5c20a09f7f279c32d9944941c141b4ad8958efa",
+        "payload_digest": "7a4d3d52a7ad109f865eb0c141e50354385a2512a3122e042d42c6a6c5208941",
+        "entry_digest": "7b8150a4f922ee9627c40df50a5a5b401ea08c7eb4bc546766e25e6060a369a4",
         "owners": [
           "pty_runner"
         ]
@@ -51,8 +51,8 @@
         "path": "specs/pty_runner/pty_runner.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "49661461dcf49fba4cfe00b0850fca11dfe468dbd87da95d8a84f70a5f7efc78",
-        "entry_digest": "376bbee10fe437cb2551d5221e4c9f8c0afc16645ff661cf40bddc3834d02f19",
+        "payload_digest": "5e1b58cc8528797e73dc68bfd0ce91d7c7bf2c474c0732115cf24fe12f495c75",
+        "entry_digest": "275aa0f90fe6da70f0fb28ff0e1707528bd59779678dade5632b30326a651f5c",
         "owners": [
           "pty_runner"
         ]
@@ -81,8 +81,8 @@
         "path": "specs/session/session.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "ab643edc41b69f29c4ecca0426a9cc739a89775437c125a4f9087ab989002487",
-        "entry_digest": "a679b71adc3844704d18d79d863d88cddd05bf1e3eb1476600ff173f83292ac0",
+        "payload_digest": "5f41d2b8203b95536b5a5e6d17e68180bc50f5acc021f2680f135545685f3563",
+        "entry_digest": "880b32b9188f329510b3555787ba7c1d771daa06dbe1a9ebae9bc707c82c28cb",
         "owners": [
           "session"
         ]

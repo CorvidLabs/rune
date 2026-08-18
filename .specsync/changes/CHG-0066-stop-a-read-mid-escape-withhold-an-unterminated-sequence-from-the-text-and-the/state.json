@@ -9,7 +9,7 @@
   "canonical_applied": true,
   "base_commit": "4abd95c8461be099fc5030a740ea456ec7d242d1",
   "created_at": 1787015317,
-  "updated_at": 1787021434,
+  "updated_at": 1787030388,
   "affected_specs": [
     "session",
     "pty_runner"
