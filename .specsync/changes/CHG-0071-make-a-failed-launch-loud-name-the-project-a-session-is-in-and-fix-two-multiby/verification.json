@@ -1,9 +1,9 @@
 {
-  "timestamp": 1787065852,
-  "commit": "5f4d77b08f0d96682520e66e7eeb5411ed5a5da3",
+  "timestamp": 1787082610,
+  "commit": "4b122c4bf1759b263b69120d21e83eed0b46b031",
   "contract_digest": "ab4e97b21e173a2a95c9cd9ba68516355e8fe4506456d93157e2ea0e4162e5d3",
-  "workspace_digest": "fbf9a273d33f9f9f956bc4059249d33725870c320eb8a95ee09eeade00ea9b3c",
-  "acceptance_input_digest": "6d19bdabf2c16f1771dc7c016351e4fff940d8f744f73740c386733086460c01",
+  "workspace_digest": "f3b557a9feabd258d7ff3377b72e97846ecd3e2ff67a426209cc7315cf265c09",
+  "acceptance_input_digest": "83868d5429d4cdb45451986a330f9a251337de816f2f4a7eeefc23dc44fc7041",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": "lib/rune/commands/session_command.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "7f5b0b685348cfd37d579a7ee78b6e2d359ddb5f8e83a623225e64ca982ce2ee",
-        "entry_digest": "60fbcfa43223a0975206aa34b7e98b55680244a2fb6c9f74605dde3803ca160a",
+        "payload_digest": "5e2b427d01e1dc6e3ddd6e25d7319736c57ddbcae53392e9b96997260dce49f5",
+        "entry_digest": "05826424a54284dcc66da4f16501ec4182a88eb4df6341e54cb27058b97da694",
         "owners": [
           "session"
         ]
@@ -51,8 +51,8 @@
         "path": "spec/rune/parsers/screen_renderer_spec.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "d064a3e93b3cd62baa6bad2d2b1c0b67afedc86fb863f44c659b2774972ec6bb",
-        "entry_digest": "e29155b72d0b7cd7df039ecee3cb62b023e2c1cac31a47c5415f7a1ad39b057c",
+        "payload_digest": "b77784bd015c374038b462d0b66d662eb60d8c3fad5ee55b1d9fd5d51201c34c",
+        "entry_digest": "a96aab44524968916ababd11bccd3e369106427a8d0369df45975f0a61f94001",
         "owners": [
           "@exact:delivery"
         ]
@@ -101,8 +101,8 @@
         "path": "specs/session/session.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "6c922b2f3d7bbb720ac9ee6305666210b24fe6be9e0eda4886a4058f57ce6de1",
-        "entry_digest": "856aa60c6f859ae95cac12f095b60a3de71f89ed0aed184736314060c221d8ae",
+        "payload_digest": "579d32301e0f4c9133e95b34eb842e435d5c2a0bee18fd0c8d8ccd278784438d",
+        "entry_digest": "168eb5a2e33976cee7944cfcf21515c6f6068e8b918131a385ffc438bb626ee2",
         "owners": [
           "session"
         ]

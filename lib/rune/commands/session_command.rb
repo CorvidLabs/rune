@@ -333,8 +333,15 @@ module Rune
       # failed `start` leaves nothing behind. Reuses the same tolerant kill
       # path as `stop`, since the pids may already be gone.
       def abandon(name, supervisor_pid)
-        meta = store.read_meta(name) || {}
-        kill_remaining(meta.merge(supervisor_pid: supervisor_pid))
+        meta = (store.read_meta(name) || {}).merge(supervisor_pid: supervisor_pid)
+        kill_remaining(meta)
+        # SIGKILL is asynchronous, so without waiting the caller could see `list` report the
+        # abandoned session as still running: `describe` recomputes state from real process
+        # liveness rather than trusting `failed_at` below, precisely so a supervisor killed
+        # without its cooperation is never reported as-is — and a supervisor signalled here but
+        # not yet dead is exactly that case. `stop` hit the same shape first, documented at its
+        # own `await_death` call: the very next command sees the session as running.
+        await_death(meta)
         store.update_meta(name, state: 'failed', failed_at: Time.now.to_f)
       end
 

@@ -946,6 +946,16 @@ deciding who talks to whom stays the calling agent's job.
     guide's warning about directory scoping first, which is when a documented gotcha stops being a
     documentation problem.
 
+54. `abandon` waits for the kill it issues to land before recording the abandoned session as
+    failed, using the same `await_death` `stop` already relies on. SIGKILL is asynchronous: without
+    waiting, a launch that failed and abandoned its supervisor could still show as `running` in the
+    very next `list`, because `describe` recomputes state from real process liveness rather than
+    trusting the record `abandon` writes — deliberately, since a supervisor killed with SIGKILL
+    never updates its own meta and a recorded state is routinely stale. `stop` hit this exact shape
+    first (its own `await_death` comment: "the very next command saw the session as running";
+    `archive` straight after `stop` failed on it) and `abandon` had the identical fire-and-kill
+    shape without the fix. Caught by a CI runner slow enough to make the race land, after passing
+    locally.
 ## Behavioral Examples
 
 - `rune session start -- grok` returns immediately with a generated name such as `grok-amber`;
