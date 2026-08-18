@@ -1,6 +1,6 @@
 ---
 id: CHG-0072-snap-a-since-that-lands-inside-a-character-forward-instead-of-inventing-u-fff
-state: accepted
+state: archived
 type: bug_fix
 base_commit: d57252eaa9995b272e5c72f99ec25857e34a983d
 ---
