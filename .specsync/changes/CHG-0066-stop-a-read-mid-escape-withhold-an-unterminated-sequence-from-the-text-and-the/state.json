@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0066-stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the",
+  "slug": "stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the",
+  "title": "Stop a read mid-escape: withhold an unterminated sequence from the text and the cursor",
+  "description": "Stop a read mid-escape: withhold an unterminated sequence from the text and the cursor",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "4abd95c8461be099fc5030a740ea456ec7d242d1",
+  "created_at": 1787015317,
+  "updated_at": 1787015478,
+  "affected_specs": [
+    "session",
+    "pty_runner"
+  ],
+  "affected_paths": [
+    "lib/rune/commands/session_command.rb",
+    "lib/rune/output_limiter.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    "specs/pty_runner/pty_runner.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A read stops at the last complete escape sequence and its cursor stops there too, so a sequence split across two pty reads is never delivered as visible text and never left headless for the next read. list's last_line is summarised from the reassembled tail rather than one event. Verified on the exact reported reproduction: clean_output, screen and last_line all agree the child printed RED, where previously clean_output said 1mRED and screen said RED in the same reply. Three regression tests, each falsified against deliberately unfixed code."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

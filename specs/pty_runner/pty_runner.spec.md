@@ -1,6 +1,6 @@
 ---
 module: pty_runner
-version: 8
+version: 9
 status: active
 files:
   - lib/rune/pty_runner.rb
@@ -55,6 +55,7 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | `on_output` | reader | Optional decoded-output callback. |
 | `OutputLimiter` | class | Bounds captured text without corrupting UTF-8 or splicing a half-escape-sequence at the cut boundary. Stateless; all entry points are class methods. |
 | `truncate_middle` | class method | `(text, max_bytes)` returns `[bounded_text, omitted_bytes]`; keeps `max_bytes` of the original as a head and a tail, omits the middle, and joins them with `elision_marker`. Both cut boundaries are pulled to an escape-sequence boundary first: the head back to the ESC of a sequence it split, the tail forward past the final byte of one. `omitted_bytes` counts every original byte not in the result, marker excluded. |
+| `dangling_suffix` | class method | The trailing bytes of an escape sequence still waiting for its terminator, or empty. |
 | `elision_marker` | class method | `(omitted)` returns the newline-delimited `[rune] ==== N bytes omitted by --max-output ====` line spliced between head and tail. Not charged against `max_bytes`: it is rune's annotation of the cut, not the child's output. |
 | `ELISION_PATTERN` | constant | Matches an elision marker line and captures its byte count, for callers that need to find or verify the join. |
 | `DANGLING_ESCAPE` | constant | Matches an escape sequence left without its terminator, anchored at the last ESC before a cut. |
@@ -266,3 +267,4 @@ Pseudo-Terminal (PTY) runner and text sanitizer for `rune`. Spawns un-structured
 | 2026-08-14 | CHG-0024-fix-prompt-detected-to-reflect-the-last-non-blank-line-of-output-not-any-line-e: Fix prompt_detected to reflect the last non-blank line of output, not any line ever seen, closing #30 |
 | 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
 | 2026-08-17 | CHG-0062-bound-rune-run-timeout-when-the-child-is-still-printing-and-let-a-second-sign: Bound rune run --timeout when the child is still printing, and let a second signal stop rune |
+| 2026-08-18 | CHG-0066-stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the: Stop a read mid-escape: withhold an unterminated sequence from the text and the cursor |

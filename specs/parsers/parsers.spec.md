@@ -219,10 +219,22 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
     a baseline rather than evidence. `harnesses/renderer_gaps.rb` prints the current behaviour for
     all five and says which the cell model changed.
 
-    Zero-width characters have the same root cause and a smaller blast radius: appending a
-    combining mark to its base cell puts every later index in that row off by one, so the next
-    graphic overwrites the mark. Measured: a decomposed `é` rendered `e`. They are dropped instead,
-    which costs a ZWJ emoji sequence its joins.
+    Zero-width characters share the root cause and fail in the opposite direction. The shipped rule
+    is simply **one column per codepoint**, so the text survives codepoint-exact while the column
+    arithmetic is wrong in the other direction from wide glyphs. Measured:
+
+        precomposed  é      U+00E9                      1 column   terminal 1   correct
+        decomposed   é      U+0065 U+0301               2 columns  terminal 1   one too many
+        ZWJ family   👨‍👩     U+1F468 U+200D U+1F469      3 columns  terminal 2   one too many
+
+    Every codepoint is retained in all three; only the cursor arithmetic is off.
+
+    An earlier draft of this invariant said they were *dropped*, which was wrong and is worth
+    recording as an error rather than quietly fixing. It described the reverted cell model, where
+    `combine` discarded them because appending a mark to its base cell puts every later index in
+    that row off by one — measured there, a decomposed `é` rendered `e`. That behaviour never
+    shipped. It was caught by an agent translating this README into Hindi through rune, which is
+    exactly the case Devanagari would have exposed.
 
     So the fix is not a width table — that part was correct and is not what failed. It is a grid of
     cells rather than a String per row, where a cell holds a base character plus its marks and the

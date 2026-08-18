@@ -486,10 +486,7 @@ module Rune
         return Result.failure(no_such_session(options[:name])) unless store.exist?(options[:name])
 
         transcript = Session::Transcript.load(store.output_path(options[:name]))
-        sliced = transcript.from(options[:since])
-        bounded, extra = bound_output(sliced, options, transcript)
-
-        Result.success(read_payload(options, transcript, sliced, bounded).merge(extra))
+        read_result(options, transcript)
       end
 
       # Whether the child has produced output recently enough to call it busy,
@@ -507,10 +504,38 @@ module Rune
         { idle_ms: idle, child_busy: idle < Session::Supervisor::DEFAULT_SETTLE_MS }
       end
 
-      def read_payload(options, transcript, sliced, bounded)
+      def read_result(options, transcript)
+        sliced, withheld = withhold_dangling(transcript.from(options[:since]))
+        bounded, extra = bound_output(sliced, options, transcript)
+
+        Result.success(read_payload(options, transcript, sliced, bounded, withheld).merge(extra))
+      end
+
+      # A read stops at the last complete escape sequence, not at the last byte.
+      #
+      # The bytes of a sequence still waiting for its terminator are withheld from the reply *and*
+      # from the cursor, so the next read starts at the ESC and sees the sequence whole. Without
+      # this, both halves of a split sequence are wrong: the fragment survives `strip_ansi` and is
+      # delivered as visible text, and the next read from the handed-out cursor sees the remainder
+      # headless. Measured on a child that printed `\e[3`, slept, then `1mRED\e[0m` — one read
+      # returned `clean_output` `"READY\n\e[3"` and the next returned `"1mRED"` while `screen` in
+      # that same reply said `"RED"`.
+      #
+      # Nothing is lost: the withheld bytes stay in the transcript and are returned once the
+      # sequence completes. A child that opens a sequence and never closes it withholds those bytes
+      # indefinitely, which is what a terminal does with them too — it shows nothing.
+      def withhold_dangling(text)
+        dangling = OutputLimiter.dangling_suffix(text)
+        return [text, 0] if dangling.empty?
+
+        kept = text.byteslice(0, text.bytesize - dangling.bytesize).to_s
+        [kept.force_encoding(text.encoding).scrub, dangling.bytesize]
+      end
+
+      def read_payload(options, transcript, sliced, bounded, withheld = 0)
         { action: 'read', name: options[:name], output: bounded,
           clean_output: Parsers::TextSanitizer.strip_ansi(bounded),
-          cursor: transcript.cursor,
+          cursor: transcript.cursor - withheld,
           prompt_detected: Session::PromptScanner.prompt_at_end?(sliced) }
           .merge(transcript.dropped.positive? ? { dropped_bytes: transcript.dropped } : {})
           .merge(busy_fields(options))
@@ -783,10 +808,16 @@ module Rune
         return {} unless File.exist?(path)
 
         events = tail_events(path)
-        last = events.reverse.find { |event| event['event'] == 'output' && event['text'].to_s.strip != '' }
+        # Summarised from the reassembled tail rather than from the last event on its own. A pty
+        # read boundary is not a line boundary and not a sequence boundary: a child that printed
+        # `\e[3` and then `1mRED` puts those in two events, and an event-at-a-time summary strips
+        # nothing from either, so `list` reported the last line as `1mRED` where the child had
+        # displayed `RED`. Joined first, the sequence is whole and strips correctly.
+        text = events.select { |event| event['event'] == 'output' }.map { |event| event['text'].to_s }.join
         stamp = events.filter_map { |event| event['ts'] }.last
+        summary = summarize(withhold_dangling(text).first)
         { idle_ms: stamp ? ((Time.now.to_f - stamp) * 1000).round : nil,
-          last_line: last && summarize(last['text']) }.compact
+          last_line: summary.empty? ? nil : summary }.compact
       end
 
       def tail_events(path, bytes: ACTIVITY_TAIL_BYTES)

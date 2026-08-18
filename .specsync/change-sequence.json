@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 65,
-  "id": "CHG-0065-record-that-the-wide-character-cell-model-was-built-and-measured-worse-than-the",
+  "sequence": 66,
+  "id": "CHG-0066-stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the",
   "acknowledged_collisions": []
 }

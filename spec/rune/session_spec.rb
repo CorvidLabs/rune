@@ -485,6 +485,67 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # Found by nine agents translating the README through rune, and the most
+  # dangerous shape this project has: a reply that was well-formed and wrong.
+  # `strip_ansi` only matches sequences that *terminated*, so a sequence split
+  # across two pty reads left `clean_output` claiming the child printed text it
+  # never displayed — and `screen`, in the same reply, disagreed.
+  describe 'an escape sequence split across two pty reads' do
+    # Prints, opens a sequence, pauses long enough to be read mid-sequence, then
+    # completes it. The pause is what makes the split deterministic.
+    def split_escape_child(pause: 3)
+      ['ruby', '-e',
+       "STDOUT.sync = true; print \"READY\\n\"; print \"\\e[3\"; sleep #{pause}; " \
+       'print "1mRED\\e[0m\\n"; sleep 30']
+    end
+
+    it 'does not deliver the fragment as visible text, and stops the cursor before it' do
+      start_session('esc1', split_escape_child)
+      wait_until(reason: 'the child to print and open a sequence') do
+        session('read', '--name=esc1').data[:clean_output].to_s.include?('READY')
+      end
+
+      result = session('read', '--name=esc1')
+
+      expect(result.data[:clean_output]).not_to include("\e")
+      expect(result.data[:clean_output]).to include('READY')
+      # 7 bytes of "READY\r\n", with the three-byte fragment withheld.
+      expect(result.data[:cursor]).to eq(7)
+    end
+
+    it 'returns the completed sequence stripped, from the cursor the earlier read handed out' do
+      start_session('esc2', split_escape_child)
+      wait_until(reason: 'the child to print and open a sequence') do
+        session('read', '--name=esc2').data[:clean_output].to_s.include?('READY')
+      end
+      cursor = session('read', '--name=esc2').data[:cursor]
+
+      wait_until(reason: 'the child to complete the sequence') do
+        session('read', '--name=esc2', "--since=#{cursor}").data[:clean_output].to_s.include?('RED')
+      end
+      result = session('read', '--name=esc2', "--since=#{cursor}", '--screen')
+
+      expect(result.data[:clean_output]).to include('RED')
+      expect(result.data[:clean_output]).not_to include('1mRED')
+      # The whole point: the two fields in one reply must not contradict.
+      expect(result.data[:screen]).to include('RED')
+      expect(result.data[:screen]).not_to include('1mRED')
+    end
+
+    # `list` summarised the last event on its own, and a pty read boundary is
+    # neither a line boundary nor a sequence boundary.
+    it 'summarises list last_line from the reassembled tail, not one event' do
+      start_session('esc3', split_escape_child)
+      wait_until(reason: 'the child to complete the sequence') do
+        session('read', '--name=esc3').data[:clean_output].to_s.include?('RED')
+      end
+
+      entry = session('list').data[:sessions].find { |s| s[:name] == 'esc3' }
+
+      expect(entry[:last_line]).to eq('RED')
+    end
+  end
+
   describe 'read' do
     it 'serves the transcript from disk, including after the session is stopped' do
       start_session('s9', thinking_child(delay: 0.1))

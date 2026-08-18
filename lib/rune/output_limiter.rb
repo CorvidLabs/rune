@@ -142,6 +142,25 @@ module Rune
         [kept, omitted]
       end
 
+      # The trailing bytes of `text` that begin an escape sequence still waiting for its terminator,
+      # or `""` when it ends cleanly.
+      #
+      # Handing those bytes to a caller does two wrong things at once. The fragment survives
+      # `strip_ansi`, which only matches sequences that *terminated*, so it is delivered as visible
+      # text. And the cursor advances past it, so the next read from that cursor sees the sequence
+      # headless and strips nothing at all. Measured against a child that printed `\e[3`, slept, and
+      # then `1mRED\e[0m`: one read returned `clean_output` `"READY\n\e[3"`, and the next, from the
+      # cursor that read handed out, returned `"1mRED"` while `screen` in the same reply said
+      # `"RED"` — rune contradicting itself inside one payload about what the child printed.
+      #
+      # This is the same shape `resynced_tail_start` already handles at a `--max-output` cut; the
+      # machinery existed and was simply not applied at read boundaries.
+      def dangling_suffix(text)
+        bytes = text.to_s.b
+        found = dangling_at(window_before(bytes, bytes.bytesize), [bytes.bytesize, RESYNC_WINDOW_BYTES].min)
+        found ? found.last : +''
+      end
+
       private
 
       def head(text, head_end) = text.byteslice(0, head_end).to_s.scrub

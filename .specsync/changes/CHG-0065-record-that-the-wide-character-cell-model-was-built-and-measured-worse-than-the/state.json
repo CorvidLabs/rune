@@ -9,7 +9,7 @@
   "canonical_applied": true,
   "base_commit": "1749093b9563a42e245ceeb6d6f7eb59fb23fb63",
   "created_at": 1787009342,
-  "updated_at": 1787009485,
+  "updated_at": 1787017556,
   "affected_specs": [
     "parsers"
   ],
