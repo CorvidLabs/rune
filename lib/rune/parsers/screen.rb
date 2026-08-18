@@ -200,7 +200,17 @@ module Rune
       # and one of the latter.
       CONTINUATION = :wide_tail
 
-      def to_s = @grid.map { |row| render_row(row).rstrip }.join("\n").sub(/\n+\z/, '')
+      # CodeQL flagged the regex this replaced (`.sub(/\n+\z/, '')`) as a polynomial-time risk on
+      # uncontrolled input. Measured rather than trusted: a single quantifier anchored at `\z` has no
+      # ambiguity to backtrack over, and both a trailing-newline run and an adversarial no-match
+      # input scale linearly up to 800,000 bytes. Popping trailing empty rows from the array is the
+      # same result without a regex on the hot path at all, which is the more useful fix regardless
+      # of whether the alert was real.
+      def to_s
+        rows = @grid.map { |row| render_row(row).rstrip }
+        rows.pop while rows.last == ''
+        rows.join("\n")
+      end
 
       def render_row(row)
         row.each_with_index.map { |cell, index| render_cell(cell, row, index) }.join

@@ -240,6 +240,25 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
     end
   end
 
+  # CodeQL flagged the regex `to_s` used to strip trailing blank rows as a polynomial-time risk on
+  # uncontrolled input. Measured rather than trusted — a single quantifier anchored at `\z` has no
+  # backtracking ambiguity, and both a trailing-newline run and a no-match adversarial input scale
+  # linearly to 800,000 bytes — but the regex is gone from the render path either way, replaced by
+  # popping empty rows from the array already in hand.
+  describe 'trailing blank rows' do
+    it 'drops every trailing blank row, however many' do
+      expect(described_class.render("a\r\n\r\nb\r\n\r\n\r\n\r\n\r\n", rows: 8, columns: 10)).to eq("a\n\nb")
+    end
+
+    it 'renders an entirely blank grid as an empty string' do
+      expect(described_class.render("\r\n\r\n\r\n", rows: 3, columns: 10)).to eq('')
+    end
+
+    it 'leaves a non-blank last row untouched' do
+      expect(described_class.render('a', rows: 3, columns: 10)).to eq('a')
+    end
+  end
+
   # A row is an Array of cells, so a column index is an array index: a wide glyph takes two of
   # them and a combining mark takes none. Under the previous String rows a cell could not hold
   # more than one character without moving every column after it.

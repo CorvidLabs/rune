@@ -13,7 +13,129 @@
       "timestamp": 1787058499,
       "digest": "e2756764d41e9cf863a9d73ec54a28da404392e89f2bc2711327b4f167f3d9ef",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1787077030,
+      "digest": "5a8b36036f9fa0ef21b11b85ed05bb515a4e8433ff2eef0e8dbc42712179a4f8",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0070-give-the-screen-a-cell-model-so-a-wide-glyph-occupies-the-two-columns-it-is-draw",
+      "actor": "claude",
+      "reason": "addressed a CodeQL polynomial-regex finding on Screen#to_s (PR #66 review comment) by dropping the flagged regex from the render path and popping trailing empty rows from the array already in hand instead",
+      "timestamp": 1787075808,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1787058499,
+        "digest": "e2756764d41e9cf863a9d73ec54a28da404392e89f2bc2711327b4f167f3d9ef",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1787058487,
+        "commit": "ac38dba529ff6cb4838f825b5c3c9594af36b7d1",
+        "contract_digest": "19e2e8e17f3f01899766a589f378742e4993deb9ebeb12cb743c241b6df68cc0",
+        "workspace_digest": "9f5a3eff2dbf8d58020be6f6a8d9700530ace6b33d7f11172bcbfadce58daee4",
+        "acceptance_input_digest": "4fafd52ed068ecd269e10c9fedbebb9959b05ad3c9e746c938fb30cec73f9be7",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "57aa7ad9684c8744c3f099bc9b4a7b490fee1519f25f51d891864355c579a49c",
+              "entry_digest": "49f0761f8dd5bf8a8f09cf2a645da5e09b3abee3809f33212b53093863a1142e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/parsers/character_width.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "75e09f7da7574fc2143a461edaecc84c1142a84136e4758cfa7c333b0f81a568",
+              "entry_digest": "c9b190418c153fbef63629d5acaf9897f988023d86085445c488e977942676e3",
+              "owners": [
+                "parsers"
+              ]
+            },
+            {
+              "path": "lib/rune/parsers/screen.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "00676c5b2db085f6e90964c325d7408b39b9c125bfc806e3182ba84ac76c901c",
+              "entry_digest": "d0347393d2f75138c2f23d2226f48a45cc704415839a63437a5a8cb6abf91dc4",
+              "owners": [
+                "parsers"
+              ]
+            },
+            {
+              "path": "spec/rune/parsers/screen_renderer_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "28e4c7a3032c1288f42f5d404f174bd890a0a66ba82dd62b00105541778eedb3",
+              "entry_digest": "ac16014128b08ae98d7e8cb2aeae5aeabea32942e6c765e2444e7c0247d738ed",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/parsers/parsers.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0f506c33f810ab723222fa0219dc1488b602febaa35b2ba7ca91097d7ab8d520",
+              "entry_digest": "7192a40f44587eb45c7bb39bde898a0be757794fccf57c2009f07d9f9cb45505",
+              "owners": [
+                "parsers"
+              ]
+            },
+            {
+              "path": "specs/parsers/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d10eb208af6fa95b43af778fd5797b4e4586ffe9a58dc01f2ceaf31cf916fd5d",
+              "entry_digest": "8f365ed356648d581f18ff8f893fe741368eb763fa4556cec9243466b877810a",
+              "owners": [
+                "parsers"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "4fafd52ed068ecd269e10c9fedbebb9959b05ad3c9e746c938fb30cec73f9be7",
+      "current_acceptance_input_digest": "0c5fe0d006967e89c3d8b0cb4bb52f6972ddbd1f27585fa57d147dcfa45fbdd9"
+    }
+  ]
 }
