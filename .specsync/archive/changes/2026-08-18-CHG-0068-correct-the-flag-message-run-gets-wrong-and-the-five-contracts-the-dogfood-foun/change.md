@@ -1,6 +1,6 @@
 ---
 id: CHG-0068-correct-the-flag-message-run-gets-wrong-and-the-five-contracts-the-dogfood-foun
-state: accepted
+state: archived
 type: feature
 base_commit: 023f4078ec28548d58aaa35bfd985e5a843781e9
 ---

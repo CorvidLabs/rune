@@ -76,14 +76,6 @@ module Rune
       # the set meant "flags rune owns"; the drift test above caught it immediately.
       VALUE_FLAGS = FLAG_PATTERNS.values.map { |(_pattern, label, _unit)| label }.freeze
 
-      # A flag rune owns, spelled correctly, whose value was given with a space. The general
-      # unknown-option message got this wrong three ways at once: it called a flag rune owns
-      # "Unknown", it asserted a position error when the flag was already before the separator, and
-      # following its remedy literally hands `--timeout` to the child instead of applying a timeout.
-      # Two agents driving rune lost tool calls to it and one nearly filed it as a broken flag.
-      INLINE_VALUE_ERROR = '%<name>s takes its value inline: %<name>s=VALUE. To pass it to the ' \
-                           'command instead: rune run -- <command> %<name>s VALUE'
-
       private
 
       # Returns [PTYRunner_kwargs, remaining_args, error_message]. A malformed
@@ -97,7 +89,7 @@ module Rune
         leftovers, raw_values, separate_streams = scan_head(head)
         flags, error = parse_flags(raw_values)
         flags[:separate_streams] = true if separate_streams
-        [flags, leftovers + tail, error || unknown_flag_error(leftovers)]
+        [flags, leftovers + tail, error || self.class.flag_error(leftovers, VALUE_FLAGS)]
       end
 
       # Returns [tokens rune did not claim, raw flag values, whether --separate-streams was given].
@@ -126,17 +118,6 @@ module Rune
       # is what keeps `rune run cargo --version` and `rune run npm test --watch` working: once a
       # program name has been seen, every later `--flag` belongs to it. `rune run -- --version`
       # passes through untouched because the separator empties this list entirely.
-      def unknown_flag_error(leftovers)
-        unknown = leftovers.take_while { |token| self.class.flag_shaped?(token) }.first
-        return nil unless unknown
-
-        name = unknown.split('=', 2).first
-        return format(INLINE_VALUE_ERROR, name: name) if VALUE_FLAGS.include?(name)
-
-        "Unknown option: #{name}. rune's own flags are recognized only before the wrapped " \
-          'command; to pass this one to that command instead, put the command first or use a ' \
-          "separator: rune run -- <command> #{name}"
-      end
 
       def matching_flag(arg)
         FLAG_PATTERNS.each do |key, (pattern, _label, _unit)|

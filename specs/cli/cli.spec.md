@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 26
+version: 27
 status: active
 files:
   - lib/rune.rb
@@ -62,6 +62,9 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | `command_flags` | reader | Returns the subclass's declared flags, defaulting to an empty array. |
 | `subcommand` | class method | Declares one subcommand (name + summary) for command help. |
 | `command_subcommands` | reader | Returns the subclass's declared subcommands, defaulting to an empty array. |
+| `flag_error` | class method | Rejects a flag-shaped token that reached the wrapped command's argv, shared by `run` and `watch`. |
+| `INLINE_VALUE_ERROR` | constant | Message template for a flag the command owns whose value was space-separated. |
+| `UNKNOWN_FLAG_ERROR` | constant | Message template for a flag-shaped token the command does not own. |
 | `Help` | class | Builds and renders `rune --help`, `rune <cmd> --help`, and `rune help [cmd]`. Class method: `.extract_flag!(args)`. Instance: `#overview`, `#for_command(name)`, `#render(data, io)`. |
 | `FLAGS` | constant | Tokens (`--help`, `-h`) recognized as a help request before the first `--`. |
 | `GLOBAL_FLAGS` | constant | Flags that apply to every command, rendered under "Global flags" and returned in every help payload. |
@@ -206,3 +209,4 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
 | 2026-08-17 | CHG-0059-expose-subcommands-as-structured-data-in-per-command-help: Expose subcommands as structured data in per-command help |
 | 2026-08-17 | CHG-0061-release-0-9-0-bump-the-version-and-record-the-round-s-measurements: Release 0.9.0: bump the version and record the round's measurements |
+| 2026-08-18 | CHG-0069-guard-the-flags-watch-was-executing-and-bound-the-two-fields-max-output-was-not: Guard the flags watch was executing, and bound the two fields max-output was not |

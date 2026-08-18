@@ -65,6 +65,15 @@ module Rune
         idle_timeout_seconds: [/\A--idle-timeout=(.*)\z/, '--idle-timeout', 'number of seconds']
       }.freeze
 
+      # The timeout flags are derived from `TIMEOUT_FLAGS`; `--log` is appended by hand because its
+      # pattern is written inline in `scan_head` rather than in a table. That is the shape this
+      # project has been bitten by before — a hand-maintained list is what let `--context` ship
+      # accepted-and-ignored — so the claim here is deliberately narrower than `run`'s: this list
+      # cannot drift for the *timeout* flags, and the spec's drift test covers whatever is in it.
+      # A new value flag added to `scan_head` and not to this list would be served the
+      # unknown-flag message, which is the wrong one.
+      VALUE_FLAGS = (TIMEOUT_FLAGS.values.map { |(_pattern, label, _unit)| label } + ['--log']).freeze
+
       private
 
       # Where the wrapped child's live bytes go. This is the one command whose
@@ -149,10 +158,19 @@ module Rune
         head = separator_index ? args[0...separator_index] : args
         tail = separator_index ? args[separator_index..] : []
 
+        head, log_path, raw_timeouts, error = scan_head(head)
+        watcher_options, timeout_error = parse_timeouts(raw_timeouts)
+        [log_path, watcher_options, head + tail, error || timeout_error || leftover_flag_error(head)]
+      end
+
+      # Consumes watch's own flags out of the pre-separator argv, returning what is left along with
+      # what was found. Separated from `extract_options` so the guard below is not competing with
+      # the scan for one method's complexity budget.
+      def scan_head(head)
         log_path = nil
         raw_timeouts = {}
         error = nil
-        head = head.select do |arg|
+        remaining = head.select do |arg|
           log_match = arg.match(/\A--log=(.*)\z/)
           if log_match
             log_path, error = extract_log_value(log_match[1], error)
@@ -163,10 +181,13 @@ module Rune
           raw_timeouts[key] = match[1] if key
           key.nil?
         end
-
-        watcher_options, timeout_error = parse_timeouts(raw_timeouts)
-        [log_path, watcher_options, head + tail, error || timeout_error]
+        [remaining, log_path, raw_timeouts, error]
       end
+
+      # Without this, anything watch does not recognise stays in `head` and becomes the command:
+      # `rune watch --timeout 5 -- echo hi` exec'd `--timeout` and exited 127 with the child never
+      # running. `run` has guarded this since it grew flags; watch never did.
+      def leftover_flag_error(head) = self.class.flag_error(head, VALUE_FLAGS)
 
       def extract_log_value(value, error)
         return [nil, '--log requires a path, e.g. --log=/tmp/session.ndjson'] if value.empty?

@@ -496,6 +496,37 @@ RSpec.describe Rune::Commands::SessionCommand do
   # with `truncated` and `omitted_lines` absent, which reads as "nothing was
   # dropped". Measured against a live claude session, 84,945 bytes came back
   # identically for --tail=3, 5, 8, 12 and 20.
+  # `--since` sliced the transcript and then handed the slice to a grep that ignored it and
+  # searched the whole transcript, so a caller paging with `--since=<last cursor>` got the entire
+  # history back on every page, under a `grep_matches` count that looked like it had filtered.
+  describe '--grep together with --since' do
+    def echoing_child
+      ['ruby', '-e', 'STDOUT.sync = true; while (line = STDIN.gets); puts("SAW:" + line); end']
+    end
+
+    it 'greps only the slice the cursor selected' do
+      start_session('gs1', echoing_child)
+      session('send', '--name=gs1', '--settle-ms=400', '--timeout-ms=15000', '--', 'NEEDLE_ONE')
+      cursor = session('read', '--name=gs1').data[:cursor]
+      session('send', '--name=gs1', '--settle-ms=400', '--timeout-ms=15000', '--', 'NEEDLE_TWO')
+
+      result = session('read', '--name=gs1', "--since=#{cursor}", '--grep=NEEDLE')
+
+      expect(result.data[:clean_output]).to include('NEEDLE_TWO')
+      expect(result.data[:clean_output]).not_to include('NEEDLE_ONE')
+    end
+
+    it 'still searches the whole transcript when no cursor was given' do
+      start_session('gs2', echoing_child)
+      session('send', '--name=gs2', '--settle-ms=400', '--timeout-ms=15000', '--', 'NEEDLE_ONE')
+      session('send', '--name=gs2', '--settle-ms=400', '--timeout-ms=15000', '--', 'NEEDLE_TWO')
+
+      result = session('read', '--name=gs2', '--grep=NEEDLE')
+
+      expect(result.data[:clean_output]).to include('NEEDLE_ONE').and include('NEEDLE_TWO')
+    end
+  end
+
   describe '--tail against carriage-return repaint output' do
     def repainting_child
       ['ruby', '-e', 'STDOUT.sync = true; while STDIN.gets; print "l1\rl2\rl3\rl4\rl5\r"; end']

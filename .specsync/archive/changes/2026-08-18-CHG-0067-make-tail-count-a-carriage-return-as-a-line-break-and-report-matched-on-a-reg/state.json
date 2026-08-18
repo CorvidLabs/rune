@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0067-make-tail-count-a-carriage-return-as-a-line-break-and-report-matched-on-a-reg",
+  "slug": "make-tail-count-a-carriage-return-as-a-line-break-and-report-matched-on-a-reg",
+  "title": "Make --tail count a carriage return as a line break, and report matched on a regex send's timeout",
+  "description": "Make --tail count a carriage return as a line break, and report matched on a regex send's timeout",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "8c9055be7093551caf654679a1f8ebb51357de50",
+  "created_at": 1787020810,
+  "updated_at": 1787032803,
+  "affected_specs": [
+    "session",
+    "pty_runner"
+  ],
+  "affected_paths": [
+    "lib/rune/output_limiter.rb",
+    "lib/rune/session/pending_send.rb",
+    "lib/rune/commands/session_command.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    "docs/sessions.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The tail bound counts CR, LF and CRLF as line breaks, so it bounds a full-screen TUI's repaint output instead of silently returning everything with truncated and omitted_lines absent. rune run bounds raw_output as well as clean_output, which it did not when the raw stream had no LFs. A regex send reports matched false when it times out, as its own comment always claimed. The documentation saying a regex send races the settle window is corrected in the spec, in docs/sessions.md and in help, and settled is defined as the wait being answered rather than the child going quiet. Four regression tests, each falsified against deliberately unfixed code."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

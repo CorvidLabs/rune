@@ -107,8 +107,30 @@ module Rune
       return data unless separate_streams
 
       stdout_buffer, stderr_buffer = stream_buffers
-      data.merge(clean_stdout: Parsers::TextSanitizer.strip_ansi(stdout_buffer),
-                 clean_stderr: Parsers::TextSanitizer.strip_ansi(stderr_buffer))
+      data.merge(clean_stdout: bound_stream(stdout_buffer), clean_stderr: bound_stream(stderr_buffer))
+    end
+
+    # `--separate-streams` adds two more fields, and they were not bounded at all: a 200-byte
+    # budget returned 10,506 bytes across the four fields, because only `clean_output` and
+    # `raw_output` went through `apply_output_limit`. A caller sets `--max-output` to cap what
+    # comes back, and adding a flag that surfaces the same output twice more should not silently
+    # uncap it.
+    #
+    # Each field is bounded to the same budget, which is the contract `--max-output` already
+    # states ("BYTES each"), and their omitted counts are not surfaced for the same reason
+    # `raw_output`'s is not — one reply carries one count, and it is `clean_output`'s.
+    def bound_stream(buffer)
+      text = Parsers::TextSanitizer.strip_ansi(buffer)
+      return text unless max_output_bytes || tail_lines
+
+      bounded, = if max_output_bytes
+                   OutputLimiter.truncate_middle(text,
+                                                 max_output_bytes)
+                 else
+                   OutputLimiter.tail_lines(text,
+                                            tail_lines)
+                 end
+      bounded
     end
 
     # Bounds clean_output/raw_output when --max-output or --tail was requested. Both fields are

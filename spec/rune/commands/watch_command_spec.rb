@@ -5,6 +5,58 @@ require 'tmpdir'
 
 RSpec.describe Rune::Commands::WatchCommand do
   describe '#call' do
+    # watch had no unknown-flag guard at all: anything flag-shaped it did not recognise stayed in
+    # the argv and became the command. Measured through a real controlling terminal before the fix,
+    # `rune watch --timeout 5 -- echo hi` exited 127 with the child never running, because
+    # `--timeout` was exec'd as the program. `run` has guarded this since it grew flags.
+    describe 'a flag watch owns, given a space-separated value' do
+      before do
+        allow($stdin).to receive(:tty?).and_return(true)
+        allow(Rune::PTYWatcher).to receive(:new)
+      end
+
+      it 'is refused with the inline-value message rather than exec\'d as the command' do
+        result = described_class.new.call(%w[--timeout 5 -- echo hi], {})
+
+        expect(result.error).to include('--timeout takes its value inline: --timeout=VALUE')
+        expect(Rune::PTYWatcher).not_to have_received(:new)
+      end
+
+      it 'names watch, not run, in the separator remedy' do
+        expect(described_class.new.call(%w[--timeout 5 -- echo hi], {}).error)
+          .to include('rune watch -- <command> --timeout VALUE')
+      end
+
+      # Mirrors run_command_spec's drift guard. It fails the day a value flag is added to watch and
+      # not to VALUE_FLAGS, which is when the caller starts getting the wrong message again.
+      it 'covers every value flag watch owns' do
+        described_class::VALUE_FLAGS.each do |flag|
+          result = described_class.new.call([flag, '5', '--', 'echo', 'hi'], {})
+
+          expect(result.error).to include("#{flag} takes its value inline"), "no inline-value message for #{flag}"
+        end
+      end
+
+      it 'reports a genuinely unknown flag as unknown' do
+        expect(described_class.new.call(%w[--bogus 1 -- echo hi], {}).error).to include('Unknown option: --bogus')
+      end
+
+      it 'leaves the inline form working' do
+        allow(Rune::PTYWatcher).to receive(:new).and_return(instance_double(Rune::PTYWatcher, watch: Rune::Result.success({})))
+
+        expect(described_class.new.call(%w[--timeout=5 -- echo hi], {})).to be_success
+      end
+
+      # The child's own flags must survive. watch wraps arbitrary programs, so a flag-shaped token
+      # that belongs to the child is the case this guard must not eat.
+      it 'passes a child\'s own flags through untouched' do
+        allow(Rune::PTYWatcher).to receive(:new).and_return(instance_double(Rune::PTYWatcher, watch: Rune::Result.success({})))
+
+        expect(described_class.new.call(%w[-- mytool --timeout 5], {})).to be_success
+        expect(described_class.new.call(%w[-- --version], {})).to be_success
+      end
+    end
+
     it 'fails clearly without touching PTYWatcher at all when stdin is not a real terminal' do
       allow(Rune::PTYWatcher).to receive(:new)
 

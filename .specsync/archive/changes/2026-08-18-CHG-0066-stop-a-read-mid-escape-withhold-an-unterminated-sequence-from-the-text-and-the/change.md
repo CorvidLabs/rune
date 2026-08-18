@@ -1,6 +1,6 @@
 ---
 id: CHG-0066-stop-a-read-mid-escape-withhold-an-unterminated-sequence-from-the-text-and-the
-state: accepted
+state: archived
 type: feature
 base_commit: 4abd95c8461be099fc5030a740ea456ec7d242d1
 ---

@@ -1,6 +1,6 @@
 ---
 id: CHG-0067-make-tail-count-a-carriage-return-as-a-line-break-and-report-matched-on-a-reg
-state: accepted
+state: archived
 type: feature
 base_commit: 8c9055be7093551caf654679a1f8ebb51357de50
 ---
