@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'character_width'
+
 module Rune
   module Parsers
     # The grid and cursor a terminal would maintain, extracted from
@@ -16,7 +18,7 @@ module Rune
       def initialize(rows:, columns:)
         @rows = rows.positive? ? rows : DEFAULT_ROWS
         @columns = columns.positive? ? columns : DEFAULT_COLUMNS
-        @grid = Array.new(@rows) { +'' }
+        @grid = Array.new(@rows) { [] }
         @row = 0
         @column = 0
         # xterm's "deferred wrap": after writing the last cell the cursor
@@ -71,7 +73,7 @@ module Rune
         @autowrap = true
         @charsets = { 'G0' => :ascii, 'G1' => :ascii }
         @gl = 'G0'
-        @grid = Array.new(@rows) { +'' }
+        @grid = Array.new(@rows) { [] }
         @saved = nil
         soft_reset
       end
@@ -180,7 +182,7 @@ module Rune
 
         save_cursor if save
         @alternate = @grid
-        @grid = Array.new(@rows) { +'' }
+        @grid = Array.new(@rows) { [] }
       end
 
       def leave_alternate(restore:)
@@ -191,24 +193,101 @@ module Rune
         restore_cursor if restore
       end
 
-      def to_s = @grid.map(&:rstrip).join("\n").sub(/\n+\z/, '')
+      # A cell is nil (never written), a String holding one graphic plus any combining marks, or
+      # CONTINUATION for the right half of a wide glyph. The continuation occupies a column for
+      # every purpose except display, where it contributes nothing — so cursor arithmetic counts in
+      # columns while the rendered line counts in characters, and a wide glyph is two of the former
+      # and one of the latter.
+      CONTINUATION = :wide_tail
+
+      def to_s = @grid.map { |row| render_row(row).rstrip }.join("\n").sub(/\n+\z/, '')
+
+      def render_row(row)
+        row.each_with_index.map { |cell, index| render_cell(cell, row, index) }.join
+      end
+
+      def render_cell(cell, row, index)
+        return ' ' if cell.nil?
+        # An orphan continuation renders as a blank, not as nothing: `heal` normally removes them,
+        # and one that survives must still hold its column open rather than silently shortening the
+        # line.
+        return wide?(row[index - 1]) && index.positive? ? '' : ' ' if cell == CONTINUATION
+
+        cell
+      end
+
+      def wide?(cell) = cell.is_a?(String) && CharacterWidth.of(cell[0]) == 2
+
+      # Restores the wide-glyph invariant after any operation that moved cells.
+      #
+      # Insert, delete, erase and scroll all slice the row, and any of them can separate a wide
+      # glyph from its continuation. Teaching each one about pairs is what the first attempt at
+      # this did, and it lost: measured on live grok output, `東 京` and `東h京` appeared where the
+      # one-column renderer produced `東京`. Repairing once, after the fact, is the same invariant
+      # expressed in one place instead of twelve.
+      def heal(row)
+        row.each_index do |index|
+          if row[index] == CONTINUATION
+            row[index] = nil unless index.positive? && wide?(row[index - 1])
+          elsif wide?(row[index]) && row[index + 1] != CONTINUATION
+            # Its other half is gone, so neither half can be shown: a terminal blanks both.
+            row[index] = ' '
+          end
+        end
+        row
+      end
 
       def write(chunk)
-        chunk.each_char do |char|
-          # With DECAWM off the pending wrap is never taken: the cursor stays on
-          # the last cell and each further graphic overwrites it. That is what
-          # lets a TUI paint the bottom-right corner of a border without
-          # scrolling the screen out from under itself.
-          wrap if @wrap_pending && @autowrap
-          @wrap_pending = false unless @autowrap
-          pad
-          # IRM: make room first, so the tail of the line shifts right rather
-          # than being overwritten. ICH is the same operation, which is why this
-          # reuses it rather than reimplementing the clamp at the right margin.
-          insert_blanks([1]) if @insert
-          @grid[@row][@column] = translate(char)
-          advance
-        end
+        chunk.each_char { |char| write_char(translate(char)) }
+      end
+
+      # One graphic, placed according to how many columns it occupies.
+      #
+      # A combining mark takes none: it belongs to the glyph already written, so it is appended to
+      # that cell rather than given one of its own. That is safe here and was not before — a cell
+      # is one array slot however many characters it holds, where a String row put every later
+      # index off by one and the next graphic overwrote the mark.
+      def write_char(char)
+        width = CharacterWidth.of(char)
+        return combine(char) if width.zero?
+
+        settle_wrap(width)
+        # IRM: make room first, so the tail of the line shifts right rather than being overwritten.
+        # ICH is the same operation, which is why this reuses it.
+        insert_blanks([width]) if @insert
+        place(char, width)
+      end
+
+      # Takes any pending wrap, and takes one early rather than split a wide glyph at the margin.
+      #
+      # With DECAWM off the pending wrap is never taken at all: the cursor stays on the last cell
+      # and each further graphic overwrites it, which is what lets a TUI paint the bottom-right
+      # corner of a border without scrolling the screen out from under itself. A terminal also
+      # never splits a wide glyph across the margin — it wraps first and leaves the last cell blank
+      # rather than painting half a character there.
+      def settle_wrap(width)
+        return @wrap_pending = false unless @autowrap
+
+        wrap if @wrap_pending || (width == 2 && @column + 1 >= @columns)
+      end
+
+      def place(char, width)
+        line = @grid[@row]
+        line[@column] = char
+        line[@column + 1] = CONTINUATION if width == 2
+        heal(line)
+        width.times { advance }
+      end
+
+      # A combining mark modifies the graphic before the cursor, and attaches to the wide glyph
+      # itself rather than to its continuation.
+      def combine(char)
+        line = @grid[@row]
+        target = @column.positive? ? @column - 1 : 0
+        target -= 1 if line[target] == CONTINUATION && target.positive?
+        return if line[target].nil? || line[target] == CONTINUATION
+
+        line[target] = line[target] + char
       end
 
       def translate(char)
@@ -299,12 +378,12 @@ module Rune
         case numbers.first.to_i
         when 0
           erase_line([0])
-          ((@row + 1)...@rows).each { |row| @grid[row] = +'' }
+          ((@row + 1)...@rows).each { |row| @grid[row] = [] }
         when 1
           erase_line([1])
-          (0...@row).each { |row| @grid[row] = +'' }
+          (0...@row).each { |row| @grid[row] = [] }
         when 2
-          @grid = Array.new(@rows) { +'' }
+          @grid = Array.new(@rows) { [] }
         end
         # 3 is "erase saved lines" — the scrollback, which this renderer does
         # not keep — and anything else is undefined. Both were reaching an
@@ -320,34 +399,34 @@ module Rune
         line = @grid[@row]
         # Only 0, 1 and 2 are defined; an unknown parameter is a no-op rather
         # than the full-line erase an `else` used to give it.
-        @grid[@row] = case numbers.first.to_i
-                      when 0 then line[0, @column].to_s
-                      when 1 then (' ' * (@column + 1)) + line[(@column + 1)..].to_s
-                      when 2 then +''
-                      else line
-                      end
+        @grid[@row] = heal(case numbers.first.to_i
+                           when 0 then line[0, @column].to_a
+                           when 1 then Array.new(@column + 1) + line[(@column + 1)..].to_a
+                           when 2 then []
+                           else line
+                           end)
       end
 
       # ICH: shift the rest of the line right, losing what falls off the edge.
       def insert_blanks(numbers)
-        line = padded_line
+        line = @grid[@row]
         @grid[@row] =
-          (line[0, @column].to_s + (' ' * span(numbers, @columns)) + line[@column..].to_s)[0, @columns].to_s
+          heal((line[0, @column].to_a + Array.new(span(numbers, @columns)) + line[@column..].to_a)[0, @columns].to_a)
         @wrap_pending = false
       end
 
       # DCH: shift the rest of the line left over the deleted characters.
       def delete_characters(numbers)
-        line = padded_line
-        @grid[@row] = line[0, @column].to_s + line[(@column + span(numbers, @columns))..].to_s
+        line = @grid[@row]
+        @grid[@row] = heal(line[0, @column].to_a + line[(@column + span(numbers, @columns))..].to_a)
         @wrap_pending = false
       end
 
       # ECH: blank characters in place, without shifting anything.
       def erase_characters(numbers)
-        line = padded_line
+        line = @grid[@row]
         blanks = span(numbers, @columns)
-        @grid[@row] = line[0, @column].to_s + (' ' * blanks) + line[(@column + blanks)..].to_s
+        @grid[@row] = heal(line[0, @column].to_a + Array.new(blanks) + line[(@column + blanks)..].to_a)
         @wrap_pending = false
       end
 
@@ -358,7 +437,7 @@ module Rune
         return unless @row.between?(@top, @bottom)
 
         span(numbers, @rows).times do
-          @grid.insert(@row, +'')
+          @grid.insert(@row, [])
           @grid.delete_at(@bottom + 1)
         end
       end
@@ -369,7 +448,7 @@ module Rune
 
         span(numbers, @rows).times do
           @grid.delete_at(@row)
-          @grid.insert(@bottom, +'')
+          @grid.insert(@bottom, [])
         end
       end
 
@@ -388,14 +467,14 @@ module Rune
       def scroll_region_up(lines)
         lines.times do
           @grid.delete_at(@top)
-          @grid.insert(@bottom, +'')
+          @grid.insert(@bottom, [])
         end
       end
 
       def scroll_region_down(lines)
         lines.times do
           @grid.delete_at(@bottom)
-          @grid.insert(@top, +'')
+          @grid.insert(@top, [])
         end
       end
 
@@ -443,15 +522,9 @@ module Rune
         newline
       end
 
-      def padded_line
-        pad
-        @grid[@row]
-      end
-
-      def pad
-        line = @grid[@row]
-        line << (' ' * (@column - line.length)) if line.length < @column
-      end
+      # No padding helper any more: assigning past the end of an Array fills the gap with nil,
+      # and a nil cell renders as a blank. A String row had to be padded by hand first, and that
+      # padding is what made every column index a byte index into text.
     end
     # rubocop:enable Metrics/ClassLength
   end

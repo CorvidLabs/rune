@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 69,
-  "id": "CHG-0069-guard-the-flags-watch-was-executing-and-bound-the-two-fields-max-output-was-not",
+  "sequence": 70,
+  "id": "CHG-0070-give-the-screen-a-cell-model-so-a-wide-glyph-occupies-the-two-columns-it-is-draw",
   "acknowledged_collisions": []
 }
