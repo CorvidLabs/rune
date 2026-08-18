@@ -1,6 +1,6 @@
 ---
 module: parsers
-version: 14
+version: 15
 status: active
 files:
   - lib/rune/parsers/table_parser.rb
@@ -297,3 +297,4 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | 2026-08-17 | CHG-0064-honour-the-modes-and-charsets-that-decide-what-the-screen-contains-and-strip-th: Honour the modes and charsets that decide what the screen contains, and strip the escapes the sanitizer missed |
 | 2026-08-17 | CHG-0065-record-that-the-wide-character-cell-model-was-built-and-measured-worse-than-the: Record that the wide-character cell model was built and measured worse than the gap |
 | 2026-08-18 | CHG-0070-give-the-screen-a-cell-model-so-a-wide-glyph-occupies-the-two-columns-it-is-draw: Give the screen a cell model so a wide glyph occupies the two columns it is drawn in |
+| 2026-08-18 | CHG-0071-make-a-failed-launch-loud-name-the-project-a-session-is-in-and-fix-two-multiby: Make a failed launch loud, name the project a session is in, and fix two multibyte defects |

@@ -78,6 +78,10 @@ module Rune
       CLIENT_TIMEOUT_MARGIN = 15.0
       # How many codenames a start without --name will try before giving up.
       # Each retry is another process having claimed the one it picked.
+      # A shell reports 127 for a command it could not find, so a child that exits 127 before the
+      # session is even ready never ran.
+      EXEC_FAILURE_STATUS = 127
+
       GENERATED_NAME_ATTEMPTS = 5
 
       VALUE_FLAGS = {
@@ -278,10 +282,31 @@ module Rune
         # "No such session", and `list` — the remedy the error suggests — showed
         # an empty array, actively confirming the wrong conclusion. Reported by
         # someone who was about to debug the wrong program.
-        Result.success({ action: 'start', name: name, command: command,
-                         project: store.project,
-                         child_pid: meta[:child_pid], supervisor_pid: pid,
-                         state: meta[:state], exit_code: meta[:exit_code] }.compact)
+        payload = { action: 'start', name: name, command: command, project: store.project,
+                    child_pid: meta[:child_pid], supervisor_pid: pid,
+                    state: meta[:state], exit_code: meta[:exit_code] }.compact
+        launch_failure(name, meta) || Result.success(payload)
+      end
+
+      # A launch that never happened is a failure, not a success with a field to check.
+      #
+      # `start -- a_binary_that_is_not_there` returned `status: "ok"` with `state: "exited"` and
+      # `exit_code: 127`, so a caller checking `status` — the field whose entire job is to say
+      # whether the call worked — saw success. It was documented as a gotcha ("check `state`"),
+      # which is the wrong shape of answer: an envelope should not need a footnote to be read
+      # correctly. Reported from a real 22-minute drive, where it cost an hour.
+      #
+      # Only 127 fails, deliberately. `start -- true` exits 0 immediately and that is a *successful*
+      # launch of a program that had nothing to do; treating any prompt exit as a failure would
+      # break every short-lived child. 127 is the shell's "command not found", which is the one
+      # case where the child never ran at all.
+      def launch_failure(name, meta)
+        return nil unless meta[:exit_code] == EXEC_FAILURE_STATUS
+
+        abandon(name, meta[:supervisor_pid])
+        Result.failure("Could not start #{name.inspect}: the command exited #{EXEC_FAILURE_STATUS} " \
+                       'immediately, which is what a shell reports for a command that is not on PATH. ' \
+                       'Check the command name and that it is installed.')
       end
 
       # Re-invokes rune's own executable rather than forking in-process: a fork
@@ -1179,7 +1204,34 @@ module Rune
           'starting with a letter or digit.'
       end
 
-      def no_such_session(name) = "No such session: #{name.inspect}. Run 'rune session list'."
+      # Says where the session actually is, when it is somewhere.
+      #
+      # The old message was confidently wrong and its remedy confirmed the error: a session started
+      # in one directory and read from another got `No such session: "s3". Run 'rune session list'.`
+      # — and `list`, scoped to the caller's own project, returned nothing, which reads as proof
+      # the session died. Two people who had read the guide's warning about directory scoping hit
+      # this anyway, one of them mid-way through debugging the child instead.
+      #
+      # rune already knows the answer: `--all-projects` finds it. An error that can name the project
+      # should name it rather than send the reader to a command that shows them nothing.
+      def no_such_session(name)
+        elsewhere = projects_holding(name)
+        return "No such session: #{name.inspect}. Run 'rune session list'." if elsewhere.empty?
+
+        "No session #{name.inspect} in this project (#{store.project}), but it exists in " \
+          "#{elsewhere.length == 1 ? elsewhere.first.inspect : elsewhere.map(&:inspect).join(', ')}. " \
+          'A project is the working directory, so `cd` there, or run `rune session list --all-projects`.'
+      end
+
+      # Cheap: a directory listing per project, no transcripts opened. Rescued because a
+      # best-effort hint must never turn a clear error into a crash.
+      def projects_holding(name)
+        Session::Store.projects(store.home).reject { |project| project == store.project }.select do |project|
+          Session::Store.new(home: store.home, project: project).exist?(name)
+        end
+      rescue StandardError
+        []
+      end
 
       def render_list(data, io)
         return io.puts('No sessions.') if data[:sessions].empty?
