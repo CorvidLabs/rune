@@ -13,7 +13,119 @@
       "timestamp": 1787146359,
       "digest": "4a3ea4564d64894455142fa36cf0aaffcfdb37dab24c567c95c9baef26527dc3",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1787171366,
+      "digest": "479ee18726f359c94c3e042f4e6574fa66599016270c47c8caa7433aeac73336",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0077-hold-an-escape-split-across-chunks-so-a-retained-renderer-matches-a-one-shot-ren",
+      "actor": "claude",
+      "reason": "CHG-0079 fixed defects the 1.0 readiness review found in shared files: the control-socket type guard, the liveness recompute, the idle ladder, the carry ceiling and the sanitizer CSI grammar, with the two spec invariants they touch. None of it alters this change's delivered content; re-verifying to refresh the exact-input evidence.",
+      "timestamp": 1787171145,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1787146359,
+        "digest": "4a3ea4564d64894455142fa36cf0aaffcfdb37dab24c567c95c9baef26527dc3",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1787146348,
+        "commit": "f2c687b6d9181e5c29f2ce8b0707186d75b7f4c0",
+        "contract_digest": "5963ffedc1f317ed61c6a38ba0bc4ae8a11cbe48d6486b89cfa564678f79526f",
+        "workspace_digest": "832ec653139a3ff559bbda44acf7f08e8d6a0c74027385a83f03623bb2b065c5",
+        "acceptance_input_digest": "2c6bfd508583908831a4ed186567b6e363080f87b5fe083754c71648e7de8489",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "84e800cfe7e94d0eaeedaa456f43f9a8a721307608e601907f0440d5ccb1b251",
+              "entry_digest": "02d3f665c1bd815547e0c79210e44cfaf3f122010664132ca16739e0b5987069",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "lib/rune/parsers/screen_renderer.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0ffc7c7880bac24317ef6a66120e40c2c899ff8b4ee2ed917161ef0a1d2c3841",
+              "entry_digest": "19d470abbfd09807e090a30dfccd065da3efec70ce2e874baf5cefda5655aa4b",
+              "owners": [
+                "parsers"
+              ]
+            },
+            {
+              "path": "spec/rune/parsers/screen_renderer_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "eb304792ec0b2d2f489c86d7dce626aeed16f59e91bab8916aa083395adeb7b5",
+              "entry_digest": "95115a239da54b6fa7d4643c8e9cab9355443986a54c4a0ebbc3d9f85ee14dfa",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/parsers/parsers.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0a90b6e10451f9608612efe7ddc3ae12b991c1f6fef148e167eb9faf18fdb491",
+              "entry_digest": "38a70c69b806eaace44ba33474b8a5cbb758a68ea764430dd0814ad7c7122224",
+              "owners": [
+                "parsers"
+              ]
+            },
+            {
+              "path": "specs/parsers/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d10eb208af6fa95b43af778fd5797b4e4586ffe9a58dc01f2ceaf31cf916fd5d",
+              "entry_digest": "8f365ed356648d581f18ff8f893fe741368eb763fa4556cec9243466b877810a",
+              "owners": [
+                "parsers"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "2c6bfd508583908831a4ed186567b6e363080f87b5fe083754c71648e7de8489",
+      "current_acceptance_input_digest": "32efdbf9d7849c4bc61bb53a255805d8ed88a33df8bbc33a1d243969cc08145a"
+    }
+  ]
 }

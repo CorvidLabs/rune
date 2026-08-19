@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0079-fix-what-the-1-0-readiness-review-found-a-socket-request-could-kill-a-child-re",
+  "slug": "fix-what-the-1-0-readiness-review-found-a-socket-request-could-kill-a-child-re",
+  "title": "Fix what the 1.0 readiness review found: a socket request could kill a child, read reported dead sessions as running, and two parsers disagreed about what an escape is",
+  "description": "Fix what the 1.0 readiness review found: a socket request could kill a child, read reported dead sessions as running, and two parsers disagreed about what an escape is",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "a95f912fde324b737bdcba2496d530b753e5204f",
+  "created_at": 1787167116,
+  "updated_at": 1787170074,
+  "affected_specs": [
+    "session",
+    "parsers"
+  ],
+  "affected_paths": [
+    "lib/rune/session/supervisor.rb",
+    "lib/rune/commands/session_command.rb",
+    "lib/rune/parsers/text_sanitizer.rb",
+    "lib/rune/parsers/screen_renderer.rb",
+    "spec/rune/session_spec.rb",
+    "spec/rune/parsers/text_sanitizer_spec.rb",
+    "spec/rune/parsers/screen_renderer_spec.rb",
+    "specs/session/session.spec.md",
+    "specs/parsers/parsers.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A control-socket request that is valid JSON but not an object is answered with an error and leaves the supervisor and child alive (measured 7/7, previously 5/5 such payloads killed both). session read and send report a state recomputed from process liveness, so a SIGKILLed supervisor reads as dead on every verb rather than running on read and dead on list, and the refusal message no longer contradicts itself or prints Ruby's nil. In list, no idle label renders in two colours: the threshold and the label change at the same instant, an hour reads 1.0h rather than 60m, ninety seconds reads 1m rather than 2m, and a negative idle from a backward clock step is clamped to zero. MAX_CARRY_BYTES is larger than any producer's read size so a sequence spanning several pty reads still carries, with the residual over-ceiling divergence stated in the invariant rather than denied by it. TextSanitizer strips the CSI forms ScreenRenderer already understood, so colon-form truecolour SGR and DECSCUSR no longer survive into clean_output, --grep and last_line. Every new test fails when its arm is reverted."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

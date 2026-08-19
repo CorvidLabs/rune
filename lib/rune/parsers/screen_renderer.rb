@@ -119,11 +119,32 @@ module Rune
       INCOMPLETE = %r{\A(?:\[[0-9:;<=>?]*[ -/]*|\][^\a\e]*\e?|[PX^_][^\e]*\e?|[()*+#% ])\z}
       # How much of an unterminated escape an instance will hold for the next
       # chunk. OSC and DCS run until their terminator, so a stream that opens one
-      # and never closes it would otherwise buffer without bound. Past this the
-      # carry is dropped, which is what a one-shot render does with the same
-      # bytes, so the ceiling degrades to the old behaviour rather than to
-      # corruption.
-      MAX_CARRY_BYTES = 4096
+      # and never closes it would otherwise buffer without bound.
+      #
+      # **Past this the carry is dropped and the sequence's payload is printed
+      # onto the grid**, which is worse than a one-shot render of the same
+      # bytes: one-shot consumes a complete 12KB OSC correctly and shows
+      # nothing, because it never has to hold anything across a boundary. An
+      # earlier version of this comment claimed the ceiling "degrades to what a
+      # one-shot render does", and that is measurably false — a terminated
+      # `\e]52;c;<12KB base64>\a` split at 4096 rendered 11 bytes one-shot and
+      # 1935 bytes of base64 retained.
+      #
+      # So the ceiling is chosen to be far larger than any producer's read size
+      # rather than equal to it. It was 4096, exactly `Supervisor::READ_CHUNK`,
+      # which meant a sequence that did not complete within a single pty read
+      # could never be carried at all — measured, a 8205-byte sequence survived
+      # 0 of 14 start offsets. At 64KB a sequence spanning sixteen reads still
+      # completes, and the memory an instance can hold is still bounded.
+      #
+      # It does not *close* the hole: OSC 52 clipboard payloads and iTerm2's
+      # `OSC 1337` inline images are unbounded, so no finite ceiling can. The
+      # alternative — discarding until the terminator instead of resetting to
+      # ground — was rejected because it loses the case this renderer actually
+      # serves today: `tail` hands it a window that regularly begins inside an
+      # unterminated sequence whose terminator is off the front, and a discard
+      # state would swallow the rest of the screen rather than a few KB.
+      MAX_CARRY_BYTES = 64 * 1024
       # CSI final byte to the operation it performs. A table rather than a case
       # so that adding a sequence is a line, not a branch.
       # Control byte to the operation it performs, a table for the same reason

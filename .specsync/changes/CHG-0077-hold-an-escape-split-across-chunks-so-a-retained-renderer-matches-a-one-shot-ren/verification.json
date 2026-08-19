@@ -1,9 +1,9 @@
 {
-  "timestamp": 1787146348,
-  "commit": "f2c687b6d9181e5c29f2ce8b0707186d75b7f4c0",
+  "timestamp": 1787171353,
+  "commit": "a95f912fde324b737bdcba2496d530b753e5204f",
   "contract_digest": "5963ffedc1f317ed61c6a38ba0bc4ae8a11cbe48d6486b89cfa564678f79526f",
-  "workspace_digest": "832ec653139a3ff559bbda44acf7f08e8d6a0c74027385a83f03623bb2b065c5",
-  "acceptance_input_digest": "2c6bfd508583908831a4ed186567b6e363080f87b5fe083754c71648e7de8489",
+  "workspace_digest": "f712d00ec10a7e4f8c0ce5f866abc3a85c5fc98d92cf6e65eb1bc79360ed6203",
+  "acceptance_input_digest": "32efdbf9d7849c4bc61bb53a255805d8ed88a33df8bbc33a1d243969cc08145a",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": "lib/rune/parsers/screen_renderer.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "0ffc7c7880bac24317ef6a66120e40c2c899ff8b4ee2ed917161ef0a1d2c3841",
-        "entry_digest": "19d470abbfd09807e090a30dfccd065da3efec70ce2e874baf5cefda5655aa4b",
+        "payload_digest": "3ce233d66687c67ef4d5a77cf7b53221f89607fa20fefd7bb9a3327e6049dc8e",
+        "entry_digest": "2f9dadb8d01e3c37f6ca4e3aba55568e5eb0c17d8b66d9fc82ec39d745a77810",
         "owners": [
           "parsers"
         ]
@@ -31,8 +31,8 @@
         "path": "spec/rune/parsers/screen_renderer_spec.rb",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "eb304792ec0b2d2f489c86d7dce626aeed16f59e91bab8916aa083395adeb7b5",
-        "entry_digest": "95115a239da54b6fa7d4643c8e9cab9355443986a54c4a0ebbc3d9f85ee14dfa",
+        "payload_digest": "8b7568af7782f42d813205445facccf21c2279497b088f1e77569372ec0532ff",
+        "entry_digest": "9025b2c973fb50f80f142a35bd37bf8bc06114ef3d9cc4c75afb76f839adce94",
         "owners": [
           "@exact:delivery"
         ]
@@ -41,8 +41,8 @@
         "path": "specs/parsers/parsers.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "0a90b6e10451f9608612efe7ddc3ae12b991c1f6fef148e167eb9faf18fdb491",
-        "entry_digest": "38a70c69b806eaace44ba33474b8a5cbb758a68ea764430dd0814ad7c7122224",
+        "payload_digest": "c794c7df97e9abc646cb8faea793a9336ae9d266737c50edca9391fe9950b2e7",
+        "entry_digest": "d76293f4a386a9d60845df3fd8b16e9321eac673e7ad6a9ec0beaa0169aed1cd",
         "owners": [
           "parsers"
         ]

@@ -1,6 +1,6 @@
 ---
 module: parsers
-version: 17
+version: 19
 status: active
 files:
   - lib/rune/parsers/table_parser.rb
@@ -165,18 +165,40 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
    a hang rather than a wrong answer.
 11. `ScreenRenderer.render` returns an empty string for nil or empty input, tolerates invalid
     UTF-8, and bounds work by rendering only the tail of a long transcript.
-11a. A `ScreenRenderer` **instance** renders the same screen however the stream is chunked. The grid
-    was always retained across `render` calls but the parser was not: a `StringScanner` built fresh
-    per call could not see that the previous chunk ended mid-sequence, so the remainder failed to
-    match CSI, fell through to `PRINTABLE` and was written onto the grid as literal text. Feeding a
-    stream one byte at a time put every escape byte of it on screen. An unterminated sequence is
-    therefore held for the next chunk, as a real terminal holds it in its parser, bounded by
-    `MAX_CARRY_BYTES` so an unclosed OSC cannot buffer without limit; past that ceiling the bytes
-    are dropped, which is what a one-shot render already did with them. This is the property a
-    retained per-session `Screen` depends on, and it is worth ~10x per tick against re-rendering a
-    growing prefix — measured 1034ms/tick against 100ms/tick over 20 frames of a 40x120 TUI repaint.
-    That does not by itself make per-tick screen matching affordable: 100ms/tick is still above
-    `POLL_INTERVAL`, and `Screen#heal` running per glyph is the remaining cost.
+11a. A `ScreenRenderer` **instance** renders the same screen however the stream is chunked, for any
+    sequence that fits within `MAX_CARRY_BYTES`. The grid was always retained across `render` calls
+    but the parser was not: a `StringScanner` built fresh per call could not see that the previous
+    chunk ended mid-sequence, so the remainder failed to match CSI, fell through to `PRINTABLE` and
+    was written onto the grid as literal text. Feeding a stream one byte at a time put every escape
+    byte of it on screen. An unterminated sequence is therefore held for the next chunk, as a real
+    terminal holds it in its parser.
+
+    **The ceiling is a real limit, not a formality, and it fails worse than a one-shot render
+    rather than the same way.** Past it the carry is dropped and the sequence's payload is printed
+    onto the grid; a one-shot render of the same bytes shows nothing, because it never has to hold
+    anything across a boundary. Measured: a terminated `\e]52;c;<12KB base64>\a` split at 4096
+    rendered 11 bytes one-shot and 1935 bytes of base64 retained. An earlier version of this
+    invariant claimed the ceiling "degrades to what a one-shot render already did", which is false
+    in both directions and is recorded here because it was published before it was checked.
+
+    The ceiling is therefore set far above any producer's read size rather than equal to it. At
+    4096 it was exactly `Session::Supervisor::READ_CHUNK`, so a sequence that did not complete
+    inside one pty read could never be carried — an 8205-byte sequence survived 0 of 14 start
+    offsets. At 64KB a sequence spanning sixteen reads completes, and a hostile stream that opens
+    an OSC and never closes it still holds no more than the ceiling. It does not close the hole:
+    OSC 52 clipboard payloads and iTerm2 `OSC 1337` inline images are unbounded, so no finite
+    ceiling can. Discarding until the terminator instead of resetting to ground was rejected — it
+    loses the case actually served today, where `tail` hands the renderer a window beginning inside
+    a sequence whose terminator is off the front, and a discard state would swallow the rest of the
+    screen rather than a few KB.
+
+    This is the property a retained per-session `Screen` depends on, and it is worth ~10x per tick
+    against re-rendering a growing prefix — measured 1034ms/tick against 100ms/tick over 20 frames
+    of a 40x120 TUI repaint. That does not by itself make per-tick screen matching affordable:
+    100ms/tick is still above `POLL_INTERVAL`, and `Screen#heal` running per glyph is the remaining
+    cost. The instance path also assumes **decoded** input: it carries escape bytes only, so a
+    multi-byte character split across chunks is scrubbed to replacement characters on both sides.
+    Every producer already reads through `UTF8StreamDecoder`, which is what makes that safe.
 11b. The ST terminator of an OSC or DCS is two bytes, and a buffer ending between them leaves a body
     that `[^\a\e]*` cannot cover. Such a sequence must still read as incomplete; before this it read
     as complete-but-unrecognised and its body was printed, so a transcript ending mid-ST rendered
@@ -317,3 +339,4 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | 2026-08-18 | CHG-0071-make-a-failed-launch-loud-name-the-project-a-session-is-in-and-fix-two-multiby: Make a failed launch loud, name the project a session is in, and fix two multibyte defects |
 | 2026-08-19 | CHG-0077-hold-an-escape-split-across-chunks-so-a-retained-renderer-matches-a-one-shot-ren: Hold an escape split across chunks so a retained renderer matches a one-shot render |
 | 2026-08-19 | CHG-0077-hold-an-escape-split-across-chunks-so-a-retained-renderer-matches-a-one-shot-ren: Hold an escape split across chunks so a retained renderer matches a one-shot render |
+| 2026-08-19 | CHG-0079-fix-what-the-1-0-readiness-review-found-a-socket-request-could-kill-a-child-re: Fix what the 1.0 readiness review found: a socket request could kill a child, read reported dead sessions as running, and two parsers disagreed about what an escape is |

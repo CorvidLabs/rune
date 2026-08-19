@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 78,
-  "id": "CHG-0078-report-what-a-session-is-actually-doing-a-real-127-is-not-a-failed-exec-and-36",
+  "sequence": 79,
+  "id": "CHG-0079-fix-what-the-1-0-readiness-review-found-a-socket-request-could-kill-a-child-re",
   "acknowledged_collisions": []
 }

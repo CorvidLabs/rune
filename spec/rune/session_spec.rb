@@ -178,6 +178,46 @@ RSpec.describe Rune::Commands::SessionCommand do
     end
   end
 
+  # `JSON.parse` accepts any JSON *value*, not only an object, so `null`, `123`,
+  # `true`, `"x"` and `[1,2,3]` all parsed and then raised on `request[:op]` —
+  # TypeError for the Integer, NoMethodError for the rest, neither caught. That
+  # unwound the event loop and SIGKILLed a healthy child. Measured 5/5 before
+  # the fix, while `{"op":123}` and unparseable text were answered correctly,
+  # so it was specifically the non-object case. Reachable only from the
+  # non-Ruby socket client the protocol exists to serve: rune's own client
+  # always sends a Hash.
+  describe 'a socket request that is valid JSON but not an object' do
+    ['null', '123', 'true', '"hello"', '[1,2,3]'].each do |payload|
+      it "answers #{payload} with an error instead of dying" do
+        start_session("j#{payload.gsub(/\W/, '')}", %w[cat])
+        socket = store.socket_path("j#{payload.gsub(/\W/, '')}")
+
+        # `with_bindable_path` because a tmpdir socket path exceeds the 104-byte
+        # sockaddr limit, which is why `Session::Client` goes through it too.
+        reply = Rune::Session::Store.with_bindable_path(socket) do |connectable|
+          UNIXSocket.open(connectable) do |connection|
+            connection.puts(payload)
+            JSON.parse(connection.gets.to_s, symbolize_names: true)
+          end
+        end
+
+        expect(reply[:error]).to eq('malformed request')
+      end
+    end
+
+    # The point of the invariant is the child, not the reply.
+    it 'leaves the child alive and the session still usable' do
+      start_session('jalive', %w[cat])
+      Rune::Session::Store.with_bindable_path(store.socket_path('jalive')) do |connectable|
+        UNIXSocket.open(connectable) { |connection| connection.puts('null') }
+      end
+
+      expect(session('list').data[:sessions].first[:state]).to eq('running')
+      expect(session('send', '--name=jalive', '--settle-ms=300', '--timeout-ms=8000', '--', 'ping'))
+        .to be_success
+    end
+  end
+
   describe 'saying what happened' do
     it 'reports the project a session registered in' do
       result = start_session('proj', %w[cat])
@@ -198,6 +238,55 @@ RSpec.describe Rune::Commands::SessionCommand do
 
       expect(result.data[:state]).to eq('exited')
       expect(result.data[:exit_code]).to eq(7)
+    end
+
+    # The test above covers a child that exits while its supervisor survives to
+    # record it. The supervisor dying is the case that was wrong: it never gets
+    # to update meta.json, so the recorded state stays "running" forever.
+    # `list` recomputes from process liveness and said `dead`; `read` returned
+    # the recorded claim and said `running`, with a real cursor and
+    # `status: ok`, indefinitely. The guide recommends polling `read` for a
+    # readiness marker, so that loop waited on a session that was already gone.
+    it 'recomputes liveness on a read when the supervisor was killed outright' do
+      start_session('orphan', %w[cat])
+      supervisor = session('list').data[:sessions].first[:supervisor_pid]
+
+      Process.kill('KILL', supervisor)
+      wait_until(reason: 'the supervisor to be reaped') do
+        session('list').data[:sessions].first[:state] == 'dead'
+      end
+
+      expect(session('read', '--name=orphan').data[:state]).to eq('dead')
+    end
+
+    # "dead" is reserved for a supervisor that vanished without recording why.
+    # Collapsing a deliberate stop or a clean exit into it would trade one wrong
+    # answer for a more alarming one.
+    it 'still distinguishes a child that exited from a supervisor that vanished' do
+      start_session('quick', ['sh', '-c', 'exit 7'])
+      wait_until(reason: 'the child to exit') { session('list').data[:sessions].first[:state] == 'exited' }
+
+      result = session('read', '--name=quick')
+
+      expect(result.data[:state]).to eq('exited')
+      expect(result.data[:exit_code]).to eq(7)
+    end
+
+    # `nil.inspect` put Ruby's spelling of "we do not know" in front of a user,
+    # inside a sentence that also contradicted itself: `is not running (state
+    # running, exit code nil)`.
+    it 'refuses a send to a dead session without contradicting itself' do
+      start_session('gone', %w[cat])
+      Process.kill('KILL', session('list').data[:sessions].first[:supervisor_pid])
+      wait_until(reason: 'the supervisor to be reaped') do
+        session('list').data[:sessions].first[:state] == 'dead'
+      end
+
+      error = session('send', '--name=gone', '--settle-ms=300', '--timeout-ms=5000', '--', 'probe').error
+
+      expect(error).to include('is not running').and include('dead')
+      expect(error).not_to include('state running')
+      expect(error).not_to include('nil')
     end
 
     it 'returns a cursor from --no-wait, so fire-and-poll is one call' do
@@ -980,9 +1069,51 @@ RSpec.describe Rune::Commands::SessionCommand do
       it 'switches to hours and days rather than printing thousands of minutes' do
         expect(suffix(45_000)).to include('idle 45s')
         expect(suffix(300_000)).to include('idle 5m')
-        expect(suffix(5_400_000)).to include('idle 1.5h')
-        expect(suffix(130_293_976)).to include('idle 36.2h')
-        expect(suffix(400_000_000)).to include('idle 4.6d')
+        expect(suffix(3_600_000)).to include('idle 1.0h')
+        expect(suffix(86_400_000)).to include('idle 1.0d')
+        expect(suffix(130_293_976)).to include('idle 1.5d')
+      end
+
+      # Each unit hands over where the next reads naturally. An hour printed as
+      # `60m` and days were unreachable below 48h, so the motivating incident —
+      # 36 hours on an approval prompt — still rendered in hours.
+      it 'hands over between units at the point each stops reading naturally' do
+        expect(suffix(3_599_000)).to include('idle 59m')
+        expect(suffix(3_600_000)).to include('idle 1.0h')
+        expect(suffix(86_399_000)).to include('idle 24.0h')
+        expect(suffix(86_400_000)).to include('idle 1.0d')
+      end
+
+      # Rounding overstated at the handover: 90s printed as `2m`, and `1m` was
+      # unreachable.
+      it 'floors rather than rounding, so a minute is a minute' do
+        expect(suffix(90_000)).to include('idle 1m')
+        expect(suffix(149_000)).to include('idle 2m')
+      end
+
+      # The colour and the label have to change at the same instant. While the
+      # threshold was compared against raw seconds and the label was rounded,
+      # `idle 15m` rendered dim at 870s and yellow at 900s — one running session
+      # highlighted and an identically-labelled one not, with nothing on screen
+      # to explain it.
+      it 'never renders one label in both colours' do
+        by_label = Hash.new { |hash, key| hash[key] = [] }
+        (0..3000).each do |second|
+          rendered = suffix(second * 1000)
+          by_label[rendered[/idle [^\e]*/].strip] << rendered.include?("\e[33m")
+        end
+
+        # `.size == 1`, not `.one?` — `Array#one?` counts *truthy* elements, so
+        # `[false].one?` is false and every all-dim label read as a straddle.
+        expect(by_label.reject { |_, colours| colours.uniq.size == 1 }).to be_empty
+      end
+
+      # A clock stepping backwards (NTP, a resumed VM, a RUNE_HOME shared
+      # between hosts) yields a negative idle. `idle -86400s` is a worse answer
+      # than `idle 0s`.
+      it 'clamps a negative idle rather than printing it' do
+        expect(suffix(-999)).to include('idle 0s')
+        expect(suffix(-86_400_000)).to include('idle 0s')
       end
 
       # Grey is the colour of "nothing to see here", which is the wrong thing to

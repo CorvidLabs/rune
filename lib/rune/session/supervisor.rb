@@ -664,6 +664,19 @@ module Rune
         return safe_close(client) if line.nil?
 
         request = JSON.parse(line, symbolize_names: true)
+        # `JSON.parse` accepts any JSON *value*, not just an object. `null`,
+        # `123`, `true`, `"x"` and `[1,2,3]` all parse, and `request[:op]` then
+        # raises TypeError on the Integer and NoMethodError on the rest —
+        # neither of which the rescues below catch. It unwound the event loop
+        # into `run`'s StandardError rescue, which crashed the supervisor and
+        # SIGKILLed a perfectly healthy child. Measured: 5/5 such payloads
+        # killed the child, while `{"op":123}` and unparseable text were both
+        # answered correctly. Invariant 28 says a control client can never take
+        # the session down with it, and this was the hole in it — reachable
+        # only from the non-Ruby socket client the protocol exists to support,
+        # since rune's own client always sends a Hash.
+        return respond(client, error: 'malformed request') unless request.is_a?(Hash)
+
         dispatch(request, client, writer)
       rescue JSON::ParserError
         respond(client, error: 'malformed request')

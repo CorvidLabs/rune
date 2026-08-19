@@ -440,9 +440,32 @@ module Rune
       # from real use by someone who read `settled: true, matched: nil` at 1198ms
       # against a 30s settle window and started drafting a bug that --settle-ms
       # was being ignored — the child had died. Presentation gap, not a data gap.
+      # The state a `send`/`read` reply carries. Recomputed from real process
+      # liveness, never the recorded claim.
+      #
+      # It used to return `meta[:state]` as-is, which `describe` already had a
+      # comment forbidding: a supervisor killed with SIGKILL never updates
+      # meta.json, so a recorded "running" is routinely stale. Measured — with
+      # the supervisor SIGKILLed, `list` said `dead` while `read` said
+      # `running`, with a real cursor and `status: ok`, indefinitely. The field
+      # exists so a naive loop cannot drive a corpse seeing plausible replies,
+      # and for the supervisor-death case it was doing the opposite; the guide
+      # recommends polling `read` for a readiness marker, so that loop waited
+      # forever on a session that was already gone.
       def liveness(name)
         meta = store.read_meta(name) || {}
-        { state: meta[:state], exit_code: meta[:exit_code] }.compact
+        { state: resolved_state(meta), exit_code: meta[:exit_code] }.compact
+      end
+
+      # "dead" is reserved for a supervisor that vanished without recording why.
+      # A session that exited on its own or was stopped deliberately reports
+      # that instead, so the two stay distinguishable rather than collapsing
+      # into one alarming word.
+      def resolved_state(meta)
+        return 'running' if Session::Store.alive?(meta[:supervisor_pid])
+        return meta[:state] if %w[exited stopped].include?(meta[:state])
+
+        meta[:state] && 'dead'
       end
 
       def validate_regex(source)
@@ -527,8 +550,14 @@ module Rune
         return Result.failure(no_such_session(name)) unless meta
         return nil if Session::Store.alive?(meta[:supervisor_pid])
 
-        Result.failure("Session #{name.inspect} is not running (state #{meta[:state]}, " \
-                       "exit code #{meta[:exit_code].inspect}).")
+        # The resolved state, not the recorded one: reaching here means the
+        # supervisor is gone, so a recorded "running" would make the sentence
+        # contradict itself — `is not running (state running, exit code nil)`.
+        # And an absent exit code is said in words, because `nil.inspect` put
+        # Ruby's spelling of "we do not know" in front of a user.
+        state = resolved_state(meta) || 'unknown'
+        code = meta[:exit_code] ? ", exit code #{meta[:exit_code]}" : ' and recorded no exit code'
+        Result.failure("Session #{name.inspect} is not running (state #{state}#{code}).")
       end
 
       # ---- read
@@ -1295,10 +1324,25 @@ module Rune
         "  \e[#{colour}midle #{humanize_idle(seconds)}\e[0m"
       end
 
+      # Floor rather than round, and each unit hands over where the next one
+      # reads naturally: an hour is `1.0h`, not `60m`, and a day is `1.0d`.
+      #
+      # Rounding straddled its own boundaries. `.round` on minutes printed the
+      # same `idle 15m` for 870s and 900s while only the second was past the
+      # stale threshold, so one running session was highlighted and an
+      # identically-labelled one was not, with nothing on screen to explain the
+      # difference — the exact legibility this is for. Flooring makes the label
+      # change at the same instant the colour does. It also stopped 90s
+      # rendering as `2m`, a 33% overstatement that made `1m` unreachable.
+      #
+      # Clamped at zero because a clock stepping backwards (NTP, a resumed VM,
+      # a RUNE_HOME shared between hosts) yields a negative idle, and
+      # `idle -86400s` is a worse answer than `idle 0s`.
       def humanize_idle(seconds)
+        seconds = 0 if seconds.negative?
         return "#{seconds}s" if seconds < 90
-        return "#{(seconds / 60.0).round}m" if seconds < 90 * 60
-        return "#{(seconds / 3600.0).round(1)}h" if seconds < 48 * 3600
+        return "#{seconds / 60}m" if seconds < 3600
+        return "#{(seconds / 3600.0).round(1)}h" if seconds < 86_400
 
         "#{(seconds / 86_400.0).round(1)}d"
       end

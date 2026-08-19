@@ -660,6 +660,39 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
       expect(carry.bytesize).to be <= described_class::MAX_CARRY_BYTES
     end
 
+    # The test above only proves memory is bounded, using a sequence whose
+    # terminator never arrives — the one case where dropping is harmless. The
+    # sequence that *does* complete, one chunk late, is where the corruption is,
+    # and that is what these two pin.
+    #
+    # A ceiling equal to the producer's read size meant nothing spanning more
+    # than one read could ever be carried: at 4096, exactly READ_CHUNK, an
+    # 8205-byte sequence survived 0 of 14 start offsets.
+    it 'carries a sequence that spans many reads of the size a supervisor uses' do
+      read_chunk = Rune::Session::Supervisor::READ_CHUNK
+      stream = "before\e]52;c;#{'Q' * (read_chunk * 8)}\aafter"
+      chunks = (0...stream.bytesize).step(read_chunk).map { |at| stream.byteslice(at, read_chunk) }
+
+      renderer = described_class.new(rows: 24, columns: 80)
+
+      expect(chunks.map { |chunk| renderer.render(chunk) }.last)
+        .to eq(described_class.render(stream, rows: 24, columns: 80))
+    end
+
+    # Recorded rather than hidden: past the ceiling the payload IS printed, and
+    # a one-shot render of the same bytes is not merely different but correct.
+    # No finite ceiling closes this, so the honest thing is a test that says so.
+    it 'prints the payload of a sequence too large to carry, unlike a one-shot render' do
+      oversized = "before\e]52;c;#{'Q' * (described_class::MAX_CARRY_BYTES * 2)}\aafter"
+      chunks = (0...oversized.bytesize).step(4096).map { |at| oversized.byteslice(at, 4096) }
+
+      renderer = described_class.new(rows: 24, columns: 80)
+      retained = chunks.map { |chunk| renderer.render(chunk) }.last
+
+      expect(described_class.render(oversized, rows: 24, columns: 80)).to eq('beforeafter')
+      expect(retained).to include('Q')
+    end
+
     # One-shot rendering builds an instance, renders once and reads the grid, so
     # a trailing partial escape lands in the carry unused rather than being
     # discarded. The visible result must not move.
