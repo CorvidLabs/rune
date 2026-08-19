@@ -303,23 +303,23 @@ TABLE
 ```
 
 ويقبل `TableParser.parse` كلمة مفتاحية `format:` (قيمتها `:auto` افتراضياً، أو `:pipe`/`:space`
-لفرض وضع تحليل بعينه) — وانظر [`specs/parsers/parsers.spec.md`](../specs/parsers/parsers.spec.md)
+لفرض وضع تحليل بعينه) — وانظر [`specs/parsers/parsers.spec.md`](../../specs/parsers/parsers.spec.md)
 للاطلاع على القيود المعروفة في الاستدلال قبل الاعتماد على `:auto` مع مخرجات غير مألوفة.
 
 ## الخطوات التالية
 
-- [`examples/smoke_test.rb`](../examples/smoke_test.rb) — عبر `ruby examples/smoke_test.rb` أو
+- [`examples/smoke_test.rb`](../../examples/smoke_test.rb) — عبر `ruby examples/smoke_test.rb` أو
   `fledge run smoke-test`. جولة مستقلة قائمة على التوكيدات في السلوك الحقيقي (لا تحتاج إلى bundler
   أو rspec): أوضاع الإخراج، والتحقق من `--timeout`، والمحلّلات، و`Script`، وتمرير الإشارات، وكشف
   المُحَثّات.
-- [`examples/humans/demo_tui.rb`](../examples/humans/demo_tui.rb) — العرض التفاعلي المستعمل في كل
-  قسم `rune watch` أعلاه. أما [`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb)
-  و[`table_parser_example.rb`](../examples/agents/table_parser_example.rb)
-  و[`script_automation_example.rb`](../examples/agents/script_automation_example.rb) فبرامج أصغر
+- [`examples/humans/demo_tui.rb`](../../examples/humans/demo_tui.rb) — العرض التفاعلي المستعمل في كل
+  قسم `rune watch` أعلاه. أما [`examples/agents/pty_runner_example.rb`](../../examples/agents/pty_runner_example.rb)
+  و[`table_parser_example.rb`](../../examples/agents/table_parser_example.rb)
+  و[`script_automation_example.rb`](../../examples/agents/script_automation_example.rb) فبرامج أصغر
   يعالج كلٌّ منها فكرة واحدة — وكلٌّ منها قابل للتشغيل مباشرة (`ruby examples/agents/<name>.rb`) بلا
   إعداد سوى `require_relative '../lib/rune'`.
-- [دليل معمارية PTY](pty_architecture.md) — كيف يعمل داخلياً مشغّل PTY، وقراءة التدفقات، وكشف
+- [دليل معمارية PTY](pty_architecture.ar.md) — كيف يعمل داخلياً مشغّل PTY، وقراءة التدفقات، وكشف
   المُحَثّات، والتمرير الحي في `rune watch`.
-- [`specs/`](../specs/) — عقود الوحدات المفحوصة آلياً (`spec-sync`) لـ `cli` و`parsers`
+- [`specs/`](../../specs/) — عقود الوحدات المفحوصة آلياً (`spec-sync`) لـ `cli` و`parsers`
   و`pty_runner` و`session` و`watch`.
-- [`AGENTS.md`](../AGENTS.md) — الأعراف المتّبعة في إضافة أوامر جديدة والعمل مع سلسلة أدوات الثقة.
+- [`AGENTS.md`](../../AGENTS.md) — الأعراف المتّبعة في إضافة أوامر جديدة والعمل مع سلسلة أدوات الثقة.

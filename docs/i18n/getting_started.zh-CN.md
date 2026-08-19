@@ -301,22 +301,22 @@ TABLE
 
 `TableParser.parse` 接受一个 `format:` 关键字参数（默认为 `:auto`，也可用 `:pipe`/`:space`
 强制指定解析模式）—— 在对不熟悉的输出依赖 `:auto` 之前，请先查阅
-[`specs/parsers/parsers.spec.md`](../specs/parsers/parsers.spec.md) 中关于该启发式方法已
+[`specs/parsers/parsers.spec.md`](../../specs/parsers/parsers.spec.md) 中关于该启发式方法已
 知局限的说明。
 
 ## 下一步
 
-- [`examples/smoke_test.rb`](../examples/smoke_test.rb) —— 运行 `ruby examples/smoke_test.rb`
+- [`examples/smoke_test.rb`](../../examples/smoke_test.rb) —— 运行 `ruby examples/smoke_test.rb`
   或 `fledge run smoke-test`。一场独立的、基于断言的真实行为之旅（无需 bundler/rspec）：
   输出模式、`--timeout` 校验、解析器、`Script`、信号转发、提示符检测。
-- [`examples/humans/demo_tui.rb`](../examples/humans/demo_tui.rb) —— 上文 `rune watch`
-  一节贯穿使用的交互式演示程序。[`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb)、
-  [`table_parser_example.rb`](../examples/agents/table_parser_example.rb) 和
-  [`script_automation_example.rb`](../examples/agents/script_automation_example.rb) 是更小
+- [`examples/humans/demo_tui.rb`](../../examples/humans/demo_tui.rb) —— 上文 `rune watch`
+  一节贯穿使用的交互式演示程序。[`examples/agents/pty_runner_example.rb`](../../examples/agents/pty_runner_example.rb)、
+  [`table_parser_example.rb`](../../examples/agents/table_parser_example.rb) 和
+  [`script_automation_example.rb`](../../examples/agents/script_automation_example.rb) 是更小
   的单一概念脚本 —— 每个都可以直接运行（`ruby examples/agents/<name>.rb`），除了
   `require_relative '../lib/rune'` 之外无需任何准备。
-- [PTY 架构指南](pty_architecture.md) —— PTY 运行器、流读取、提示符检测以及
+- [PTY 架构指南](pty_architecture.zh-CN.md) —— PTY 运行器、流读取、提示符检测以及
   `rune watch` 实时透传的内部工作原理。
-- [`specs/`](../specs/) —— `cli`、`parsers`、`pty_runner`、`session`、`watch` 各模块的
+- [`specs/`](../../specs/) —— `cli`、`parsers`、`pty_runner`、`session`、`watch` 各模块的
   机器校验契约（`spec-sync`）。
-- [`AGENTS.md`](../AGENTS.md) —— 添加新命令以及配合信任工具链工作的约定。
+- [`AGENTS.md`](../../AGENTS.md) —— 添加新命令以及配合信任工具链工作的约定。

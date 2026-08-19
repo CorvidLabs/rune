@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1787110892,
+      "commit": "ebaec04c478ab3eba17752fa69962f1e6add5049",
+      "contract_digest": "5103fb6ccc408994d49d8044b095b112f26b0d5dc1e52192c7477795c55ac237",
+      "workspace_digest": "5bf90689cafba76269c2f28c56acf124f2ac52939ea6f6b44c6ebe2728fe2429",
+      "passed": true,
+      "commands": [
+        {
+          "command": "fledge run version-check",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run lint",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run smoke-test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

@@ -2,10 +2,6 @@
 
 # Sessions persistantes (`rune session`)
 
-**Traductions :** [Português (BR)](i18n/sessions.pt-BR.md)
-
-Chacune est une traduction de ce fichier, qui fait autorité en cas de divergence.
-
 `rune run` lance une commande, met tout en mémoire tampon et rend la main une seule fois.
 `rune watch` diffuse une session en direct, mais exige un véritable terminal humain sur stdin.
 Aucun des deux ne peut garder ouvert un processus fils de type REPL entre des appels `rune`

@@ -18,7 +18,7 @@ pendant que l'humain pilote la session. Même outil, mêmes commandes, double in
 ouvert entre des invocations distinctes, de sorte qu'un agent peut en piloter un autre de manière
 conversationnelle et qu'un humain peut se rattacher à la même session pour prendre le relais.
 
-📖 Nouveau ici ? Commencez par le **[guide de prise en main](docs/getting_started.md)**.
+📖 Nouveau ici ? Commencez par le **[guide de prise en main](getting_started.fr.md)**.
 
 ---
 
@@ -255,7 +255,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ```
 
 📖 Guide complet, y compris le réglage de la stabilisation et les limitations connues :
-**[docs/sessions.md](docs/sessions.md)**.
+**[sessions.fr.md](sessions.fr.md)**.
 
 ---
 
@@ -275,10 +275,10 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 
 ## Architecture et mécanismes internes
 
-- 📖 **[Guide de prise en main](docs/getting_started.md)** — Modes de sortie, utilisation de `rune run`, délais d'expiration et analyseurs avec des sorties de commandes réelles.
-- 📖 **[Guide des sessions persistantes](docs/sessions.md)** — `rune session` : sessions PTY nommées qui survivent à une invocation unique, et envoi-et-stabilisation pour piloter un CLI d'agent depuis un autre.
-- 📖 **[Guide d'architecture du pseudo-TTY (PTY)](docs/pty_architecture.md)** — Comment fonctionnent en coulisses, en Ruby, les pseudo-terminaux, la lecture non bloquante des flux, l'assainissement ANSI, la détection d'invites, l'exécution de scripts et le passthrough bidirectionnel en direct de `rune watch`.
-- 📖 **[Guide de publication](docs/releasing.md)** — Synchronisation des versions, vérification, provenance, étiquetage et publication des paquets.
+- 📖 **[Guide de prise en main](getting_started.fr.md)** — Modes de sortie, utilisation de `rune run`, délais d'expiration et analyseurs avec des sorties de commandes réelles.
+- 📖 **[Guide des sessions persistantes](sessions.fr.md)** — `rune session` : sessions PTY nommées qui survivent à une invocation unique, et envoi-et-stabilisation pour piloter un CLI d'agent depuis un autre.
+- 📖 **[Guide d'architecture du pseudo-TTY (PTY)](pty_architecture.fr.md)** — Comment fonctionnent en coulisses, en Ruby, les pseudo-terminaux, la lecture non bloquante des flux, l'assainissement ANSI, la détection d'invites, l'exécution de scripts et le passthrough bidirectionnel en direct de `rune watch`.
+- 📖 **[Guide de publication](../releasing.md)** — Synchronisation des versions, vérification, provenance, étiquetage et publication des paquets.
 
 ---
 

@@ -14,7 +14,7 @@
 
 `rune session` इससे एक कदम आगे जाता है: यह किसी एजेंट CLI — `claude`, `grok`, `codex` — को अलग-अलग इनवोकेशनों के बीच खुला रखता है, जिससे एक एजेंट दूसरे को संवादात्मक ढंग से चला सकता है और कोई व्यक्ति उसी सत्र से जुड़कर नियंत्रण अपने हाथ में ले सकता है।
 
-📖 यहाँ नए हैं? **[Getting Started guide](docs/getting_started.md)** से शुरुआत करें।
+📖 यहाँ नए हैं? **[Getting Started guide](getting_started.hi.md)** से शुरुआत करें।
 
 ---
 
@@ -253,7 +253,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ```
 
 📖 पूरी मार्गदर्शिका, जिसमें settle ट्यूनिंग और ज्ञात सीमाएँ भी शामिल हैं:
-**[docs/sessions.md](docs/sessions.md)**.
+**[sessions.hi.md](sessions.hi.md)**.
 
 ---
 
@@ -273,10 +273,10 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 
 ## आर्किटेक्चर और आंतरिक कार्यप्रणाली
 
-- 📖 **[Getting Started guide](docs/getting_started.md)** — आउटपुट मोड, `rune run` का उपयोग, टाइमआउट, और वास्तविक कमांड आउटपुट के साथ पार्सर।
-- 📖 **[Persistent sessions guide](docs/sessions.md)** — `rune session`: नामित PTY सत्र जो एक अकेली इनवोकेशन से आगे तक जीवित रहते हैं, और एक एजेंट CLI से दूसरे को चलाने के लिए सेंड-एंड-सेटल।
-- 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — छद्म-टर्मिनल, नॉन-ब्लॉकिंग स्ट्रीम पठन, ANSI स्वच्छता, प्रॉम्प्ट पहचान, स्क्रिप्ट निष्पादन, और `rune watch` का लाइव द्विदिश पासथ्रू — ये सब Ruby में परदे के पीछे कैसे काम करते हैं।
-- 📖 **[Release guide](docs/releasing.md)** — संस्करण समकालन, सत्यापन, उद्गम-प्रमाण, टैगिंग, और पैकेज प्रकाशन।
+- 📖 **[Getting Started guide](getting_started.hi.md)** — आउटपुट मोड, `rune run` का उपयोग, टाइमआउट, और वास्तविक कमांड आउटपुट के साथ पार्सर।
+- 📖 **[Persistent sessions guide](sessions.hi.md)** — `rune session`: नामित PTY सत्र जो एक अकेली इनवोकेशन से आगे तक जीवित रहते हैं, और एक एजेंट CLI से दूसरे को चलाने के लिए सेंड-एंड-सेटल।
+- 📖 **[Pseudo-TTY (PTY) Architecture Guide](pty_architecture.hi.md)** — छद्म-टर्मिनल, नॉन-ब्लॉकिंग स्ट्रीम पठन, ANSI स्वच्छता, प्रॉम्प्ट पहचान, स्क्रिप्ट निष्पादन, और `rune watch` का लाइव द्विदिश पासथ्रू — ये सब Ruby में परदे के पीछे कैसे काम करते हैं।
+- 📖 **[Release guide](../releasing.md)** — संस्करण समकालन, सत्यापन, उद्गम-प्रमाण, टैगिंग, और पैकेज प्रकाशन।
 
 ---
 

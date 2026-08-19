@@ -1,0 +1,266 @@
+{
+  "timestamp": 1787110892,
+  "commit": "ebaec04c478ab3eba17752fa69962f1e6add5049",
+  "contract_digest": "5103fb6ccc408994d49d8044b095b112f26b0d5dc1e52192c7477795c55ac237",
+  "workspace_digest": "5bf90689cafba76269c2f28c56acf124f2ac52939ea6f6b44c6ebe2728fe2429",
+  "acceptance_input_digest": "13439f3e587ec245026b0b0d94f820f77ef56009ef1ad2c8b9567ab594f3cfbf",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "dcfbad321268ad475f19877e282e35c1a7a999376f510fc098f716d5c9975a03",
+        "entry_digest": "6ed79dbc22b5dbb085597c9eb41aae458f4c2f0d419a34e1755cc426daefa961",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/README.ar.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "54e263373fc72fb327b207fd88e89a56df97c3062ae1e42fd916504dfe13af57",
+        "entry_digest": "94db4588e74ca0a10a0ddb2ee06d034042af1d15db68e64032ce3ed19ee08026",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/README.es.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4acab643d9d854eb2f118c14028ef76b3eb211ef7fd8b17f0d2fb8626cc97368",
+        "entry_digest": "833860e5886787998f5ca71162de8c4700ae522f4de6ff56ecf4ded5a1801674",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/README.fr.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "25dfadfe1aba2b01df028e411a998877bdf5928736febe385cc21bf289add86d",
+        "entry_digest": "bb394bb21b2ee2451b8add8f57a4a95510f5fe6d80f45819d328cc7eccf84072",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/README.hi.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "97feb71b89bdcfb9b3adf49af638036b54a80aedef4fdbcf7c4cb3b10cd96690",
+        "entry_digest": "31f10df5178233cbba02953cbbded0f5726f2e3895a4315d8b554df38fa1af32",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/README.ja.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e8fe243a88f3c1b6c08efcf5dde86927c8634c1a42973d13ef6f18b14d670952",
+        "entry_digest": "b1a97b82d71551b9fca2a93a73c54e8b00c1b6056ed997b5e33c0d808c5ac89f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/README.ko.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9405d15fbfb588990ac269bfc9898531aef1c0aac7f9af114cdbf86fd7b680cb",
+        "entry_digest": "95891920193bb5980161d0ad0177a6ccaa44ec0226b5952e99b8545972e8fccb",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/README.pt-BR.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3a9ca8bce901656cb8ddf5317a4441e580b98df64d7021a8ac5e681ae7c16734",
+        "entry_digest": "542e6f66580080304ad0c5d43dda7929e0263737f1d0f75ab95fc3618cd7b746",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/README.ru.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2a1743ceecea9b8dadfc34fde4f312471913175bb9bc1d2797d55c2157f51914",
+        "entry_digest": "d35f1a82f61feb4350ac50cad6449de73c1942eb2d20c3958efa7733205311dd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/README.zh-CN.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9d3efe275b4bc5401b9dff6f1db2201fbe5926b6764cacad273447e450f84cce",
+        "entry_digest": "52149a76da10deab73b35c8006a8315b139480802d261e3027c8959dbbdef0b2",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/getting_started.ar.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8fa72b56dfcf5adfa200aadb0790bd7d2b001873fd832195075132de80ab0e20",
+        "entry_digest": "a644fe6e468bae64c2ee7e394c0ca9e134fce8da74692f2fc4c37bd88a813e47",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/getting_started.es.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2b5161d31f63c55e2ed9269f4527af18facaeb3c3c323dc0509949ec171e1e88",
+        "entry_digest": "70fce90c81c4ee1b82b4ff1eccdfdc1cf511cb0759367607c2901f02519ecc56",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/getting_started.fr.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6d2c5960b636524d016d2385d931a6eb2583a93ce4a70c7f5a688721e53ddd36",
+        "entry_digest": "ef2516da33ec18d4df8ca7ad6f83b57dd64ed35ddc1d72b6611951e8c8dcc76e",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/getting_started.hi.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "168c56d9edc2ca15e496a8ad19780bbc0b066e8a3385cefb7b236afc68502e09",
+        "entry_digest": "b1220370eb2dcaba612c4344d9f33643d91a0f02c4ba231ea1a8c5d4c3eb329d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/getting_started.ja.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "aec4afbe36583158f11d726b123ac6e970f7ccfda5aba9959595c8f3d6eb650b",
+        "entry_digest": "378a8c2c2f8cb5a21c3c631bc2a14df69c7796cc37b348b0776c013d73a30655",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/getting_started.ko.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b3ce0a02708a4ff5ae3175e0f01eefe9264629a5830602d7a9bda020b3b6010d",
+        "entry_digest": "2aaaf8e232fbefd176c92056fcefae9d2b8a7762153a9c580d1c2eeb075f33a1",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/getting_started.pt-BR.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b10f7a6bf2694f39cb2ea1996c0f5238ef629e19496b9ea2eccde97bfd9a9183",
+        "entry_digest": "d72c85c0fe0e00d4414cb93473a45923446098a381c67548530b3c65962d4b54",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/getting_started.ru.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e8245ff7a26aef415fda3e631e319d9e99765ad12cb549f22e246daf9a589bf9",
+        "entry_digest": "44140be7f9dda9d5a8c2c10743a705cf0d127a5584233084d1454f16d145b456",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/getting_started.zh-CN.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "cd001bb72dacf255d646f29a72c2342b4821b6d6030cda0da5dfd670579b3ff8",
+        "entry_digest": "54f07a15af8735aba4aed1d63019a19707c16265b1bf3f389d36a4550f658a47",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/pty_architecture.ar.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "967b5ca26b5b56e98658104ee598503c04f4d9e158731fe9069b3700cd2c3435",
+        "entry_digest": "7699b0a40b260ec5812df15d558bcf5e8b1e5396d769260f8db180ecc126e0cd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/pty_architecture.es.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ae6462a928fb17e26d5138fdef887f39cbec0808660d26308239728c748b27bb",
+        "entry_digest": "167307f29c9426dca3a68ef6edafb87e51bc96ef098403d6978c06f7699d278b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/pty_architecture.zh-CN.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1de2efd021e1ca36283dc0a32e3b20a05c3632a03fb3fa8cacc0c375905e15ee",
+        "entry_digest": "ada0c46e1fcee48f477206f1ca7c5428a240ce6acb364ec085b8b8f5bd77652c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/i18n/sessions.fr.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3708e538596d631bf0aba057e9b8fb9f8fefd9f2bda298f5a61417fcbfb4b091",
+        "entry_digest": "7a15d6b410b4ecbae96c698f1fb46cecdf39735b867e4261cacc2e9a1eb116cc",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run version-check",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run lint",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "fledge run smoke-test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

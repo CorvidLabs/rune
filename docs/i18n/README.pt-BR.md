@@ -18,7 +18,7 @@ O `rune session` vai um passo além: ele mantém uma CLI de agente — `claude`,
 entre invocações separadas, de modo que um agente possa conduzir outro conversacionalmente e uma pessoa possa se conectar
 à mesma sessão e assumir o controle.
 
-📖 Novo por aqui? Comece pelo **[guia de primeiros passos](docs/getting_started.md)**.
+📖 Novo por aqui? Comece pelo **[guia de primeiros passos](getting_started.pt-BR.md)**.
 
 ---
 
@@ -254,7 +254,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ```
 
 📖 Guia completo, incluindo o ajuste do settle e as limitações conhecidas:
-**[docs/sessions.md](docs/sessions.md)**.
+**[sessions.pt-BR.md](sessions.pt-BR.md)**.
 
 ---
 
@@ -274,10 +274,10 @@ O `rune` se integra com a [cadeia de ferramentas de confiança da CorvidLabs](ht
 
 ## Arquitetura e detalhes internos
 
-- 📖 **[Guia de primeiros passos](docs/getting_started.md)** — Modos de saída, uso do `rune run`, timeouts e parsers com saída real de comandos.
-- 📖 **[Guia de sessões persistentes](docs/sessions.md)** — `rune session`: sessões PTY nomeadas que sobrevivem a uma única invocação, e o send-and-settle para conduzir uma CLI de agente a partir de outra.
-- 📖 **[Guia de arquitetura de pseudo-TTY (PTY)](docs/pty_architecture.md)** — Como pseudo-terminais, leitura não bloqueante de fluxos, sanitização de ANSI, detecção de prompts, execução de scripts e a passagem bidirecional ao vivo do `rune watch` funcionam por baixo dos panos em Ruby.
-- 📖 **[Guia de release](docs/releasing.md)** — Sincronização de versões, verificação, procedência, tagueamento e publicação do pacote.
+- 📖 **[Guia de primeiros passos](getting_started.pt-BR.md)** — Modos de saída, uso do `rune run`, timeouts e parsers com saída real de comandos.
+- 📖 **[Guia de sessões persistentes](sessions.pt-BR.md)** — `rune session`: sessões PTY nomeadas que sobrevivem a uma única invocação, e o send-and-settle para conduzir uma CLI de agente a partir de outra.
+- 📖 **[Guia de arquitetura de pseudo-TTY (PTY)](pty_architecture.pt-BR.md)** — Como pseudo-terminais, leitura não bloqueante de fluxos, sanitização de ANSI, detecção de prompts, execução de scripts e a passagem bidirecional ao vivo do `rune watch` funcionam por baixo dos panos em Ruby.
+- 📖 **[Guia de release](../releasing.md)** — Sincronização de versões, verificação, procedência, tagueamento e publicação do pacote.
 
 ---
 

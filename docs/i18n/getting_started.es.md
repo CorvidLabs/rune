@@ -308,23 +308,23 @@ TABLE
 ```
 
 `TableParser.parse` acepta una palabra clave `format:` (`:auto` por defecto, o `:pipe`/`:space` para forzar
-un modo de análisis) — consulta [`specs/parsers/parsers.spec.md`](../specs/parsers/parsers.spec.md) para las
+un modo de análisis) — consulta [`specs/parsers/parsers.spec.md`](../../specs/parsers/parsers.spec.md) para las
 limitaciones conocidas de la heurística antes de confiar en `:auto` con una salida desconocida.
 
 ## Siguientes pasos
 
-- [`examples/smoke_test.rb`](../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` o `fledge
+- [`examples/smoke_test.rb`](../../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` o `fledge
   run smoke-test`. Un recorrido independiente, basado en aserciones, del comportamiento real (no requiere bundler/rspec):
   modos de salida, validación de `--timeout`, parsers, `Script`, reenvío de señales, detección de prompts.
-- [`examples/humans/demo_tui.rb`](../examples/humans/demo_tui.rb) — la demo interactiva usada a lo largo de la
-  sección de `rune watch` de más arriba. [`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb),
-  [`table_parser_example.rb`](../examples/agents/table_parser_example.rb) y
-  [`script_automation_example.rb`](../examples/agents/script_automation_example.rb) son scripts más pequeños,
+- [`examples/humans/demo_tui.rb`](../../examples/humans/demo_tui.rb) — la demo interactiva usada a lo largo de la
+  sección de `rune watch` de más arriba. [`examples/agents/pty_runner_example.rb`](../../examples/agents/pty_runner_example.rb),
+  [`table_parser_example.rb`](../../examples/agents/table_parser_example.rb) y
+  [`script_automation_example.rb`](../../examples/agents/script_automation_example.rb) son scripts más pequeños,
   de un solo concepto — cada uno se puede ejecutar directamente (`ruby examples/agents/<name>.rb`) sin más preparación que
   `require_relative '../lib/rune'`.
-- [Guía de arquitectura PTY](pty_architecture.md) — cómo funcionan internamente el PTY runner, la lectura de flujos, la
+- [Guía de arquitectura PTY](pty_architecture.es.md) — cómo funcionan internamente el PTY runner, la lectura de flujos, la
   detección de prompts y el paso directo en vivo de `rune watch`.
-- [`specs/`](../specs/) — contratos de módulo comprobados por máquina (`spec-sync`) para `cli`, `parsers`,
+- [`specs/`](../../specs/) — contratos de módulo comprobados por máquina (`spec-sync`) para `cli`, `parsers`,
   `pty_runner`, `session` y `watch`.
-- [`AGENTS.md`](../AGENTS.md) — convenciones para añadir comandos nuevos y trabajar con la cadena de
+- [`AGENTS.md`](../../AGENTS.md) — convenciones para añadir comandos nuevos y trabajar con la cadena de
   herramientas de confianza.
