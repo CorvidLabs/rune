@@ -26,18 +26,12 @@ or corrected documentation; nothing has been removed or changed meaning.
 
 ## What 1.0 needs
 
-1.0 is a statement that the surface is stable and the known defects are known. Two things stand in
-the way:
-
-- **The half-painted `--screen` frame.** Reported from field use, reproduced by the reporter, not
-  reproduced here. Two candidate fixes were measured and rejected — one measured *worse* than doing
-  nothing. Documented in [`docs/sessions.md`](docs/sessions.md) with a workaround. Resolving it
-  needs the reporter's full transcript, to replay the whole stream against the truncated window and
-  see which one produces the tear.
-
-  Note the roadmap previously named "locate the echo in rendered text" as the likely fix for the
-  related `--wait-for-regex` bug. That was measured and **rejected** — it scored worse than the
-  baseline and was the most expensive option tried. Condensed-text location is what worked.
+1.0 is a statement that the surface is stable and the known defects are known. Four things still
+stand in the way. The half-painted `--screen` frame is no longer one of them: it remains
+unreproduced here, two candidate fixes were measured and rejected, and it lives under
+[Known and documented](#known-and-documented-not-planned-for-10). The 0.8.0 renderer row
+(alt screen, wide characters, DEC line drawing, IRM, DECAWM) is **closed** — modes and charsets in
+CHG-0064, the cell model in #66.
 
 - **The settle path can return your own input as the answer, when the child redraws it.** This is
   the sharpest defect in rune. `--settle-ms` waits for output that is not the echo; a line editor
@@ -123,6 +117,24 @@ the way:
   return that is the flag's whole point. Neither is measured yet, and this is the item most likely to
   be got wrong in a hurry — four rules have already failed on the adjacent settle problem.
 
+  **A fifth false-positive, distinct from the composer-box row: a reprint of an earlier answer.**
+  `Echo#repaint?` vetoes a match covered by a copy of *this send's* input. It does not veto a match
+  that is a reprint of *earlier output*. A child that reprints its scrollback on every input, then
+  works, then prints a new answer, puts the previous turn's sentinel on the wire as ordinary new
+  bytes. Measured on current main (`ruby -Ilib bin/rune`), child reprints then sleeps 3s then
+  prints `DONE N`:
+
+      send1  --wait-for-regex 'DONE \d+'   3.56s  matched=true   output holds DONE 1
+      send2  --wait-for-regex 'DONE \d+'   0.56s  matched=true   output holds DONE 1 only
+
+  `DONE 2` was not in the captured output. Two candidate rules were considered and not shipped.
+  Rejecting a match whose text existed before the send loses a second `echo DONE` to a simple
+  child — the reused-exact-sentinel case with no reprint. Rejecting a match preceded by
+  cursor-home / erase loses a TUI that paints a reused sentinel with cursor motion as the real
+  new answer. Unique-per-turn sentinels work: `--wait-for-regex 'DONE 2'` waits through the
+  reprint. That is the documented answer until a retained `Screen` can tell a reprint from a new
+  occurrence. The guide no longer calls the flag deterministic.
+
 - **A retained per-session `Screen` is the fix, and it is now specified rather than hoped for.** It
   removes the render window instead of tuning it, which is what makes every constant above
   unnecessary, and it takes per-tick cost from ~262KB re-processed to the ~277 bytes that actually
@@ -169,7 +181,7 @@ rather than carried forward on the strength of the table, and seven are closed:
 | `archive` can orphan a live child | **fixed** — verified by killing the supervisor and archiving underneath it |
 | unknown flags are typed at the child | **fixed** — `--settle_ms` now returns `Did you mean --settle-ms?` |
 | `send` ignores `--max-output`/`--tail` | **fixed in 0.9.0** — and the two are now mutually exclusive, as `rune run` already had them |
-| renderer: alt screen, wide characters, DEC line drawing, IRM, DECAWM | **open**, and now the only one |
+| renderer: alt screen, wide characters, DEC line drawing, IRM, DECAWM | **fixed** — modes/charsets in CHG-0064; cell model in #66, after an earlier attempt was reverted on a misattributed A/B |
 
 **A ninth, found after that table was written and not on it.** `rune run --timeout` never returned
 when the child was still printing — the flag that exists to bound a run did not bound it. Present in
@@ -195,8 +207,19 @@ control that produced it.
 
 ## Known and documented, not planned for 1.0
 
-Both came out of nine agents translating the README through rune, and both are recorded rather than
-fixed because the fix measured worse than the limitation.
+Recorded rather than fixed because the candidate fix measured worse than the limitation, or because
+there is no oracle to check an implementation against.
+
+- **The half-painted `--screen` frame.** Reported from field use, reproduced by the reporter, not
+  reproduced here. Two candidate fixes were measured and rejected — one measured *worse* than doing
+  nothing. Documented in [`docs/sessions.md`](docs/sessions.md) with a workaround (poll twice,
+  require agreement). Resolving it needs the reporter's full transcript.
+
+- **`--wait-for-regex` can match a prior turn's reprint.** See the 1.0 item above for the
+  measurement and the two rules that were not shipped. Unique-per-turn sentinels, or a file the
+  child writes, are the workaround. `child_busy` will not wait through a silent think after the
+  reprint. A heuristic here is the same class of mistake as the
+  four settle rules.
 
 - **There is no content search that agrees with the screen for a repainting child.** `--grep` matches
   the ANSI-stripped transcript, so overwritten history still matches and comes back as a clean line,

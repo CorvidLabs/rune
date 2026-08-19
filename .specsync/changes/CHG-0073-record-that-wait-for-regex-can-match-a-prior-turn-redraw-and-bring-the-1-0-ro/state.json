@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0073-record-that-wait-for-regex-can-match-a-prior-turn-redraw-and-bring-the-1-0-ro",
+  "slug": "record-that-wait-for-regex-can-match-a-prior-turn-redraw-and-bring-the-1-0-ro",
+  "title": "Record that --wait-for-regex can match a prior-turn redraw, and bring the 1.0 roadmap up to date",
+  "description": "Record that --wait-for-regex can match a prior-turn redraw, and bring the 1.0 roadmap up to date",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "338ca5a348f3b4eb3257d320408d35d5001125f9",
+  "created_at": 1787097517,
+  "updated_at": 1787099702,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "specs/session/session.spec.md",
+    "docs/sessions.md",
+    "ROADMAP.md",
+    "spec/rune/session_spec.rb",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "docs/sessions.md and session.spec.md no longer call --wait-for-regex deterministic without the prior-turn-redraw caveat. The caveat is measured on current main: send2 of DONE \\d+ against a reprinting child returns in 0.56s with only DONE 1. Two candidate fixes are recorded as rejected (string-novelty loses a second echo DONE; CSI-home veto loses a TUI that paints a reused sentinel with cursor motion). Unique-per-turn sentinels still wait through the reprint (one PendingSend example). ROADMAP no longer lists the renderer as open, and moves the unreproduced half-painted --screen off the 1.0 blocker list."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks",
+    "requirements"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

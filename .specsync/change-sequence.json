@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 72,
-  "id": "CHG-0072-snap-a-since-that-lands-inside-a-character-forward-instead-of-inventing-u-fff",
+  "sequence": 74,
+  "id": "CHG-0074-correct-the-wait-for-regex-reprint-advice-qualify-reprint-not-visible-histor",
   "acknowledged_collisions": []
 }

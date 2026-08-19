@@ -166,8 +166,9 @@ rather than your words back.
 > fixed, drive a repainting REPL with `--wait-for-regex`, which is not affected, or check that the
 > reply contains something beyond what you sent.
 
-**`--wait-for-regex RE`** — return as soon as output matches. Deterministic, and the right answer
-whenever you know what the callee prints when it's done:
+**`--wait-for-regex RE`** — return as soon as output matches. The right answer whenever you know
+what the callee prints when it's done, and the child will not emit that pattern again as a reprint
+of earlier output before this turn's answer:
 
 ```console
 $ rune session send --name s --wait-for-regex '\$ $' "ls"
@@ -188,6 +189,26 @@ $ rune session send --name s --wait-for-regex '\$ $' "ls"
 > recognisable as a copy, and a pattern that only appears inside your own input can be satisfied by
 > that half. Reproduced deterministically by splitting a frame immediately after the token. So a
 > pattern that also occurs in what you sent is still the shape to avoid.
+>
+> **A reprint of an *earlier* answer is a different false positive, and the echo veto does not
+> cover it.** `Echo#repaint?` asks whether this send's input covers the match. A full-screen child
+> that reprints its scrollback on every input then works, then prints a new answer, puts the
+> previous turn's sentinel on the wire as ordinary new bytes. Measured on current main against a
+> child that reprints then sleeps 3s then prints `DONE N`:
+>
+> ```
+> send1  --wait-for-regex 'DONE \d+'   3.56s  matched=true   output holds DONE 1
+> send2  --wait-for-regex 'DONE \d+'   0.56s  matched=true   output holds DONE 1 only
+> ```
+>
+> `DONE 2` was not in the captured output at all. Two candidate rules were considered and not
+> shipped: rejecting a match whose text existed before the send loses a second `echo DONE` to a
+> simple child; rejecting a match preceded by cursor-home loses a TUI that paints a reused
+> sentinel with cursor motion as the real new answer. **Use a sentinel that cannot appear in any
+> earlier reply** (`DONE 2` on turn 2, not `DONE \d+`). A destination file the child writes is the
+> other real check. `child_busy` is a `read` field and only means the child is still *printing* —
+> against this measured child the reprint ends, idle crosses 800ms during the 3s think, and
+> `child_busy` goes false while `DONE 2` has not been printed.
 
 > **How much output the pattern is matched against: the most recent 256 KB past the echo, re-read
 > 32768 characters back on every read.** This is a deliberate bound with two consequences.
@@ -474,7 +495,9 @@ can plan around.
 
 **What to do about it.** Do not treat one rendered frame as authoritative for a decision you cannot
 undo. If you are reading a value, poll twice and require agreement. If you are waiting for a marker,
-`--wait-for-regex` is deterministic where `--screen` is a snapshot.
+`--wait-for-regex` returns on a match in the byte stream, which is earlier than a snapshot and
+wrong when the match is a reprint of an earlier turn. Use a per-turn sentinel. See the
+`--wait-for-regex` limitation above.
 
 **It may not be rune's fault.** A census of one agent's output over 4.5MB found zero erases of any
 kind, and an agent that never erases and shifts its layout leaves the old copy on screen — a real
@@ -509,6 +532,11 @@ succeeds there is nowhere on disk to record the hole, which is what `transcript_
 - **`--wait-for-regex` sees the most recent 256 KB, not the whole turn.** Any one match up to 32768
   characters long is always found; a match that has to span more than that never is. Wait for a
   marker, not for a pattern that brackets megabytes.
+- **A reused `--wait-for-regex` pattern can match a prior turn's reprint, not this turn's answer.**
+  The echo veto only covers a copy of *this* send. Pick a sentinel that has never appeared in the
+  session, or have the child write a destination file. `child_busy` will not wait through a silent
+  think after the reprint. Do not trust `matched: true` alone against a TUI that repaints
+  scrollback.
 - **A single line of 1024+ bytes vanishes into a cooked-mode child.** That is `MAX_CANON`, a
   terminal limit, not rune's: the line discipline cannot assemble a longer canonical line and drops
   it silently — 1023 bytes arrive, 1024 do not. Most agent CLIs run their terminal in raw mode and

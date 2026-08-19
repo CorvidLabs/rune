@@ -1,0 +1,141 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787097894,
+      "digest": "a282827b9cdaea541e0a8fd4516044e014b82e8f6b402e397a87837e5daf8086",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1787098088,
+      "digest": "e0f38dcba80d89325a25c2698e021b6b03966a2c6d96b3d1a1f286de54c8e8d3",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1787099702,
+      "digest": "23237f191eb202b686927b403eab013b1f2169b48307280dd4c13ca7c32b0fc2",
+      "note": null
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0073-record-that-wait-for-regex-can-match-a-prior-turn-redraw-and-bring-the-1-0-ro",
+      "actor": "0xLeif",
+      "reason": "0074 succeeded the shared ROADMAP and sessions guide; re-verify 0073 on the current tree without changing its definition",
+      "timestamp": 1787099515,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1787098088,
+        "digest": "e0f38dcba80d89325a25c2698e021b6b03966a2c6d96b3d1a1f286de54c8e8d3",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1787098076,
+        "commit": "338ca5a348f3b4eb3257d320408d35d5001125f9",
+        "contract_digest": "a282827b9cdaea541e0a8fd4516044e014b82e8f6b402e397a87837e5daf8086",
+        "workspace_digest": "f6fd05182dc6ecfeabe70facfc8fe5c9911347641aa75fe78c422429f4741988",
+        "acceptance_input_digest": "a2cf4a1dc2a316b247e64899ee094ed473e05c0a3a67b245f94256b2c90bd9a6",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "023dc56268567032fe6c426211c03e908bd6ec1094f1db34f69fcf451a269432",
+              "entry_digest": "9f3fdb48b589f0fa01af9a58d08a0c7fafd198661da0397b63af0a654a5a2788",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "ROADMAP.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bb62b932afb42f6d0bd280e7f908a9435e1f324e8bc1b7746d89ba2c13bfb908",
+              "entry_digest": "d7e82c5a2b606a40a551c10caf818c6b6b0eb97c9159f5065d263c3c8ec059d4",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/sessions.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "53b98ec7c85c6eb7e2fab37b6bfa41224ce375c986fc7b09dc585d37db19c53f",
+              "entry_digest": "3e5fa6e47c6dbbfed26c690f60fb5b8bae2d4f59557945aff241be267b2dc31c",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6d70b6a57c34746ae97847ccc5394553a23298666f27ab4f663c070161f9814b",
+              "entry_digest": "de2b80f51dd9a8897618a7b30fb5c648983bca61a54368fb8b08ff2aa416bbbf",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d57b5b0507cb5285f43ad0fe5fa96d23ce0dba296e83ce00e6f1e60faa216542",
+              "entry_digest": "690d3f749e9c3b98b7b59165b5a020f2b7723ffd70a0ad6c121d855b6d45879c",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "a2cf4a1dc2a316b247e64899ee094ed473e05c0a3a67b245f94256b2c90bd9a6",
+      "current_acceptance_input_digest": "515bf0160dde811f1b93f4d17119c9e04763c24da58167883e9152039385aa0e"
+    }
+  ]
+}
