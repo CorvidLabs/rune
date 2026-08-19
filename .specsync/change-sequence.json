@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 77,
-  "id": "CHG-0077-hold-an-escape-split-across-chunks-so-a-retained-renderer-matches-a-one-shot-ren",
+  "sequence": 78,
+  "id": "CHG-0078-report-what-a-session-is-actually-doing-a-real-127-is-not-a-failed-exec-and-36",
   "acknowledged_collisions": []
 }

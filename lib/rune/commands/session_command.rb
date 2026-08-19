@@ -81,6 +81,12 @@ module Rune
       # A shell reports 127 for a command it could not find, so a child that exits 127 before the
       # session is even ready never ran.
       EXEC_FAILURE_STATUS = 127
+      # When a running session's silence stops being routine and starts being
+      # worth a second look in `list`. Not a claim that it is stuck — rune cannot
+      # tell waiting-for-a-human from thinking, and four heuristics that tried
+      # have been measured and rejected. It only decides whether the number is
+      # printed in a colour a reader's eye stops on.
+      STALE_IDLE_SECONDS = 15 * 60
 
       GENERATED_NAME_ATTEMPTS = 5
 
@@ -296,17 +302,26 @@ module Rune
       # which is the wrong shape of answer: an envelope should not need a footnote to be read
       # correctly. Reported from a real 22-minute drive, where it cost an hour.
       #
-      # Only 127 fails, deliberately. `start -- true` exits 0 immediately and that is a *successful*
-      # launch of a program that had nothing to do; treating any prompt exit as a failure would
-      # break every short-lived child. 127 is the shell's "command not found", which is the one
-      # case where the child never ran at all.
+      # Only a failed *exec* fails, deliberately. `start -- true` exits 0 immediately and that is a
+      # *successful* launch of a program that had nothing to do; treating any prompt exit as a
+      # failure would break every short-lived child.
+      #
+      # The test used to be `exit_code == 127`, on the reasoning that 127 is the shell's "command
+      # not found" and therefore the one case where the child never ran. That is not true of a
+      # child: 127 is an ordinary status a program may choose, and a script that runs and exits 127
+      # was told "the command ... is not on PATH. Check that it is installed." Measured with the
+      # child appending to a file before exiting: 12 of 12 executed, 7 of 12 were reported as not
+      # installed — racy, because it depended on whether the child died before `record_running`.
+      # The supervisor knows the difference (only a `PTY.spawn` raise means exec failed) and now
+      # records it, so this reads the fact instead of inferring it from a status that cannot carry
+      # it. Meta without the field is a child that ran, which is also how older sessions read.
       def launch_failure(name, meta)
-        return nil unless meta[:exit_code] == EXEC_FAILURE_STATUS
+        return nil unless meta[:launch_failed]
 
         abandon(name, meta[:supervisor_pid])
-        Result.failure("Could not start #{name.inspect}: the command exited #{EXEC_FAILURE_STATUS} " \
-                       'immediately, which is what a shell reports for a command that is not on PATH. ' \
-                       'Check the command name and that it is installed.')
+        Result.failure("Could not start #{name.inspect}: the command could not be executed " \
+                       "(exit #{meta[:exit_code]}). Check the command name, that it is installed, " \
+                       'and that it is executable.')
       end
 
       # Re-invokes rune's own executable rather than forking in-process: a fork
@@ -1261,13 +1276,31 @@ module Rune
 
       # Idle time is the fastest read on "is this one stuck": a running agent
       # that has printed nothing for minutes is the thing you want to notice.
+      #
+      # It only works if it is legible when it matters, and it was not. A session
+      # blocked on an approval prompt for a day and a half rendered
+      # `idle 2172m` — in the same dim grey as everything else, so the one line
+      # that said "this has been waiting on a human since yesterday" read as
+      # routine. It sat there for 36 hours. Minutes stop being a unit a reader
+      # converts somewhere around an hour, and grey is the colour of "ignore me".
+      #
+      # So: hours and days once it is that long, and drop the dimming for a
+      # *running* session that has gone quiet — a stopped one's idle is just how
+      # long ago it stopped, which is not news.
       def idle_suffix(session)
         return '' unless session[:idle_ms]
 
         seconds = session[:idle_ms] / 1000
-        return "  \e[90midle #{seconds}s\e[0m" if seconds < 90
+        colour = session[:state] == 'running' && seconds >= STALE_IDLE_SECONDS ? '33' : '90'
+        "  \e[#{colour}midle #{humanize_idle(seconds)}\e[0m"
+      end
 
-        "  \e[90midle #{(seconds / 60.0).round}m\e[0m"
+      def humanize_idle(seconds)
+        return "#{seconds}s" if seconds < 90
+        return "#{(seconds / 60.0).round}m" if seconds < 90 * 60
+        return "#{(seconds / 3600.0).round(1)}h" if seconds < 48 * 3600
+
+        "#{(seconds / 86_400.0).round(1)}d"
       end
 
       def store = @store ||= Session::Store.new(project: @project_override)

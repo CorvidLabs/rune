@@ -808,13 +808,53 @@ RSpec.describe Rune::Commands::SessionCommand do
       result = session('start', '--name=ghost', '--', 'definitely_not_a_real_binary_xyz')
 
       expect(result).to be_failure
-      expect(result.error).to include('127').and include('PATH')
+      expect(result.error).to include('127').and include('could not be executed')
     end
 
     # A child that exits 0 immediately launched fine and had nothing to do. Treating any prompt
-    # exit as a failure would break every short-lived child, so only 127 fails.
+    # exit as a failure would break every short-lived child.
     it 'still succeeds for a child that exits cleanly and at once' do
       expect(session('start', '--name=quick', '--', 'true')).to be_success
+    end
+
+    # The test used to be `exit_code == 127`, on the reasoning that 127 means "command not found"
+    # and therefore that the child never ran. 127 is an ordinary status a program may choose, so a
+    # script that ran perfectly well was told it was not installed. Measured before the fix with the
+    # child appending to a file first: 12 of 12 executed, 7 of 12 were reported as not installed —
+    # racy, since it turned on whether the child died before the supervisor recorded it as running.
+    it 'succeeds for a child that runs and then chooses to exit 127' do
+      Dir.mktmpdir do |dir|
+        ran = File.join(dir, 'ran')
+        script = File.join(dir, 'exits127.sh')
+        File.write(script, "#!/bin/sh\necho ran >> #{ran}\nexit 127\n")
+        FileUtils.chmod(0o755, script)
+
+        results = Array.new(6) { |i| session('start', "--name=real127_#{i}", '--', script) }
+
+        expect(results).to all(be_success)
+        # Out of band: the child's own file, not the reply, proves it executed.
+        # Waited for rather than read at once — `start` returns before the child
+        # has necessarily run, so reading immediately raced the children and
+        # failed under a loaded full-suite run while passing in isolation.
+        wait_until(reason: 'all six children to record that they ran') do
+          File.exist?(ran) && File.readlines(ran).size == 6
+        end
+      end
+    end
+
+    # EACCES means exec itself failed, so the child never ran — the same class as a missing binary.
+    # This returned `status: "ok"` and only failed on the next send.
+    it 'reports failure for a target that exists but cannot be executed' do
+      Dir.mktmpdir do |dir|
+        script = File.join(dir, 'noexec.sh')
+        File.write(script, "#!/bin/sh\necho hi\n")
+        FileUtils.chmod(0o644, script)
+
+        result = session('start', '--name=noexec', '--', script)
+
+        expect(result).to be_failure
+        expect(result.error).to include('126').and include('could not be executed')
+      end
     end
 
     # The record is kept deliberately. `start` failing loudly is the fix; deleting the transcript
@@ -926,6 +966,38 @@ RSpec.describe Rune::Commands::SessionCommand do
 
       expect(entry[:idle_ms]).to be_a(Integer)
       expect(entry[:last_line]).to include('REPLY:marker')
+    end
+
+    # Idle time only answers "is it stuck" if it is readable when the answer is
+    # yes. A session blocked on an approval prompt for a day and a half rendered
+    # `idle 2172m`, in the same dim grey as every healthy line, and sat there for
+    # 36 hours. Minutes stop being a unit anyone converts at that scale.
+    describe 'the idle figure a human reads' do
+      def suffix(idle_ms, state: 'running')
+        described_class.new.send(:idle_suffix, { idle_ms: idle_ms, state: state })
+      end
+
+      it 'switches to hours and days rather than printing thousands of minutes' do
+        expect(suffix(45_000)).to include('idle 45s')
+        expect(suffix(300_000)).to include('idle 5m')
+        expect(suffix(5_400_000)).to include('idle 1.5h')
+        expect(suffix(130_293_976)).to include('idle 36.2h')
+        expect(suffix(400_000_000)).to include('idle 4.6d')
+      end
+
+      # Grey is the colour of "nothing to see here", which is the wrong thing to
+      # say about the one line that means a session has been waiting on a human
+      # since yesterday.
+      it 'stops dimming a running session once its silence is worth noticing' do
+        expect(suffix(60_000)).to include("\e[90m")
+        expect(suffix(130_293_976)).to include("\e[33m")
+      end
+
+      # A stopped session's idle time is just how long ago it stopped.
+      it 'leaves a stopped session dim however long it has been quiet' do
+        expect(suffix(130_293_976, state: 'stopped')).to include("\e[90m")
+        expect(suffix(130_293_976, state: 'stopped')).not_to include("\e[33m")
+      end
     end
 
     # last_line exists to be read at a glance, which it is not if a full-screen

@@ -13,7 +13,119 @@
       "timestamp": 1787118263,
       "digest": "b22c98a3e71e290b5f5f74e1c6ed602ec18ac9f75d46c284687b2a78c92d81c6",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1787152081,
+      "digest": "39e726dedac531610a8e75c4b5d0e2732f41edb522473721a8a0bb819091f06d",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0076-correct-the-max-canon-claims-an-unterminated-1024-byte-line-wedges-the-session",
+      "actor": "claude",
+      "reason": "CHG-0078 edited specs/session/session.spec.md and spec/rune/session_spec.rb, both shared files. The sections it touched (invariant 52, the new 52a, the Public API rows for idle rendering and launch_failure) do not overlap this change's delivered content; re-verifying to refresh the exact-input evidence.",
+      "timestamp": 1787151892,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1787118263,
+        "digest": "b22c98a3e71e290b5f5f74e1c6ed602ec18ac9f75d46c284687b2a78c92d81c6",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1787118252,
+        "commit": "3519564286fe65de77906a23a5fc3bdfdbf74bfe",
+        "contract_digest": "a22343b9ba16cd240d3922161f8d7b38fe8bc7288a3593b2ced822487df1e0dc",
+        "workspace_digest": "b63179e74f4b616907f6a08ce1c0c6756301387b9f049a52ec87afb173fd8812",
+        "acceptance_input_digest": "913940ea2fd0a807625f16d2383ccc1261034b76414b5099c332462d1b3b1401",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "a9f368f4c7e45fabd5cb178f7f8bbcb04261705f1d20869573d87dc757da54a0",
+              "entry_digest": "35d273c03951974bc21fced303381f991771c5d64ba2a06aa19de595985f8d64",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "ROADMAP.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "be0eb2cbe48cdd5cbe63af89700075c3a48ebc678e68f5aef1763cc5447532d7",
+              "entry_digest": "41bf8e2372f488d00366c76ab76f563670c83e78e7fbac8efb4c5a6a482b3e2e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/sessions.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8762ae006badfcc9e419a1f3c8716f8b36858cef5194c356e05a6cd7e392baf5",
+              "entry_digest": "5fc95feb04c343611e159bb54e89f0f30f4d45da58735dcc97f55e9a4d26553b",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4c1b4296020b10d4a7e026a16e2ec734f1d737a4fb9d9da7df871e77c448d899",
+              "entry_digest": "0f6c8b1375e88ec1db8862d930c61fb159e31053420b55de7553c5a56d0cb6eb",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "913940ea2fd0a807625f16d2383ccc1261034b76414b5099c332462d1b3b1401",
+      "current_acceptance_input_digest": "5a0ded9d0dd57c381dce617c0827fff078d56ce14677fd41ab13312780e06203"
+    }
+  ]
 }

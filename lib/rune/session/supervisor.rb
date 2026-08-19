@@ -222,7 +222,13 @@ module Rune
         # Same convention PTYRunner/PTYWatcher use: a missing (127) or
         # non-executable (126) target is the child's exit status, not a
         # supervisor-level crash.
-        finish(e.is_a?(Errno::ENOENT) ? 127 : 126)
+        #
+        # `launch_failed` is recorded because the status alone cannot carry this:
+        # a program that runs perfectly well and *chooses* to exit 127 is
+        # indistinguishable from one that never executed, and the caller was told
+        # the difference. Only this rescue means exec itself failed — reaching it
+        # requires `PTY.spawn` to raise, which happens before the child exists.
+        finish(e.is_a?(Errno::ENOENT) ? 127 : 126, launch_failed: true)
       rescue StandardError => e
         crashed(e)
       ensure
@@ -911,10 +917,15 @@ module Rune
 
       # ---- teardown
 
-      def finish(exit_code)
+      # `launch_failed` is written only when exec itself failed, and is absent
+      # otherwise rather than false, so meta from an older version reads the same
+      # as a child that ran.
+      def finish(exit_code, launch_failed: false)
         @finished = true
         @exit_code = exit_code
-        @store.update_meta(@name, state: 'exited', exit_code: exit_code, exited_at: Time.now.to_f)
+        meta = { state: 'exited', exit_code: exit_code, exited_at: Time.now.to_f }
+        meta[:launch_failed] = true if launch_failed
+        @store.update_meta(@name, **meta)
         log_event('exit', exit_code: exit_code)
       end
 
