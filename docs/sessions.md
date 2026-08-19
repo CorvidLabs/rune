@@ -537,13 +537,31 @@ succeeds there is nowhere on disk to record the hole, which is what `transcript_
   session, or have the child write a destination file. `child_busy` will not wait through a silent
   think after the reprint. Do not trust `matched: true` alone against a TUI that repaints
   scrollback.
-- **A single line of 1024+ bytes vanishes into a cooked-mode child.** That is `MAX_CANON`, a
-  terminal limit, not rune's: the line discipline cannot assemble a longer canonical line and drops
-  it silently — 1023 bytes arrive, 1024 do not. Most agent CLIs run their terminal in raw mode and
-  are unaffected (300KB arrives byte-perfect). So does an interactive shell: `bash --norc -i` uses
-  readline, which puts the terminal in raw mode, and takes a 1995-character line byte-perfect. The
-  limit bites a child that reads in *cooked* mode — a bare `cat`, or a script reading stdin without
-  readline. Chunk it, or drive a raw-mode target.
+- **An unterminated line reaching 1024 bytes stops the session accepting input at all.** This is
+  the tty line discipline's canonical-queue limit, not rune's — a single 1025-byte `write()` to a
+  bare pty wedges the same way. The budget is **1024 bytes including the terminator rune appends**,
+  so a payload of 1023 arrives and 1024 does not. At exactly 1024 the whole payload is accepted and
+  the *terminator* is the byte rejected, which is why the line is never submitted and the queue
+  never drains.
+
+  **It is not one lost line.** Every later send is discarded too, indefinitely, while each reply
+  says `settled: true, state: running`. Send `\x15` (Ctrl-U, line kill) to recover — measured, the
+  next send is delivered normally. `\x04` does not recover it and does not kill the child; `\x03`
+  ends the session at 130.
+
+  **What decides it is the tty's ICANON state at the instant the bytes land**, not which program you
+  started. A `bash` or `python3` sitting at its prompt is in raw mode and takes 300KB byte-perfect,
+  but the *same* child is in cooked mode while a foreground command runs: a 1200-byte send to a busy
+  `bash` loses the line and silently corrupts the next command, and to a busy `python3` leaves the
+  follow-up statement unexecuted. So "drive a raw-mode target" is not sufficient advice — chunk
+  anything that may exceed 1023 bytes, whatever the child.
+
+  There is no reliable way to detect it from the reply. BEL characters are not a signal: an
+  unterminated 1024-byte send emits none while already wedging, and a child that legitimately rings
+  the bell looks identical to one that is wedging. Complete lines are safe — they get real
+  backpressure and a loud `previous input is still being delivered to the child`. Only unterminated
+  input disappears silently, and it does not have to arrive in one send: several writes that
+  accumulate past 1024 bytes without a terminator wedge the queue just as well.
 - Enter is sent as a carriage return, which is what a real terminal sends, so raw-mode TUIs receive
   it. Cooked-mode shells are unaffected.
 - The child's pty gets an explicit window size, because a detached session has no terminal to copy

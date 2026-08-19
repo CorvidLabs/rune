@@ -1,6 +1,6 @@
 ---
 module: session
-version: 37
+version: 39
 status: active
 files:
   - lib/rune/session/store.rb
@@ -1031,13 +1031,36 @@ deciding who talks to whom stays the calling agent's job.
 - **The report needs `ps`.** Where `ps` is missing or refuses, `process_start_times` returns nothing
   and every session reports no orphan. That is the safe direction (silence, not a false accusation),
   but it is silent about being unavailable.
-- **A single line of 1024 bytes or more is silently discarded by a cooked-mode child's terminal.**
-  This is `MAX_CANON`, a tty limit rather than a rune bound: the line discipline cannot assemble a
-  longer canonical line, so it drops it and the child never sees it. Measured exactly — 1023 bytes
-  arrive, 1024 do not, with no error anywhere. Raw-mode children (which is most full-screen agent
-  CLIs) are unaffected: 300KB arrives byte-perfect. This matters because an agent prompt easily
-  exceeds 1KB and nothing reports the loss. Send such input to a cooked-mode child in chunks, or
-  drive a raw-mode target.
+- **An unterminated canonical line reaching 1024 bytes wedges the session for all subsequent
+  input.** This is the tty line discipline's canonical-queue limit rather than a rune bound: a
+  single 1025-byte `write()` to a bare `PTY.spawn` reproduces it exactly, so rune's split
+  payload/terminator write is not the cause. The budget is 1024 bytes *including* the terminator
+  rune appends, so a 1023-byte payload arrives and 1024 does not — measured 20/20 deterministic with
+  the child reporting its own read sizes out of band rather than via the echo. At exactly 1024 the
+  payload is accepted whole and the terminator is the rejected byte, so the line can never be
+  submitted and the queue never drains.
+
+  The failure is not confined to the offending line: every later send is discarded as well,
+  indefinitely (measured to +120s), while each reply reports `status: ok`, `settled: true`,
+  `state: running`, `exit_code: null`. `\x15` (VKILL) clears the queue and restores delivery;
+  `\x04` neither recovers nor kills the child; `\x03` ends the session at 130. After recovery the
+  discarded sends are permanently absent from the child's input, which distinguishes this from
+  delayed buffering.
+
+  The discriminating condition is the tty's `ICANON` state at the moment the bytes land, established
+  by holding the child binary constant and flipping one termios flag. It is not the child's identity
+  — `cat`, a `sh` read loop, a Ruby read loop and a child not yet reading all wedge identically —
+  and it is not whether the child drains. Consequently a raw-mode child is **not** categorically
+  safe: `bash` and `python3` are raw at their prompt but cooked while a foreground command runs, and
+  a 1200-byte send in that window loses the line and silently corrupts the next command. The trigger
+  is also not "one over-long send" — several sends accumulating past 1024 bytes without a terminator
+  wedge the queue equally.
+
+  No reply field distinguishes a wedging send from a healthy one, and BEL is not a usable substitute:
+  it is absent when an unterminated 1024-byte payload wedges the queue, present on legitimate output
+  from a child that rings the bell, and suppressed entirely when `IMAXBEL` is cleared. Complete lines
+  are never silently lost — they receive backpressure and an explicit refusal. Callers must chunk
+  input below 1024 bytes per line regardless of the child.
 - **A `--wait-for-regex` pattern that must span more than `MATCH_SPAN` characters is never
   found.** The pattern is matched against the most recent `MATCH_WINDOW_BYTES` of post-echo output;
   anything shorter than the re-read span is always found, whatever the turn grows to, but
@@ -1184,3 +1207,5 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-18 | CHG-0072-snap-a-since-that-lands-inside-a-character-forward-instead-of-inventing-u-fff: Snap a --since that lands inside a character forward, instead of inventing U+FFFD |
 | 2026-08-18 | CHG-0073-record-that-wait-for-regex-can-match-a-prior-turn-redraw-and-bring-the-1-0-ro: Record that --wait-for-regex can match a prior-turn redraw, and bring the 1.0 roadmap up to date |
 | 2026-08-19 | CHG-0074-correct-the-wait-for-regex-reprint-advice-qualify-reprint-not-visible-histor: Correct the --wait-for-regex reprint advice: qualify reprint, not visible history, and stop pairing child_busy with the unique sentinel |
+| 2026-08-19 | CHG-0076-correct-the-max-canon-claims-an-unterminated-1024-byte-line-wedges-the-session: Correct the MAX_CANON claims: an unterminated 1024-byte line wedges the session, and raw-mode children are not exempt |
+| 2026-08-19 | CHG-0076-correct-the-max-canon-claims-an-unterminated-1024-byte-line-wedges-the-session: Correct the MAX_CANON claims: an unterminated 1024-byte line wedges the session, and raw-mode children are not exempt |

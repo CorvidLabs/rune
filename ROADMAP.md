@@ -191,19 +191,57 @@ that ignores signals. Fixed in 0.9.0 with bounded, pty-draining reaping. The les
 file already records in another form — a fixture more specific than the mechanism produces a test
 that cannot fail, and this one hid a hang in the oldest command for nine releases.
 
-**The oversized-send entry was wrong, and worth correcting rather than deleting.** It claimed
-"every later send is silently discarded while `settled: true`". Measured on a 20,000-character
-send to `python3 -q`: the child receives the input *in full* (`LEN=20000`), and an overlapping
-send is *refused* with a specific error — `previous input is still being delivered to the child`
-after a `--no-wait`, `a send is already in flight on this session` otherwise. Nothing is
-discarded and nothing lies. What is real is the duration: ~10 s for 20 KB to drain, during which
-the session is correctly unavailable. The threshold sits between 10,000 and 12,000 characters on
-macOS, which is the tty line discipline's, not rune's.
+**The correction to the oversized-send entry was itself wrong, and this is the worst harness error
+in the file because it retracted a true finding.** The 0.8.0 entry claimed "every later send is
+silently discarded while `settled: true`". That was retracted here on the strength of a
+20,000-character send to `python3 -q`, which does receive its input in full (`LEN=20000`,
+sha256-verified) and does refuse an overlapping send with a specific error. Every fact in that
+retraction reproduces. It refuted nothing, because **`python3 -q` is in raw mode at the instant the
+bytes land, and the original claim was about cooked mode.** The retracted claim is true, and
+reproduces verbatim:
 
-The first probe of this reported "bricked" because its liveness helper checked only whether the
-output contained a marker and ignored `status`, so a *correct refusal* read as a dead session —
-the third harness error of that session, and the reason the entry above is stated with the
-control that produced it.
+    cooked child, 1024-byte line, then five ordinary sends over two minutes
+    every send:  status ok, settled true, state running, exit_code null
+    child's own log after recovery: the 1024-byte line and all five probes are ABSENT, permanently
+
+Measured with the child writing byte counts to a *file* rather than echoing, so the tty echo cannot
+be mistaken for delivery, and with a post-recovery read proving the input was never merely delayed.
+
+What is actually true, established by three independent instruments and an adversarial pass:
+
+- **The limit is 1024 bytes per canonical line including the terminator**, so a caller's payload
+  budget is 1023. At exactly 1024 all the payload is accepted and *the terminator is the byte that
+  is rejected*, which is why the line can never be submitted and the queue never drains.
+- **It is not one lost line. The session stops accepting input entirely**, indefinitely, while every
+  reply says `settled: true, state: running`. `^U` (VKILL) clears it; `^D` does not and does not kill
+  the child; `^C` ends the session at 130.
+- **It is not rune.** A single 1025-byte `write()` to a bare `PTY.spawn` wedges identically, so
+  rune's split payload/terminator write is not the cause. This is the macOS line discipline.
+- **The discriminator is the tty's ICANON state when the bytes land** — proven by holding the child
+  binary constant and flipping one termios flag. Not the child's identity: `cat`, a `sh` read loop, a
+  Ruby loop and a child not yet reading all wedge identically. Not whether the child drains.
+- **"Raw-mode children are unaffected" is false**, and this is the part that matters for rune's
+  actual targets. `bash` and `python3` are raw *at their prompt* and **cooked while a foreground
+  command runs**. Sending 1200 bytes to a busy `bash` loses the line and silently corrupts the *next*
+  command; the same send to a busy `python3` leaves the follow-up statement unexecuted. The predicate
+  is when you send, not what you started.
+- **"Over-long line" is the wrong description at the caller's level.** Four 256-byte writes with no
+  terminator wedge the queue just as well, and so does `--no-newline` with 1024 bytes and no
+  terminator ever sent. The trigger is an unterminated canonical line reaching 1024 bytes.
+- **There is no reliable in-band detector.** BEL fails in both directions: `--no-newline` at 1024
+  emits none while already wedged, and a child that legitimately rings the bell is byte-identical to
+  a wedging send. BEL is a function of `IMAXBEL`; with it cleared macOS discards in total silence.
+
+The `~10 s to drain 20 KB` figure was machine-specific (~4.6 s here, superlinear: ~26 s for 60 KB),
+and the overlapping-send refusal starts at 1024 bytes rather than between 10,000 and 12,000.
+Complete lines are never silently lost — they get real backpressure and a loud refusal. Only
+*unterminated* input disappears.
+
+Two harness errors produced this entry's history and both are worth keeping. The first probe
+reported "bricked" because its liveness helper ignored `status`, so a correct refusal read as a dead
+session. The retraction above then measured the *wrong regime* and generalised from it — the same
+shape of mistake, one level up: a fixture more specific than the mechanism. The rule that catches
+both is to name the regime a measurement is in before publishing a claim that spans regimes.
 
 ## Known and documented, not planned for 1.0
 
