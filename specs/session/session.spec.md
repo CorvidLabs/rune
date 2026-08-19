@@ -1,6 +1,6 @@
 ---
 module: session
-version: 41
+version: 40
 status: active
 files:
   - lib/rune/session/store.rb
@@ -1242,6 +1242,4 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-18 | CHG-0073-record-that-wait-for-regex-can-match-a-prior-turn-redraw-and-bring-the-1-0-ro: Record that --wait-for-regex can match a prior-turn redraw, and bring the 1.0 roadmap up to date |
 | 2026-08-19 | CHG-0074-correct-the-wait-for-regex-reprint-advice-qualify-reprint-not-visible-histor: Correct the --wait-for-regex reprint advice: qualify reprint, not visible history, and stop pairing child_busy with the unique sentinel |
 | 2026-08-19 | CHG-0076-correct-the-max-canon-claims-an-unterminated-1024-byte-line-wedges-the-session: Correct the MAX_CANON claims: an unterminated 1024-byte line wedges the session, and raw-mode children are not exempt |
-| 2026-08-19 | CHG-0076-correct-the-max-canon-claims-an-unterminated-1024-byte-line-wedges-the-session: Correct the MAX_CANON claims: an unterminated 1024-byte line wedges the session, and raw-mode children are not exempt |
-| 2026-08-19 | CHG-0078-report-what-a-session-is-actually-doing-a-real-127-is-not-a-failed-exec-and-36: Report what a session is actually doing: a real 127 is not a failed exec, and 36 hours of silence should not read as routine |
 | 2026-08-19 | CHG-0078-report-what-a-session-is-actually-doing-a-real-127-is-not-a-failed-exec-and-36: Report what a session is actually doing: a real 127 is not a failed exec, and 36 hours of silence should not read as routine |
