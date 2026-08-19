@@ -167,8 +167,8 @@ rather than your words back.
 > reply contains something beyond what you sent.
 
 **`--wait-for-regex RE`** — return as soon as output matches. The right answer whenever you know
-what the callee prints when it's done, and the pattern cannot already be sitting in the child's
-visible history:
+what the callee prints when it's done, and the child will not emit that pattern again as a reprint
+of earlier output before this turn's answer:
 
 ```console
 $ rune session send --name s --wait-for-regex '\$ $' "ls"
@@ -205,8 +205,10 @@ $ rune session send --name s --wait-for-regex '\$ $' "ls"
 > shipped: rejecting a match whose text existed before the send loses a second `echo DONE` to a
 > simple child; rejecting a match preceded by cursor-home loses a TUI that paints a reused
 > sentinel with cursor motion as the real new answer. **Use a sentinel that cannot appear in any
-> earlier reply** (`DONE 2` on turn 2, not `DONE \d+`), or poll `child_busy` / a destination file
-> instead of trusting `matched` alone.
+> earlier reply** (`DONE 2` on turn 2, not `DONE \d+`). A destination file the child writes is the
+> other real check. `child_busy` is a `read` field and only means the child is still *printing* —
+> against this measured child the reprint ends, idle crosses 800ms during the 3s think, and
+> `child_busy` goes false while `DONE 2` has not been printed.
 
 > **How much output the pattern is matched against: the most recent 256 KB past the echo, re-read
 > 32768 characters back on every read.** This is a deliberate bound with two consequences.
@@ -532,8 +534,9 @@ succeeds there is nowhere on disk to record the hole, which is what `transcript_
   marker, not for a pattern that brackets megabytes.
 - **A reused `--wait-for-regex` pattern can match a prior turn's reprint, not this turn's answer.**
   The echo veto only covers a copy of *this* send. Pick a sentinel that has never appeared in the
-  session, or poll `child_busy` / a file. Do not trust `matched: true` alone against a TUI that
-  repaints scrollback.
+  session, or have the child write a destination file. `child_busy` will not wait through a silent
+  think after the reprint. Do not trust `matched: true` alone against a TUI that repaints
+  scrollback.
 - **A single line of 1024+ bytes vanishes into a cooked-mode child.** That is `MAX_CANON`, a
   terminal limit, not rune's: the line discipline cannot assemble a longer canonical line and drops
   it silently — 1023 bytes arrive, 1024 do not. Most agent CLIs run their terminal in raw mode and

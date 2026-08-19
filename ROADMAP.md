@@ -216,8 +216,9 @@ there is no oracle to check an implementation against.
   require agreement). Resolving it needs the reporter's full transcript.
 
 - **`--wait-for-regex` can match a prior turn's reprint.** See the 1.0 item above for the
-  measurement and the two rules that were not shipped. Unique-per-turn sentinels, or polling
-  `child_busy` / a file, are the workaround. A heuristic here is the same class of mistake as the
+  measurement and the two rules that were not shipped. Unique-per-turn sentinels, or a file the
+  child writes, are the workaround. `child_busy` will not wait through a silent think after the
+  reprint. A heuristic here is the same class of mistake as the
   four settle rules.
 
 - **There is no content search that agrees with the screen for a repainting child.** `--grep` matches

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 73,
-  "id": "CHG-0073-record-that-wait-for-regex-can-match-a-prior-turn-redraw-and-bring-the-1-0-ro",
+  "sequence": 74,
+  "id": "CHG-0074-correct-the-wait-for-regex-reprint-advice-qualify-reprint-not-visible-histor",
   "acknowledged_collisions": []
 }
