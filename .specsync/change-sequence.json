@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 72,
-  "id": "CHG-0072-snap-a-since-that-lands-inside-a-character-forward-instead-of-inventing-u-fff",
+  "sequence": 73,
+  "id": "CHG-0073-record-that-wait-for-regex-can-match-a-prior-turn-redraw-and-bring-the-1-0-ro",
   "acknowledged_collisions": []
 }

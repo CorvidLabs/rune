@@ -1314,6 +1314,18 @@ RSpec.describe Rune::Commands::SessionCommand do
         .to eq({ settled: true, matched: true })
     end
 
+    # A TUI that reprints scrollback puts an *earlier* sentinel on the wire as
+    # ordinary new bytes. Echo#repaint? only covers this send's input, so a
+    # reused pattern (DONE \d+) matches the reprint. A unique-per-turn pattern
+    # does not — that is the documented workaround, and this example is here so
+    # a later "fix" cannot lose it.
+    it 'still waits when the reprint is an earlier answer and the pattern is unique to this turn' do
+      send = waiting(echo: 'turn two', regex: 'DONE 2')
+
+      expect(resolve(send, "turn two\r\n\e[HDONE 1\r\n")).to be_nil
+      expect(resolve(send, "DONE 2\r\n")).to eq({ settled: true, matched: true })
+    end
+
     # An echo a second late is not an echo that never came. Giving up on the
     # search when the grace window closes — rather than merely starting to offer
     # what has arrived — was measured end to end to settle this send 0.8s after
