@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 75,
-  "id": "CHG-0075-repair-139-broken-relative-links-across-the-nine-translations",
+  "sequence": 76,
+  "id": "CHG-0076-correct-the-max-canon-claims-an-unterminated-1024-byte-line-wedges-the-session",
   "acknowledged_collisions": []
 }

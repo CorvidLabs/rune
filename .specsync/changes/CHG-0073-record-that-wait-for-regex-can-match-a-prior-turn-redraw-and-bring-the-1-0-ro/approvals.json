@@ -20,6 +20,13 @@
       "timestamp": 1787099702,
       "digest": "23237f191eb202b686927b403eab013b1f2169b48307280dd4c13ca7c32b0fc2",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1787118798,
+      "digest": "3cd8284bc9417a884f424d5d7ec5d44351008c976145ab8aa692a73186ec60de",
+      "note": null
     }
   ],
   "reopenings": [
@@ -136,6 +143,120 @@
       },
       "stale_acceptance_input_digest": "a2cf4a1dc2a316b247e64899ee094ed473e05c0a3a67b245f94256b2c90bd9a6",
       "current_acceptance_input_digest": "515bf0160dde811f1b93f4d17119c9e04763c24da58167883e9152039385aa0e"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0073-record-that-wait-for-regex-can-match-a-prior-turn-redraw-and-bring-the-1-0-ro",
+      "actor": "claude",
+      "reason": "ROADMAP.md was edited by CHG-0076, which corrected the MAX_CANON entry. That entry is a different section of the same shared file and does not touch this change's delivered content; re-verifying to refresh the exact-input evidence before archiving.",
+      "timestamp": 1787118621,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1787099702,
+        "digest": "23237f191eb202b686927b403eab013b1f2169b48307280dd4c13ca7c32b0fc2",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1787099697,
+        "commit": "de4bfa743d3c6a4c97fb4639bd42bfc7be5983f6",
+        "contract_digest": "a282827b9cdaea541e0a8fd4516044e014b82e8f6b402e397a87837e5daf8086",
+        "workspace_digest": "272d56a19cef780d59e970a4cf79bd861a1868570af72800ea82104a8c17f104",
+        "acceptance_input_digest": "515bf0160dde811f1b93f4d17119c9e04763c24da58167883e9152039385aa0e",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "023dc56268567032fe6c426211c03e908bd6ec1094f1db34f69fcf451a269432",
+              "entry_digest": "9f3fdb48b589f0fa01af9a58d08a0c7fafd198661da0397b63af0a654a5a2788",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "ROADMAP.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4201fa7e17406a1b5f736b145c39f9050c353b5706ab8ea62da97b6e068d4000",
+              "entry_digest": "6b9a103ae8afccd56de3f53c5ee4a2b432d3291dbfc3d1e217320878c77618d4",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/sessions.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "69bb9f862bb3ecbe9ad30ae6c7707e21349e09d1f17e1456a492376faa3ff077",
+              "entry_digest": "af36ea8b5aa90adc15fc2f98b2be2b6e24223b09982f11d50f1df62602d56b80",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "spec/rune/session_spec.rb",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6d70b6a57c34746ae97847ccc5394553a23298666f27ab4f663c070161f9814b",
+              "entry_digest": "de2b80f51dd9a8897618a7b30fb5c648983bca61a54368fb8b08ff2aa416bbbf",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1a0fd15fb827888294a886446657e96a34ac2faa99f7369daf98be589a9f181c",
+              "entry_digest": "3552e7926a2ef024811d601d4fa99987d97f31bb929044994dfe8931902b6dae",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "515bf0160dde811f1b93f4d17119c9e04763c24da58167883e9152039385aa0e",
+      "current_acceptance_input_digest": "02a7b2e73efd89cf31a0a11bdc4dfca735c00830f0f29f97adcb3b9bb67e07d2"
     }
   ]
 }
