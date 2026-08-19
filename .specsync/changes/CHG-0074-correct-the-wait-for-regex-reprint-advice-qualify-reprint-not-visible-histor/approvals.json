@@ -34,6 +34,13 @@
       "timestamp": 1787151885,
       "digest": "c7c7c83d33604b0644ea0d854e41100b2a538f6f4842c7c523b17de08d11b4d1",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1787157744,
+      "digest": "9acfe0b37463776737dd24967028c31a9001c76e54a3bff38456902a1178d20c",
+      "note": null
     }
   ],
   "reopenings": [
@@ -348,6 +355,110 @@
       },
       "stale_acceptance_input_digest": "00a6ca60249696b8eca94db926521c225e3e4d0e04520835379c7179cdc67bc1",
       "current_acceptance_input_digest": "2f7e84fcc964ba019e1d2f472bd1c6d3994717a79cafdc1983c1c24d46e9e255"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0074-correct-the-wait-for-regex-reprint-advice-qualify-reprint-not-visible-histor",
+      "actor": "claude",
+      "reason": "Resolving the merge of main into this branch edited specs/session/session.spec.md: the version field needed reconciling (main 39 plus this branch's one change = 40) and two duplicated Change Log rows were removed. Neither touches this change's delivered content; re-verifying to refresh the exact-input evidence.",
+      "timestamp": 1787157571,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1787151885,
+        "digest": "c7c7c83d33604b0644ea0d854e41100b2a538f6f4842c7c523b17de08d11b4d1",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1787151879,
+        "commit": "aa63d6e4100f888c62fcd622b059cbd3c83724e4",
+        "contract_digest": "0cefc5d8c1bbe85dc11ffb858fea0aaacf6963b7c4995c4e590aeb893a6c37d8",
+        "workspace_digest": "67caeddc4236fbd51d0a41e8c0477f0560170fe952a52ad7e1ca762d7ea0af93",
+        "acceptance_input_digest": "2f7e84fcc964ba019e1d2f472bd1c6d3994717a79cafdc1983c1c24d46e9e255",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "e8f9aa330f7f40382a812c5fa88e7756a2e33c1d9b461f00551e304e859f8981",
+              "entry_digest": "532b3f76607ebc6c9f6fa5d86bc99b46c95a282164a03257d670ca1ce43d898f",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "ROADMAP.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "be0eb2cbe48cdd5cbe63af89700075c3a48ebc678e68f5aef1763cc5447532d7",
+              "entry_digest": "41bf8e2372f488d00366c76ab76f563670c83e78e7fbac8efb4c5a6a482b3e2e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/sessions.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8762ae006badfcc9e419a1f3c8716f8b36858cef5194c356e05a6cd7e392baf5",
+              "entry_digest": "5fc95feb04c343611e159bb54e89f0f30f4d45da58735dcc97f55e9a4d26553b",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4265f1ec0949ff57a8f19e0662a2684d6fcf212a4c581d882be98aaac2b483f4",
+              "entry_digest": "bbc956198b6b0c2f761d7131d9ba37362fda8617bccec991e85ba1ef4ca36569",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "2f7e84fcc964ba019e1d2f472bd1c6d3994717a79cafdc1983c1c24d46e9e255",
+      "current_acceptance_input_digest": "b8735b85d645f271465f98fa14727200b52e350ee45315fd25dd15b24ba30f90"
     }
   ]
 }
