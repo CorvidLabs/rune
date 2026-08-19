@@ -330,23 +330,23 @@ TABLE
 `TableParser.parse` は `format:` キーワードを受け取ります（デフォルトは `:auto`。`:pipe` や
 `:space` を指定すれば解析モードを強制できます）。見慣れない出力に対して `:auto` に頼る前に、
 ヒューリスティクスの既知の制限について
-[`specs/parsers/parsers.spec.md`](../specs/parsers/parsers.spec.md) を参照してください。
+[`specs/parsers/parsers.spec.md`](../../specs/parsers/parsers.spec.md) を参照してください。
 
 ## 次のステップ
 
-- [`examples/smoke_test.rb`](../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` または
+- [`examples/smoke_test.rb`](../../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` または
   `fledge run smoke-test` で実行します。実際の挙動をアサーションベースでたどる単体のツアーで
   （bundler も rspec も不要）、出力モード、`--timeout` の検証、パーサ、`Script`、シグナル転送、
   プロンプト検出をカバーします。
-- [`examples/humans/demo_tui.rb`](../examples/humans/demo_tui.rb) — 上の `rune watch` の節全体で
-  使われている対話型デモです。[`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb)、
-  [`table_parser_example.rb`](../examples/agents/table_parser_example.rb)、
-  [`script_automation_example.rb`](../examples/agents/script_automation_example.rb) は、より小さな
+- [`examples/humans/demo_tui.rb`](../../examples/humans/demo_tui.rb) — 上の `rune watch` の節全体で
+  使われている対話型デモです。[`examples/agents/pty_runner_example.rb`](../../examples/agents/pty_runner_example.rb)、
+  [`table_parser_example.rb`](../../examples/agents/table_parser_example.rb)、
+  [`script_automation_example.rb`](../../examples/agents/script_automation_example.rb) は、より小さな
   単一概念のスクリプトで、`require_relative '../lib/rune'` 以外のセットアップなしにそれぞれ直接
   実行できます（`ruby examples/agents/<name>.rb`）。
-- [PTY アーキテクチャガイド](pty_architecture.md) — PTY ランナー、ストリームの読み取り、
+- [PTY アーキテクチャガイド](pty_architecture.ja.md) — PTY ランナー、ストリームの読み取り、
   プロンプト検出、`rune watch` のライブパススルーが内部でどう動作するかを解説しています。
-- [`specs/`](../specs/) — `cli`、`parsers`、`pty_runner`、`session`、`watch` の機械検証される
+- [`specs/`](../../specs/) — `cli`、`parsers`、`pty_runner`、`session`、`watch` の機械検証される
   モジュール契約（`spec-sync`）です。
-- [`AGENTS.md`](../AGENTS.md) — 新しいコマンドの追加や trust ツールチェーンとの付き合い方に
+- [`AGENTS.md`](../../AGENTS.md) — 新しいコマンドの追加や trust ツールチェーンとの付き合い方に
   関する規約です。

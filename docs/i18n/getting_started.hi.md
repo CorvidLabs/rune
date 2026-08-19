@@ -221,20 +221,20 @@ TABLE
 # => [{ name: 'fledge-plugin', status: 'active', version: '1.0.0' }]
 ```
 
-`TableParser.parse` एक `format:` कीवर्ड लेता है (डिफ़ॉल्ट `:auto`, या पार्सिंग मोड तय करने के लिए `:pipe`/`:space`) — अनजाने आउटपुट पर `:auto` भरोसे चलने से पहले [`specs/parsers/parsers.spec.md`](../specs/parsers/parsers.spec.md) में इस ह्यूरिस्टिक की ज्ञात सीमाएँ ज़रूर देख लीजिए।
+`TableParser.parse` एक `format:` कीवर्ड लेता है (डिफ़ॉल्ट `:auto`, या पार्सिंग मोड तय करने के लिए `:pipe`/`:space`) — अनजाने आउटपुट पर `:auto` भरोसे चलने से पहले [`specs/parsers/parsers.spec.md`](../../specs/parsers/parsers.spec.md) में इस ह्यूरिस्टिक की ज्ञात सीमाएँ ज़रूर देख लीजिए।
 
 ## आगे क्या पढ़ें
 
-- [`examples/smoke_test.rb`](../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` या `fledge
+- [`examples/smoke_test.rb`](../../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` या `fledge
   run smoke-test` से चलाइए। यह असली बर्ताव की एक स्वतंत्र, assertion-आधारित सैर है (bundler/rspec की ज़रूरत नहीं): आउटपुट मोड, `--timeout` की जाँच, पार्सर, `Script`, सिग्नल फ़ॉरवर्डिंग और प्रॉम्प्ट पहचान।
-- [`examples/humans/demo_tui.rb`](../examples/humans/demo_tui.rb) — वही इंटरैक्टिव डेमो जो ऊपर `rune watch`
-  वाले भाग में बार-बार इस्तेमाल हुआ है। [`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb),
-  [`table_parser_example.rb`](../examples/agents/table_parser_example.rb), और
-  [`script_automation_example.rb`](../examples/agents/script_automation_example.rb) छोटी, एक-एक विषय पर केंद्रित
+- [`examples/humans/demo_tui.rb`](../../examples/humans/demo_tui.rb) — वही इंटरैक्टिव डेमो जो ऊपर `rune watch`
+  वाले भाग में बार-बार इस्तेमाल हुआ है। [`examples/agents/pty_runner_example.rb`](../../examples/agents/pty_runner_example.rb),
+  [`table_parser_example.rb`](../../examples/agents/table_parser_example.rb), और
+  [`script_automation_example.rb`](../../examples/agents/script_automation_example.rb) छोटी, एक-एक विषय पर केंद्रित
   स्क्रिप्ट हैं — हर एक सीधे चलाई जा सकती है (`ruby examples/agents/<name>.rb`), और `require_relative '../lib/rune'`
   के अलावा कोई तैयारी नहीं चाहिए।
-- [PTY Architecture Guide](pty_architecture.md) — भीतर से यह कैसे काम करता है: PTY रनर, स्ट्रीम पढ़ना, प्रॉम्प्ट
+- [PTY Architecture Guide](pty_architecture.hi.md) — भीतर से यह कैसे काम करता है: PTY रनर, स्ट्रीम पढ़ना, प्रॉम्प्ट
   पहचान, और `rune watch` का लाइव पासथ्रू।
-- [`specs/`](../specs/) — `cli`, `parsers`, `pty_runner`, `session` और `watch` के लिए मशीन से जाँचे जाने वाले
+- [`specs/`](../../specs/) — `cli`, `parsers`, `pty_runner`, `session` और `watch` के लिए मशीन से जाँचे जाने वाले
   मॉड्यूल कॉन्ट्रैक्ट (`spec-sync`)।
-- [`AGENTS.md`](../AGENTS.md) — नए कमांड जोड़ने और ट्रस्ट टूलचेन के साथ काम करने की तौर-तरीक़े।
+- [`AGENTS.md`](../../AGENTS.md) — नए कमांड जोड़ने और ट्रस्ट टूलचेन के साथ काम करने की तौर-तरीक़े।

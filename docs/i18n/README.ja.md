@@ -22,7 +22,7 @@ Ruby CLI ツールおよびライブラリ。
 CLI を複数の呼び出しをまたいで開いたまま維持するため、あるエージェントが別のエージェント
 と対話的にやり取りでき、人間が同じセッションにアタッチして引き継ぐこともできます。
 
-📖 はじめての方は、まず **[入門ガイド](docs/getting_started.md)** からどうぞ。
+📖 はじめての方は、まず **[入門ガイド](getting_started.ja.md)** からどうぞ。
 
 ---
 
@@ -272,7 +272,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ```
 
 📖 settle チューニングや既知の制限を含む完全なガイド:
-**[docs/sessions.md](docs/sessions.md)**。
+**[sessions.ja.md](sessions.ja.md)**。
 
 ---
 
@@ -294,16 +294,16 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 
 ## アーキテクチャと内部実装
 
-- 📖 **[入門ガイド](docs/getting_started.md)** — 出力モード、`rune run` の使い方、
+- 📖 **[入門ガイド](getting_started.ja.md)** — 出力モード、`rune run` の使い方、
   タイムアウト、実際のコマンド出力を使ったパーサー。
-- 📖 **[永続セッションガイド](docs/sessions.md)** — `rune session`: 単一の呼び出しを超えて
+- 📖 **[永続セッションガイド](sessions.ja.md)** — `rune session`: 単一の呼び出しを超えて
   生き続ける名前付き PTY セッション、およびあるエージェント CLI を別のエージェントから
   操作するための send-and-settle。
-- 📖 **[疑似 TTY（PTY）アーキテクチャガイド](docs/pty_architecture.md)** —
+- 📖 **[疑似 TTY（PTY）アーキテクチャガイド](pty_architecture.ja.md)** —
   疑似端末、ノンブロッキングなストリーム読み取り、ANSI サニタイズ、プロンプト検出、
   スクリプト実行、そして `rune watch` のライブ双方向パススルーが Ruby で内部的にどう
   動作するか。
-- 📖 **[リリースガイド](docs/releasing.md)** — バージョン同期、検証、プロベナンス、
+- 📖 **[リリースガイド](../releasing.md)** — バージョン同期、検証、プロベナンス、
   タグ付け、パッケージ公開。
 
 ---

@@ -220,12 +220,12 @@ TABLE
 # => [{ name: 'fledge-plugin', status: 'active', version: '1.0.0' }]
 ```
 
-`TableParser.parse`는 `format:` 키워드를 받습니다. 기본값은 `:auto`이고, 파싱 모드를 강제하려면 `:pipe` 또는 `:space`를 씁니다. 낯선 출력에 `:auto`를 기대기 전에, 휴리스틱의 알려진 한계는 [`specs/parsers/parsers.spec.md`](../specs/parsers/parsers.spec.md)를 보세요.
+`TableParser.parse`는 `format:` 키워드를 받습니다. 기본값은 `:auto`이고, 파싱 모드를 강제하려면 `:pipe` 또는 `:space`를 씁니다. 낯선 출력에 `:auto`를 기대기 전에, 휴리스틱의 알려진 한계는 [`specs/parsers/parsers.spec.md`](../../specs/parsers/parsers.spec.md)를 보세요.
 
 ## 다음 단계
 
-- [`examples/smoke_test.rb`](../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` 또는 `fledge run smoke-test`. bundler/rspec 없이 실제 동작을 assertion으로 훑는 독립 투어입니다. 출력 모드, `--timeout` 검증, 파서, `Script`, 시그널 전달, 프롬프트 감지를 다룹니다.
-- [`examples/humans/demo_tui.rb`](../examples/humans/demo_tui.rb) — 위에서 `rune watch` 절에 쓴 대화형 데모입니다. [`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb), [`table_parser_example.rb`](../examples/agents/table_parser_example.rb), [`script_automation_example.rb`](../examples/agents/script_automation_example.rb)는 개념 하나씩만 다루는 작은 스크립트입니다. 각각 `require_relative '../lib/rune'` 외에는 준비 없이 (`ruby examples/agents/<name>.rb`)로 바로 실행할 수 있습니다.
-- [PTY 아키텍처 가이드](pty_architecture.md) — PTY 러너, 스트림 읽기, 프롬프트 감지, `rune watch`의 실시간 패스스루가 내부에서 어떻게 동작하는지 설명합니다.
-- [`specs/`](../specs/) — `cli`, `parsers`, `pty_runner`, `session`, `watch`에 대한 기계 검증 모듈 계약(`spec-sync`)입니다.
-- [`AGENTS.md`](../AGENTS.md) — 새 명령을 추가하고 trust 툴체인을 다룰 때의 규칙입니다.
+- [`examples/smoke_test.rb`](../../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` 또는 `fledge run smoke-test`. bundler/rspec 없이 실제 동작을 assertion으로 훑는 독립 투어입니다. 출력 모드, `--timeout` 검증, 파서, `Script`, 시그널 전달, 프롬프트 감지를 다룹니다.
+- [`examples/humans/demo_tui.rb`](../../examples/humans/demo_tui.rb) — 위에서 `rune watch` 절에 쓴 대화형 데모입니다. [`examples/agents/pty_runner_example.rb`](../../examples/agents/pty_runner_example.rb), [`table_parser_example.rb`](../../examples/agents/table_parser_example.rb), [`script_automation_example.rb`](../../examples/agents/script_automation_example.rb)는 개념 하나씩만 다루는 작은 스크립트입니다. 각각 `require_relative '../lib/rune'` 외에는 준비 없이 (`ruby examples/agents/<name>.rb`)로 바로 실행할 수 있습니다.
+- [PTY 아키텍처 가이드](pty_architecture.ko.md) — PTY 러너, 스트림 읽기, 프롬프트 감지, `rune watch`의 실시간 패스스루가 내부에서 어떻게 동작하는지 설명합니다.
+- [`specs/`](../../specs/) — `cli`, `parsers`, `pty_runner`, `session`, `watch`에 대한 기계 검증 모듈 계약(`spec-sync`)입니다.
+- [`AGENTS.md`](../../AGENTS.md) — 새 명령을 추가하고 trust 툴체인을 다룰 때의 규칙입니다.

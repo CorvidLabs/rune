@@ -308,23 +308,23 @@ TABLE
 ```
 
 `TableParser.parse` принимает ключевое слово `format:` (`:auto` по умолчанию, или `:pipe`/`:space` чтобы
-принудительно задать режим разбора) — см. [`specs/parsers/parsers.spec.md`](../specs/parsers/parsers.spec.md) об
+принудительно задать режим разбора) — см. [`specs/parsers/parsers.spec.md`](../../specs/parsers/parsers.spec.md) об
 известных ограничениях эвристики, прежде чем полагаться на `:auto` для незнакомого вывода.
 
 ## Что дальше
 
-- [`examples/smoke_test.rb`](../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` или `fledge
+- [`examples/smoke_test.rb`](../../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` или `fledge
   run smoke-test`. Автономный обзор реального поведения на основе утверждений (bundler/rspec не нужны):
   режимы вывода, проверка `--timeout`, парсеры, `Script`, пересылка сигналов, обнаружение приглашения.
-- [`examples/humans/demo_tui.rb`](../examples/humans/demo_tui.rb) — интерактивное демо, используемое на протяжении раздела
-  `rune watch` выше. [`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb),
-  [`table_parser_example.rb`](../examples/agents/table_parser_example.rb) и
-  [`script_automation_example.rb`](../examples/agents/script_automation_example.rb) — более мелкие
+- [`examples/humans/demo_tui.rb`](../../examples/humans/demo_tui.rb) — интерактивное демо, используемое на протяжении раздела
+  `rune watch` выше. [`examples/agents/pty_runner_example.rb`](../../examples/agents/pty_runner_example.rb),
+  [`table_parser_example.rb`](../../examples/agents/table_parser_example.rb) и
+  [`script_automation_example.rb`](../../examples/agents/script_automation_example.rb) — более мелкие
   сценарии на одну идею — каждый запускается напрямую (`ruby examples/agents/<name>.rb`) без настройки сверх
   `require_relative '../lib/rune'`.
-- [Руководство по архитектуре PTY](pty_architecture.md) — как внутри работают PTY-раннер, чтение потока, обнаружение
+- [Руководство по архитектуре PTY](pty_architecture.ru.md) — как внутри работают PTY-раннер, чтение потока, обнаружение
   приглашения и живой проброс `rune watch`.
-- [`specs/`](../specs/) — машинопроверяемые контракты модулей (`spec-sync`) для `cli`, `parsers`,
+- [`specs/`](../../specs/) — машинопроверяемые контракты модулей (`spec-sync`) для `cli`, `parsers`,
   `pty_runner`, `session` и `watch`.
-- [`AGENTS.md`](../AGENTS.md) — соглашения о добавлении новых команд и работе с trust
+- [`AGENTS.md`](../../AGENTS.md) — соглашения о добавлении новых команд и работе с trust
   toolchain.

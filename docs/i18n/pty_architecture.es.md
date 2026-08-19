@@ -5,10 +5,6 @@
 > **Guía para desarrolladores y agentes de IA**  
 > *Cómo Ruby gestiona los seudoterminales, los flujos interactivos y la automatización de prompts en `rune`.*
 
-**Traducciones:** [Português (BR)](i18n/pty_architecture.pt-BR.md)
-
-Cada una es una traducción de este archivo, que es la versión autorizada cuando hay discrepancias.
-
 ---
 
 ## 1. Visión general: ¿qué es un Pseudo-TTY (PTY)?

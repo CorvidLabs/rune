@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0075-repair-139-broken-relative-links-across-the-nine-translations",
+  "slug": "repair-139-broken-relative-links-across-the-nine-translations",
+  "title": "Repair 139 broken relative links across the nine translations",
+  "description": "Repair 139 broken relative links across the nine translations",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "ebaec04c478ab3eba17752fa69962f1e6add5049",
+  "created_at": 1787110666,
+  "updated_at": 1787110907,
+  "affected_specs": [],
+  "affected_paths": [
+    "docs/i18n/README.ar.md",
+    "docs/i18n/getting_started.ar.md",
+    "docs/i18n/README.es.md",
+    "docs/i18n/getting_started.es.md",
+    "docs/i18n/README.fr.md",
+    "docs/i18n/getting_started.fr.md",
+    "docs/i18n/README.hi.md",
+    "docs/i18n/getting_started.hi.md",
+    "docs/i18n/README.ja.md",
+    "docs/i18n/getting_started.ja.md",
+    "docs/i18n/README.ko.md",
+    "docs/i18n/getting_started.ko.md",
+    "docs/i18n/README.pt-BR.md",
+    "docs/i18n/getting_started.pt-BR.md",
+    "docs/i18n/README.ru.md",
+    "docs/i18n/getting_started.ru.md",
+    "docs/i18n/README.zh-CN.md",
+    "docs/i18n/getting_started.zh-CN.md",
+    "docs/i18n/pty_architecture.ar.md",
+    "docs/i18n/pty_architecture.es.md",
+    "docs/i18n/pty_architecture.zh-CN.md",
+    "docs/i18n/sessions.fr.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Only translated documentation under docs/i18n/ changes. Relative paths copied verbatim from the repo-root English sources resolved two levels too shallow. No file under lib/ is touched and no canonical spec module gains or loses an obligation.",
+  "acceptance_criteria": [
+    "A repo-wide markdown link scan reports 0 broken local links across docs/i18n/ (296 links checked; the only remaining hits are literal link-syntax examples quoted in prose in an untracked report file). Links to documents that have a translation point at the translated sibling; links to code, spec and example paths point at the repo root via ../../; releasing.md continues to point at English because it is deliberately untranslated. Link text agrees with link target, as in the English sources. No translation index block claims the translation is authoritative. All 8 external URLs return 200 and all 9 translated READMEs retain their 3 badges."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

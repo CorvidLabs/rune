@@ -18,7 +18,7 @@ sesión. Misma herramienta, mismos comandos, interfaz dual.
 entre invocaciones separadas, de modo que un agente pueda conducir a otro de forma conversacional y una persona pueda conectarse
 a la misma sesión y tomar el control.
 
-📖 ¿Nuevo por aquí? Empiece por la **[guía de primeros pasos](docs/getting_started.md)**.
+📖 ¿Nuevo por aquí? Empiece por la **[guía de primeros pasos](getting_started.es.md)**.
 
 ---
 
@@ -255,7 +255,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ```
 
 📖 Guía completa, incluida la sintonización de settle y las limitaciones conocidas:
-**[docs/sessions.md](docs/sessions.md)**.
+**[sessions.es.md](sessions.es.md)**.
 
 ---
 
@@ -275,10 +275,10 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 
 ## Arquitectura e internos
 
-- 📖 **[Guía de primeros pasos](docs/getting_started.md)** — Modos de salida, uso de `rune run`, tiempos de espera y analizadores con salida real de comandos.
-- 📖 **[Guía de sesiones persistentes](docs/sessions.md)** — `rune session`: sesiones PTY con nombre que sobreviven a una sola invocación, y send-and-settle para conducir una CLI de agente desde otra.
-- 📖 **[Guía de arquitectura de Pseudo-TTY (PTY)](docs/pty_architecture.md)** — Cómo funcionan por debajo, en Ruby, las seudoterminales, la lectura de flujos no bloqueante, la sanitización ANSI, la detección de indicaciones, la ejecución de scripts y el paso transparente bidireccional en vivo de `rune watch`.
-- 📖 **[Guía de publicación](docs/releasing.md)** — Sincronización de versiones, verificación, procedencia, etiquetado y publicación de paquetes.
+- 📖 **[Guía de primeros pasos](getting_started.es.md)** — Modos de salida, uso de `rune run`, tiempos de espera y analizadores con salida real de comandos.
+- 📖 **[Guía de sesiones persistentes](sessions.es.md)** — `rune session`: sesiones PTY con nombre que sobreviven a una sola invocación, y send-and-settle para conducir una CLI de agente desde otra.
+- 📖 **[Guía de arquitectura de Pseudo-TTY (PTY)](pty_architecture.es.md)** — Cómo funcionan por debajo, en Ruby, las seudoterminales, la lectura de flujos no bloqueante, la sanitización ANSI, la detección de indicaciones, la ejecución de scripts y el paso transparente bidireccional en vivo de `rune watch`.
+- 📖 **[Guía de publicación](../releasing.md)** — Sincronización de versiones, verificación, procedencia, etiquetado y publicación de paquetes.
 
 ---
 

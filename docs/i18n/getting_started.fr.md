@@ -332,25 +332,25 @@ TABLE
 ```
 
 `TableParser.parse` accepte un mot-clé `format:` (`:auto` par défaut, ou `:pipe`/`:space` pour
-forcer un mode d'analyse) — voir [`specs/parsers/parsers.spec.md`](../specs/parsers/parsers.spec.md)
+forcer un mode d'analyse) — voir [`specs/parsers/parsers.spec.md`](../../specs/parsers/parsers.spec.md)
 pour les limitations connues de l'heuristique avant de compter sur `:auto` face à une sortie peu
 familière.
 
 ## Prochaines étapes
 
-- [`examples/smoke_test.rb`](../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` ou `fledge
+- [`examples/smoke_test.rb`](../../examples/smoke_test.rb) — `ruby examples/smoke_test.rb` ou `fledge
   run smoke-test`. Un parcours autonome, fondé sur des assertions, du comportement réel (sans
   bundler ni rspec requis) : modes de sortie, validation de `--timeout`, analyseurs, `Script`,
   transfert des signaux, détection d'invite.
-- [`examples/humans/demo_tui.rb`](../examples/humans/demo_tui.rb) — la démo interactive utilisée dans
-  toute la section `rune watch` ci-dessus. [`examples/agents/pty_runner_example.rb`](../examples/agents/pty_runner_example.rb),
-  [`table_parser_example.rb`](../examples/agents/table_parser_example.rb) et
-  [`script_automation_example.rb`](../examples/agents/script_automation_example.rb) sont des scripts
+- [`examples/humans/demo_tui.rb`](../../examples/humans/demo_tui.rb) — la démo interactive utilisée dans
+  toute la section `rune watch` ci-dessus. [`examples/agents/pty_runner_example.rb`](../../examples/agents/pty_runner_example.rb),
+  [`table_parser_example.rb`](../../examples/agents/table_parser_example.rb) et
+  [`script_automation_example.rb`](../../examples/agents/script_automation_example.rb) sont des scripts
   plus petits, chacun dédié à un seul concept — chacun exécutable directement (`ruby examples/agents/<name>.rb`)
   sans autre préparation que `require_relative '../lib/rune'`.
-- [Guide d'architecture PTY](pty_architecture.md) — le fonctionnement interne de l'exécuteur PTY,
+- [Guide d'architecture PTY](pty_architecture.fr.md) — le fonctionnement interne de l'exécuteur PTY,
   de la lecture des flux, de la détection d'invite et du passage en direct de `rune watch`.
-- [`specs/`](../specs/) — les contrats de modules vérifiés par machine (`spec-sync`) pour `cli`,
+- [`specs/`](../../specs/) — les contrats de modules vérifiés par machine (`spec-sync`) pour `cli`,
   `parsers`, `pty_runner`, `session` et `watch`.
-- [`AGENTS.md`](../AGENTS.md) — les conventions pour ajouter de nouvelles commandes et travailler
+- [`AGENTS.md`](../../AGENTS.md) — les conventions pour ajouter de nouvelles commandes et travailler
   avec la chaîne d'outils de confiance.

@@ -18,7 +18,7 @@
 между отдельными вызовами, так что один агент может управлять другим в диалоговом режиме, а человек может подключиться
 к тому же сеансу и взять управление на себя.
 
-📖 Впервые здесь? Начните с **[Getting Started guide](docs/getting_started.md)**.
+📖 Впервые здесь? Начните с **[Getting Started guide](getting_started.ru.md)**.
 
 ---
 
@@ -255,7 +255,8 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ```
 
 📖 Полное руководство, включая настройку settle и известные ограничения:
-**[docs/sessions.md](docs/sessions.md)**.
+**[sessions.ru.md](sessions.ru.md)**.
+
 ---
 
 ## Интеграция с CorvidLabs
@@ -274,10 +275,10 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 
 ## Архитектура и внутреннее устройство
 
-- 📖 **[Getting Started guide](docs/getting_started.md)** — Режимы вывода, использование `rune run`, тайм-ауты и парсеры с реальным выводом команд.
-- 📖 **[Persistent sessions guide](docs/sessions.md)** — `rune session`: именованные PTY-сеансы, которые переживают один вызов, и send-and-settle для управления одним агентским CLI из другого.
-- 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — Как псевдотерминалы, неблокирующее чтение потоков, санитарная обработка ANSI, обнаружение приглашений, выполнение сценариев и живой двунаправленный проброс `rune watch` работают внутри в Ruby.
-- 📖 **[Release guide](docs/releasing.md)** — Синхронизация версий, проверка, provenance, тегирование и публикация пакета.
+- 📖 **[Getting Started guide](getting_started.ru.md)** — Режимы вывода, использование `rune run`, тайм-ауты и парсеры с реальным выводом команд.
+- 📖 **[Persistent sessions guide](sessions.ru.md)** — `rune session`: именованные PTY-сеансы, которые переживают один вызов, и send-and-settle для управления одним агентским CLI из другого.
+- 📖 **[Pseudo-TTY (PTY) Architecture Guide](pty_architecture.ru.md)** — Как псевдотерминалы, неблокирующее чтение потоков, санитарная обработка ANSI, обнаружение приглашений, выполнение сценариев и живой двунаправленный проброс `rune watch` работают внутри в Ruby.
+- 📖 **[Release guide](../releasing.md)** — Синхронизация версий, проверка, provenance, тегирование и публикация пакета.
 
 ---
 

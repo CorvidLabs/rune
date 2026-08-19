@@ -17,7 +17,7 @@
 `rune session` 更进一步：它让代理 CLI——`claude`、`grok`、`codex`——在多次独立调用之间保持
 打开状态，这样一个代理就能以对话方式驱动另一个代理，而人类也可以接入同一会话并接管。
 
-📖 初次使用？请从 **[入门指南](docs/getting_started.md)** 开始。
+📖 初次使用？请从 **[入门指南](getting_started.zh-CN.md)** 开始。
 
 ---
 
@@ -251,7 +251,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ```
 
 📖 完整指南，包括 settle 调优和已知限制：
-**[docs/sessions.md](docs/sessions.md)**。
+**[sessions.zh-CN.md](sessions.zh-CN.md)**。
 
 ---
 
@@ -271,10 +271,10 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 
 ## 架构与内部实现
 
-- 📖 **[入门指南](docs/getting_started.md)** — 输出模式、`rune run` 用法、超时和解析器，附真实命令输出。
-- 📖 **[持久会话指南](docs/sessions.md)** — `rune session`：跨越单次调用而存在的命名 PTY 会话，以及用于从一个代理 CLI 驱动另一个的发送并等待就绪（send-and-settle）。
-- 📖 **[伪终端（PTY）架构指南](docs/pty_architecture.md)** — 伪终端、非阻塞流读取、ANSI 净化、提示检测、脚本执行以及 `rune watch` 的实时双向透传在 Ruby 底层的实现原理。
-- 📖 **[发布指南](docs/releasing.md)** — 版本同步、验证、来源证明、打标签和包发布。
+- 📖 **[入门指南](getting_started.zh-CN.md)** — 输出模式、`rune run` 用法、超时和解析器，附真实命令输出。
+- 📖 **[持久会话指南](sessions.zh-CN.md)** — `rune session`：跨越单次调用而存在的命名 PTY 会话，以及用于从一个代理 CLI 驱动另一个的发送并等待就绪（send-and-settle）。
+- 📖 **[伪终端（PTY）架构指南](pty_architecture.zh-CN.md)** — 伪终端、非阻塞流读取、ANSI 净化、提示检测、脚本执行以及 `rune watch` 的实时双向透传在 Ruby 底层的实现原理。
+- 📖 **[发布指南](../releasing.md)** — 版本同步、验证、来源证明、打标签和包发布。
 
 ---
 

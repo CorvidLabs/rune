@@ -18,7 +18,7 @@
 서로 다른 호출에 걸쳐 열어 두므로, 한 에이전트가 다른 에이전트를 대화로 구동할 수 있고 사람이 같은 세션에 연결해
 이어받을 수 있습니다.
 
-📖 처음이신가요? **[시작 가이드](docs/getting_started.md)**부터 보세요.
+📖 처음이신가요? **[시작 가이드](getting_started.ko.md)**부터 보세요.
 
 ---
 
@@ -255,7 +255,7 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 ```
 
 📖 전체 가이드(settle 튜닝과 알려진 제한 포함):
-**[docs/sessions.md](docs/sessions.md)**.
+**[sessions.ko.md](sessions.ko.md)**.
 
 ---
 
@@ -275,10 +275,10 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 
 ## 아키텍처 및 내부
 
-- 📖 **[시작 가이드](docs/getting_started.md)** — 출력 모드, `rune run` 사용법, 타임아웃, 실제 명령 출력을 사용한 파서.
-- 📖 **[지속 세션 가이드](docs/sessions.md)** — `rune session`: 단일 호출보다 오래 사는 이름 있는 PTY 세션, 그리고 한 에이전트 CLI로 다른 에이전트를 구동하기 위한 send-and-settle.
-- 📖 **[의사 TTY (PTY) 아키텍처 가이드](docs/pty_architecture.md)** — Ruby에서 의사 터미널, 비차단 스트림 읽기, ANSI 정리, 프롬프트 감지, 스크립트 실행, `rune watch`의 실시간 양방향 패스스루가 내부에서 어떻게 동작하는지.
-- 📖 **[릴리스 가이드](docs/releasing.md)** — 버전 동기화, 검증, provenance, 태깅, 패키지 게시.
+- 📖 **[시작 가이드](getting_started.ko.md)** — 출력 모드, `rune run` 사용법, 타임아웃, 실제 명령 출력을 사용한 파서.
+- 📖 **[지속 세션 가이드](sessions.ko.md)** — `rune session`: 단일 호출보다 오래 사는 이름 있는 PTY 세션, 그리고 한 에이전트 CLI로 다른 에이전트를 구동하기 위한 send-and-settle.
+- 📖 **[의사 TTY (PTY) 아키텍처 가이드](pty_architecture.ko.md)** — Ruby에서 의사 터미널, 비차단 스트림 읽기, ANSI 정리, 프롬프트 감지, 스크립트 실행, `rune watch`의 실시간 양방향 패스스루가 내부에서 어떻게 동작하는지.
+- 📖 **[릴리스 가이드](../releasing.md)** — 버전 동기화, 검증, provenance, 태깅, 패키지 게시.
 
 ---
 
