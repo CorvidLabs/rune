@@ -48,6 +48,13 @@
       "timestamp": 1787170943,
       "digest": "50478bbcf42d13e0a2453eaed16ec6eee36815e04146083fb8ba97a7073caff4",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "claude",
+      "timestamp": 1787173801,
+      "digest": "85f4713c231313c56ba4d47ca6c3c982d1813edc9e2465ee8cecb512c024f04a",
+      "note": null
     }
   ],
   "reopenings": [
@@ -570,6 +577,110 @@
       },
       "stale_acceptance_input_digest": "b8735b85d645f271465f98fa14727200b52e350ee45315fd25dd15b24ba30f90",
       "current_acceptance_input_digest": "15f53e158475156928f5695b957f9f089af463e507d36e19a21f58eee95bd0ce"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0074-correct-the-wait-for-regex-reprint-advice-qualify-reprint-not-visible-histor",
+      "actor": "claude",
+      "reason": "CHG-0080 edited ROADMAP.md (splitting the 1.0 section by gate versus documented limitation) and lib/rune/commands/session_command.rb (adding data.code to failures). Neither alters this change's delivered content; re-verifying to refresh the exact-input evidence.",
+      "timestamp": 1787173626,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "claude",
+        "timestamp": 1787170943,
+        "digest": "50478bbcf42d13e0a2453eaed16ec6eee36815e04146083fb8ba97a7073caff4",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1787170936,
+        "commit": "a95f912fde324b737bdcba2496d530b753e5204f",
+        "contract_digest": "0cefc5d8c1bbe85dc11ffb858fea0aaacf6963b7c4995c4e590aeb893a6c37d8",
+        "workspace_digest": "f712d00ec10a7e4f8c0ce5f866abc3a85c5fc98d92cf6e65eb1bc79360ed6203",
+        "acceptance_input_digest": "15f53e158475156928f5695b957f9f089af463e507d36e19a21f58eee95bd0ce",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "e8f9aa330f7f40382a812c5fa88e7756a2e33c1d9b461f00551e304e859f8981",
+              "entry_digest": "532b3f76607ebc6c9f6fa5d86bc99b46c95a282164a03257d670ca1ce43d898f",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "ROADMAP.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "be0eb2cbe48cdd5cbe63af89700075c3a48ebc678e68f5aef1763cc5447532d7",
+              "entry_digest": "41bf8e2372f488d00366c76ab76f563670c83e78e7fbac8efb4c5a6a482b3e2e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/sessions.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8762ae006badfcc9e419a1f3c8716f8b36858cef5194c356e05a6cd7e392baf5",
+              "entry_digest": "5fc95feb04c343611e159bb54e89f0f30f4d45da58735dcc97f55e9a4d26553b",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/session/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d09b8d9853d949d2657ad370488d861fc69cdad8762dd787d01fa3a57c69f50d",
+              "entry_digest": "907337254e2eba2c5cdb797fb0e89f079d7979b85a09ecb4514fe8d06e9063f4",
+              "owners": [
+                "session"
+              ]
+            },
+            {
+              "path": "specs/session/session.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4a109baa149c50abffe7d2011d857975c3389a712c4ce7a0dccd631507dbdcb6",
+              "entry_digest": "4b5f7ab259b76de0d26da936feca56d3b9d7010904ee6786e648e88275c27745",
+              "owners": [
+                "session"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "fledge run version-check",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run lint",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "fledge run smoke-test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "15f53e158475156928f5695b957f9f089af463e507d36e19a21f58eee95bd0ce",
+      "current_acceptance_input_digest": "151b454acd90df3f9c3ec9681bd8ab440b9809da4f5ddbb5e3632c99b6ed51e5"
     }
   ]
 }

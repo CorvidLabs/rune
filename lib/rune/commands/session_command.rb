@@ -224,7 +224,7 @@ module Rune
         end
         return outcome unless outcome == :busy
 
-        Result.failure("Session #{name.inspect} is being started by another process.")
+        failure(:session_starting, "Session #{name.inspect} is being started by another process.", name: name)
       end
 
       def start_rejection(options, command)
@@ -253,8 +253,9 @@ module Rune
         # records its state before either pid is known, and "(pid )" reads like
         # a bug rather than the timing detail it is.
         pid = meta[:child_pid] || meta[:supervisor_pid]
-        Result.failure("Session #{name.inspect} is already running#{" (pid #{pid})" if pid}. " \
-                       'Stop it first or choose another name.')
+        failure(:session_already_running,
+                "Session #{name.inspect} is already running#{" (pid #{pid})" if pid}. " \
+                'Stop it first or choose another name.', name: name)
       end
 
       def launch(name, command)
@@ -319,9 +320,10 @@ module Rune
         return nil unless meta[:launch_failed]
 
         abandon(name, meta[:supervisor_pid])
-        Result.failure("Could not start #{name.inspect}: the command could not be executed " \
-                       "(exit #{meta[:exit_code]}). Check the command name, that it is installed, " \
-                       'and that it is executable.')
+        failure(:launch_failed,
+                "Could not start #{name.inspect}: the command could not be executed " \
+                "(exit #{meta[:exit_code]}). Check the command name, that it is installed, " \
+                'and that it is executable.', name: name)
       end
 
       # Re-invokes rune's own executable rather than forking in-process: a fork
@@ -544,10 +546,10 @@ module Rune
       end
 
       def alive_session(name)
-        return Result.failure(no_such_session(name)) unless store.exist?(name)
+        return failure(:session_not_found, no_such_session(name), name: name) unless store.exist?(name)
 
         meta = store.read_meta(name)
-        return Result.failure(no_such_session(name)) unless meta
+        return failure(:session_not_found, no_such_session(name), name: name) unless meta
         return nil if Session::Store.alive?(meta[:supervisor_pid])
 
         # The resolved state, not the recorded one: reaching here means the
@@ -557,7 +559,8 @@ module Rune
         # Ruby's spelling of "we do not know" in front of a user.
         state = resolved_state(meta) || 'unknown'
         code = meta[:exit_code] ? ", exit code #{meta[:exit_code]}" : ' and recorded no exit code'
-        Result.failure("Session #{name.inspect} is not running (state #{state}#{code}).")
+        failure(:session_not_running, "Session #{name.inspect} is not running (state #{state}#{code}).",
+                name: name)
       end
 
       # ---- read
@@ -566,7 +569,9 @@ module Rune
         options, _rest, error = extract_options(args)
         return Result.failure(error) if error
         return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
-        return Result.failure(no_such_session(options[:name])) unless store.exist?(options[:name])
+        unless store.exist?(options[:name])
+          return failure(:session_not_found, no_such_session(options[:name]), name: options[:name])
+        end
 
         transcript = Session::Transcript.load(store.output_path(options[:name]))
         read_result(options, transcript)
@@ -938,7 +943,7 @@ module Rune
         return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
 
         name = options[:name]
-        return Result.failure(no_such_session(name)) unless store.exist?(name)
+        return failure(:session_not_found, no_such_session(name), name: name) unless store.exist?(name)
 
         meta = store.read_meta(name) || {}
         graceful_stop(name)
@@ -1070,7 +1075,7 @@ module Rune
 
       def archive_rejection(name)
         return Result.failure(name_error(name)) unless Session::Store.valid_name?(name)
-        return Result.failure(no_such_session(name)) unless store.exist?(name)
+        return failure(:session_not_found, no_such_session(name), name: name) unless store.exist?(name)
 
         supervisor = (store.read_meta(name) || {})[:supervisor_pid]
         return Result.failure(still_running(name)) if Session::Store.alive?(supervisor)
@@ -1265,6 +1270,26 @@ module Rune
       #
       # rune already knows the answer: `--all-projects` finds it. An error that can name the project
       # should name it rather than send the reader to a command that shows them nothing.
+      # A failure a caller can branch on without matching English.
+      #
+      # Every failure envelope was `{status, error}` and nothing else, so a
+      # caller distinguishing "no such session" from "not running" had only the
+      # prose — and the prose is not stable: the same missing-session condition
+      # produces two entirely different sentences depending on whether the
+      # session exists in another project. Those sentences would have been a
+      # frozen API at 1.0, remediation advice and all.
+      #
+      # `data` on a failure is additive, which is the argument for doing it
+      # before the freeze rather than after: `Result#to_h` already emits `data`
+      # when present, and the human renderer reads only `error`, so nothing
+      # visible moves. It also closes the gap that `data.name` was unavailable
+      # on exactly the path where a retry loop needs it. The code set is
+      # expected to grow; a caller should treat an unrecognised code as a
+      # generic failure rather than assuming this list is closed.
+      def failure(code, message, name: nil)
+        Result.failure(message, data: { code: code, name: name }.compact)
+      end
+
       def no_such_session(name)
         elsewhere = projects_holding(name)
         return "No such session: #{name.inspect}. Run 'rune session list'." if elsewhere.empty?

@@ -26,12 +26,49 @@ or corrected documentation; nothing has been removed or changed meaning.
 
 ## What 1.0 needs
 
-1.0 is a statement that the surface is stable and the known defects are known. Four things still
-stand in the way. The half-painted `--screen` frame is no longer one of them: it remains
-unreproduced here, two candidate fixes were measured and rejected, and it lives under
+1.0 is a statement that the surface is stable and the known defects are known. **It is not a
+statement that the defects are fixed** — that reading is what kept this list growing, because every
+unsolved item looked like a blocker whether or not anyone intended to solve it.
+
+So the items below are split by what would actually change:
+
+- **Gates** — things that must be *done* before 1.0. There is one left.
+- **Documented limitations** — things that will ship unfixed, deliberately, described accurately.
+  These moved out of this section rather than being resolved, and each says why.
+
+The half-painted `--screen` frame is not here: it remains unreproduced, two candidate fixes were
+measured and rejected, and it lives under
 [Known and documented](#known-and-documented-not-planned-for-10). The 0.8.0 renderer row
 (alt screen, wide characters, DEC line drawing, IRM, DECAWM) is **closed** — modes and charsets in
 CHG-0064, the cell model in #66.
+
+### The remaining gate
+
+**A final independent review round, and the surface-freeze decisions it surfaces.** Most of the
+sharpest bugs in this project were found by an agent other than the one that wrote the code, so 1.0
+should not be cut without another round. That round has now run — five reviewers, two driven through
+`rune session` — and both agents answered *do not ship*. What they found in code is fixed
+(CHG-0079: a control-socket request could kill a child; `read` reported dead sessions as running;
+two parsers disagreed about what an escape is). What remains is a set of **additive** contract
+decisions that are cheap now and impossible after a freeze: structured error codes alongside the
+prose, `list --archived` returning a `name` other verbs accept, and a discriminator for synthesized
+`exit_code` values. Those are the last thing standing between here and a cut.
+
+### Moved to documented limitations
+
+The three technical items that used to head this list are now under
+[Known and documented](#known-and-documented-not-planned-for-10), unchanged in substance:
+
+- **The settle path can return your own input.** Four rules measured and rejected, each with a
+  documented opposite failure mode.
+- **`--wait-for-regex` matches the byte stream, which is the wrong surface.** The fix is understood
+  and its cost is measured; what is missing is a retained `Screen` wired into the supervisor.
+- **The retained per-session `Screen` is not wired in.** The renderer half landed in CHG-0077 and
+  the resize semantics were decided from xterm's source, but nothing feeds it chunk by chunk yet.
+
+Each is real, each is measured, and none of them is going to be solved by holding the version
+number. The detail that used to live here is kept below rather than deleted, because the record of
+what was tried is the part that stops it being tried again.
 
 - **The settle path can return your own input as the answer, when the child redraws it.** This is
   the sharpest defect in rune. `--settle-ms` waits for output that is not the echo; a line editor

@@ -158,6 +158,50 @@ RSpec.describe Rune::Commands::SessionCommand do
   # produces no output from most children, and so waits out timeout_ms — 120s by
   # default. Reported 3/3 against five-second client timeouts, alongside the
   # observation that every other malformed request got a clean error.
+  # Every failure envelope was `{status, error}` and nothing else, so a caller
+  # distinguishing "no such session" from "not running" had only English — and
+  # the prose is not stable: the same missing-session condition produces two
+  # entirely different sentences depending on whether the session exists in
+  # another project. Those sentences would have been a frozen API at 1.0. The
+  # field is additive, which is the argument for adding it before the freeze.
+  describe 'a failure a caller can branch on' do
+    it 'names the condition and the session, not only in prose' do
+      expect(session('read', '--name=ghost').to_h.dig(:data, :code)).to eq(:session_not_found)
+      expect(session('read', '--name=ghost').to_h.dig(:data, :name)).to eq('ghost')
+    end
+
+    it 'distinguishes a session that exists from one that is not running' do
+      start_session('busy', %w[cat])
+      expect(session('start', '--name=busy', '--', 'cat').to_h.dig(:data, :code))
+        .to eq(:session_already_running)
+
+      session('stop', '--name=busy')
+
+      expect(session('send', '--name=busy', '--settle-ms=300', '--timeout-ms=5000', '--', 'x')
+        .to_h.dig(:data, :code)).to eq(:session_not_running)
+    end
+
+    it 'names a launch that could not execute' do
+      result = session('start', '--name=nope', '--', 'definitely_not_a_real_binary_xyz')
+
+      expect(result.to_h.dig(:data, :code)).to eq(:launch_failed)
+    end
+
+    # The human renderer reads only `error`, so nothing visible moves. The
+    # StringIO has to claim to be a tty, because that is what the renderer
+    # branches on — otherwise it emits the agent-mode JSON and the assertion
+    # would be about the wrong surface entirely.
+    it 'leaves the human rendering of a failure unchanged' do
+      output = StringIO.new
+      def output.tty? = true
+
+      Rune::Renderer.new(io: output).render(session('read', '--name=ghost'))
+
+      expect(output.string).to include('No such session').and include('ghost')
+      expect(output.string).not_to include('session_not_found')
+    end
+  end
+
   describe 'a socket send with no text field' do
     it 'is refused immediately rather than waiting out the timeout' do
       start_session('sock', %w[cat])

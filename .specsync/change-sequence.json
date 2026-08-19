@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 79,
-  "id": "CHG-0079-fix-what-the-1-0-readiness-review-found-a-socket-request-could-kill-a-child-re",
+  "sequence": 80,
+  "id": "CHG-0080-say-what-start-actually-does-split-the-roadmap-by-what-would-change-it-and-giv",
   "acknowledged_collisions": []
 }
