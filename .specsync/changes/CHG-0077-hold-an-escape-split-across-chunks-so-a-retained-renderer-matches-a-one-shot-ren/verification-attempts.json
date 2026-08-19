@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1787145307,
+      "commit": "f2c687b6d9181e5c29f2ce8b0707186d75b7f4c0",
+      "contract_digest": "5963ffedc1f317ed61c6a38ba0bc4ae8a11cbe48d6486b89cfa564678f79526f",
+      "workspace_digest": "832ec653139a3ff559bbda44acf7f08e8d6a0c74027385a83f03623bb2b065c5",
+      "passed": false,
+      "commands": [
+        {
+          "command": "fledge run version-check",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run lint",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run test",
+          "success": false,
+          "exit_code": 1
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787146348,
+      "commit": "f2c687b6d9181e5c29f2ce8b0707186d75b7f4c0",
+      "contract_digest": "5963ffedc1f317ed61c6a38ba0bc4ae8a11cbe48d6486b89cfa564678f79526f",
+      "workspace_digest": "832ec653139a3ff559bbda44acf7f08e8d6a0c74027385a83f03623bb2b065c5",
+      "passed": true,
+      "commands": [
+        {
+          "command": "fledge run version-check",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run lint",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "fledge run smoke-test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

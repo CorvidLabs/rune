@@ -607,4 +607,65 @@ RSpec.describe Rune::Parsers::ScreenRenderer do
       expect(described_class.render('abcdef', rows: 4, columns: 'three')).to eq('abcdef')
     end
   end
+
+  # The grid was always retained across `render` calls; the parser was not. A
+  # `StringScanner` built fresh per call could not see that the previous chunk
+  # ended mid-sequence, so the remainder failed to match CSI, fell through to
+  # PRINTABLE and was written onto the screen as literal text.
+  describe 'an escape split across chunks' do
+    def retained(chunks, rows: 24, columns: 80)
+      renderer = described_class.new(rows: rows, columns: columns)
+      chunks.map { |chunk| renderer.render(chunk) }.last
+    end
+
+    # Feeding a byte at a time is the strongest form of the bug: every escape
+    # byte in the stream lands on the grid. Before the carry this rendered the
+    # escapes themselves as text and the screen was ~80% longer than the truth.
+    it 'renders the same screen however the stream is chunked' do
+      stream = +''
+      4.times { |i| stream << "\e[#{i + 1};1H\e[1;3#{i + 1}mrow #{i}\e[0m\e[K" }
+      want = described_class.render(stream, rows: 24, columns: 80)
+
+      expect(want).to include('row 0')
+      expect(want).not_to include('[1;31m')
+      [1, 2, 3, 7, 64].each do |size|
+        expect(retained(stream.chars.each_slice(size).map(&:join))).to eq(want)
+      end
+      expect(retained(stream.chars)).to eq(want)
+    end
+
+    # The ESC is consumed before any pattern is tried, so a chunk ending on it
+    # would drop the byte and leave the next chunk to arrive headless.
+    it 'holds a bare trailing ESC for the next chunk' do
+      expect(retained(["abc\e", '[2Kdef']))
+        .to eq(described_class.render("abc\e[2Kdef", rows: 24, columns: 80))
+      expect(retained(["\e", '[1;1Hxy'])).to eq('xy')
+    end
+
+    # OSC and DCS end with ST, which is two bytes. A buffer ending between them
+    # left a body that `[^\a\e]*` could not cover, so the sequence read as
+    # complete-but-unrecognised and its body was printed.
+    it 'holds an OSC or DCS whose ST terminator is itself split' do
+      expect(retained(["\e]2;a title\e", '\\visible'])).to eq('visible')
+      expect(retained(["\ePpayload\e", '\\after'])).to eq('after')
+      expect(retained(["\e]0;a title", "\avisible"])).to eq('visible')
+    end
+
+    # OSC and DCS run until their terminator, so a stream that opens one and
+    # never closes it must not buffer without bound.
+    it 'drops a carry past the ceiling instead of buffering without bound' do
+      renderer = described_class.new(rows: 24, columns: 80)
+      renderer.render("\e]0;#{'x' * (described_class::MAX_CARRY_BYTES + 100)}")
+      carry = renderer.instance_variable_get(:@carry)
+      expect(carry.bytesize).to be <= described_class::MAX_CARRY_BYTES
+    end
+
+    # One-shot rendering builds an instance, renders once and reads the grid, so
+    # a trailing partial escape lands in the carry unused rather than being
+    # discarded. The visible result must not move.
+    it 'leaves one-shot rendering of a stream cut mid-escape unchanged' do
+      expect(described_class.render("done\e[1;3", rows: 4, columns: 20)).to eq('done')
+      expect(described_class.render("done\e]0;ti", rows: 4, columns: 20)).to eq('done')
+    end
+  end
 end

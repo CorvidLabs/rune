@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sequence": 76,
-  "id": "CHG-0076-correct-the-max-canon-claims-an-unterminated-1024-byte-line-wedges-the-session",
+  "sequence": 77,
+  "id": "CHG-0077-hold-an-escape-split-across-chunks-so-a-retained-renderer-matches-a-one-shot-ren",
   "acknowledged_collisions": []
 }

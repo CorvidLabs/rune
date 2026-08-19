@@ -111,7 +111,19 @@ module Rune
       ].freeze
       # A sequence the buffer ended in the middle of, with its terminator not
       # yet arrived.
-      INCOMPLETE = %r{\A(?:\[[0-9:;<=>?]*[ -/]*|\][^\a\e]*|[PX^_][^\e]*|[()*+#% ])\z}
+      # The trailing `\e?` on the OSC and DCS arms is the ST terminator caught
+      # half-arrived. `\e]0;title\e\\` is terminated by two bytes, and a buffer
+      # that ends between them leaves a body whose `[^\a\e]*` cannot cover the
+      # `\e` — so the sequence read as complete-but-unrecognised and its body was
+      # printed. A transcript ending mid-ST rendered `]0;title` as visible text.
+      INCOMPLETE = %r{\A(?:\[[0-9:;<=>?]*[ -/]*|\][^\a\e]*\e?|[PX^_][^\e]*\e?|[()*+#% ])\z}
+      # How much of an unterminated escape an instance will hold for the next
+      # chunk. OSC and DCS run until their terminator, so a stream that opens one
+      # and never closes it would otherwise buffer without bound. Past this the
+      # carry is dropped, which is what a one-shot render does with the same
+      # bytes, so the ceiling degrades to the old behaviour rather than to
+      # corruption.
+      MAX_CARRY_BYTES = 4096
       # CSI final byte to the operation it performs. A table rather than a case
       # so that adding a sequence is a line, not a branch.
       # Control byte to the operation it performs, a table for the same reason
@@ -217,10 +229,27 @@ module Rune
       def initialize(rows: nil, columns: nil)
         rows, columns = self.class.dimensions(rows, columns)
         @screen = Screen.new(rows: rows, columns: columns)
+        @carry = +''
       end
 
+      # Renders one more chunk onto the retained grid.
+      #
+      # An escape split across two chunks is held back rather than dropped. The
+      # grid was always retained; the *parser* was not, so a `\e[1;3` that ended
+      # a read failed to match CSI on the next call, fell through to PRINTABLE,
+      # and was written onto the screen as literal text. Feeding a stream in
+      # 1-byte chunks put every escape byte of it on the grid as visible text.
+      # A real terminal holds the partial sequence in its parser, which is what
+      # the carry reproduces.
+      #
+      # One-shot rendering is unaffected: `.render` builds an instance, calls
+      # this once and reads the grid, so a trailing partial escape ends up in
+      # the carry unused instead of being discarded — the same visible result.
       def render(text)
-        scan(text.scrub)
+        chunk = text.scrub
+        chunk = @carry + chunk unless @carry.empty?
+        @carry = +''
+        scan(chunk)
         @screen.to_s
       end
 
@@ -240,7 +269,10 @@ module Rune
       # rendering any stream containing a backspace hung forever.
       def control_byte(scanner)
         byte = scanner.getch
-        return escape(scanner) if byte == "\e"
+        # A chunk ending on the ESC itself: the byte is already consumed, so
+        # without the carry it would vanish and the sequence it introduces would
+        # arrive in the next chunk headless.
+        return scanner.eos? ? carry("\e") : escape(scanner) if byte == "\e"
         return @screen.tab(TAB_WIDTH) if byte == "\t"
 
         operation = BYTE_CONTROLS[byte]
@@ -288,7 +320,20 @@ module Rune
       # the *start* of the window was fixed first; this is the same bug at the
       # other end.
       def incomplete(scanner)
-        scanner.terminate if scanner.rest.match?(INCOMPLETE)
+        return unless scanner.rest.match?(INCOMPLETE)
+
+        # `\e` is already consumed by the time we are here, so the carry has to
+        # put it back or the sequence resumes headless on the next chunk.
+        carry("\e#{scanner.rest}")
+        scanner.terminate
+      end
+
+      # Holds an unterminated sequence for the next chunk, up to a ceiling.
+      # Beyond it the bytes are dropped rather than buffered, matching what a
+      # one-shot render does with a sequence whose terminator never arrives.
+      def carry(text)
+        @carry = text.bytesize <= MAX_CARRY_BYTES ? +text : +''
+        nil
       end
 
       def csi_control(csi)

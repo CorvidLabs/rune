@@ -1,22 +1,7 @@
----
-module: parsers
-version: 17
-status: active
-files:
-  - lib/rune/parsers/table_parser.rb
-  - lib/rune/parsers/key_value_parser.rb
-  - lib/rune/parsers/text_sanitizer.rb
-  - lib/rune/parsers/prompt_detector.rb
-  - lib/rune/parsers/screen_renderer.rb
-  - lib/rune/parsers/screen.rb
-  - lib/rune/parsers/character_width.rb
----
-# Parsers
+## MODIFIED
 
-## Purpose
-Text parsing utilities for `rune`. Converts unstructured terminal text, tables, ANSI codes, and key-value lines into clean, structured Ruby hashes and arrays.
+### SPEC SECTION Public API
 
-## Public API
 
 | Name | Type | Description |
 |------|------|-------------|
@@ -124,7 +109,9 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
 | `erase_display` | instance method | ED: erases the screen, inclusive of the cell under the cursor. |
 | `erase_line` | instance method | EL: erases the line, inclusive of the cell under the cursor. |
 
-## Invariants
+
+### SPEC SECTION Invariants
+
 
 1. `TableParser.parse` converts header titles to lowercase underscored symbols.
 2. `KeyValueParser.parse` coerces integer, float, and boolean values automatically.
@@ -256,64 +243,3 @@ Text parsing utilities for `rune`. Converts unstructured terminal text, tables, 
     place. The synthetic case is `\e[H東京\e[1;5HX`, which a terminal renders `東京X` and one column
     per glyph renders `東京  X`.
 
-## Behavioral Examples
-
-- `TableParser.parse("NAME STATUS\nrune active")` returns `[{ name: 'rune', status: 'active' }]`.
-- `TableParser.parse("Name | Status\nrune | active", format: :pipe)` forces pipe parsing even without a `|`-only header separator row.
-- `KeyValueParser.parse("threads: 4")` returns `{ threads: 4 }`.
-- `PromptDetector.detect?('Continue? (y/n) ')` returns `true`; `PromptDetector.detect?('Downloading
-  100%')` and `PromptDetector.detect?('Install with: fledge plugins install <owner/repo>')` both
-  return `false` despite ending in characters (`%`, `>`) the underlying prompt patterns otherwise
-  match on.
-- `PromptDetector.detect?('user@host:~$ ')`, `PromptDetector.detect?('leif@MacBook-Pro rune % ')`,
-  `PromptDetector.detect?('(venv) user@host:~$ ')`, and `PromptDetector.detect?('zsh-5.9%')` all
-  return `true`, while `PromptDetector.detect?('TODO: fix #')`, `PromptDetector.detect?('##')`,
-  `PromptDetector.detect?('Building... 45%')`, and `PromptDetector.detect?('Is it ok? Yes')`
-  return `false`.
-
-## Error Cases
-| Condition | Behavior |
-|-----------|----------|
-| Empty input | Returns empty array or empty hash |
-| `TableParser.parse` with an unknown `format:` value | Raises `ArgumentError` |
-
-## Known Limitations
-
-- **Space-delimited heuristic is column-alignment dependent.** `TableParser`'s `:space` mode splits on runs of 2+ spaces (falling back to single-space token spans only when the header has one word). Cell values that don't align to the header's column boundaries, or that contain internal runs of 2+ spaces, can be misattributed to the wrong column. When source output is unreliable or known in advance, pass an explicit `format:` rather than relying on `:auto`.
-- **`ScreenRenderer` is not a terminal emulator.** It implements what moves the cursor and what
-  erases; it does not model scroll regions, alternate-screen buffers as separate grids, tab-stop
-  changes, character sets, or double-width characters. A child that relies on those will render
-  approximately. Colours and modes are consumed and discarded by design — they cannot move the
-  cursor, so they cannot change which text is on screen.
-- **A rendered screen shows the end state, not the history.** Anything the child scrolled or
-  repainted away is gone, which is the point, but it means the screen is not a substitute for the
-  transcript when the question is "what happened" rather than "what is displayed".
-- **`:auto` detection is a single check.** It only inspects whether the header line contains `|` — free-text tables whose header happens to contain a literal pipe character will be misdetected as pipe tables unless `format: :space` is passed explicitly.
-
-## Dependencies
-- Ruby stdlib only
-
-## Change Log
-
-- v1: Active parsers spec contract
-- v1: Added `PromptDetector` to this module's file/API coverage (previously untracked by
-  spec-sync despite being public since `PTYRunner#detect_prompt?` shipped); documented the
-  `<placeholder>` false-positive fix and the pre-existing digit-percent one. Also documented that
-  `TableParser.parse` now validates `format:` unconditionally, not only for 2+-line input.
-| 2026-07-29 | CHG-0016-fix-prompt-false-positives-and-command-registration-leaks-close-test-gaps-and: Fix prompt false positives and command registration leaks, close test gaps, and make dependency and stdout contracts reproducible |
-| 2026-07-30 | Follow-up on the CHG-0016 prompt narrowing: cover macOS zsh `user@host cwd %`, `(venv)` prefixes, and versioned shells like `zsh-5.9%` without reintroducing bare-punctuation false positives |
-| 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Broaden `TextSanitizer::ANSI_REGEX` beyond SGR-shaped CSI to also strip private-parameter CSI (`[?1049h`, `[?2026h`), OSC strings (`]0;title`), DCS/SOS/PM/APC strings, and keypad/cursor-key modes. The old pattern left a full-screen TUI's escape traffic almost entirely intact, so `clean_output` was unreadable for exactly the agent CLIs `rune session` drives. No public API change. |
-| 2026-08-14 | CHG-0028-add-persistent-named-agent-sessions-rune-session-start-send-read-list-stop-bac: Add persistent named agent sessions: rune session start/send/read/list/stop, backed by a per-session detached supervisor holding the PTY, with send-and-settle so one agent CLI can drive another synchronously |
-| 2026-08-15 | CHG-0033-render-the-terminal-screen-for-session-send-and-read-so-an-agent-driving-a-full: Render the terminal screen for session send and read, so an agent driving a full-screen agent can find the answer instead of searching every repaint frame |
-| 2026-08-15 | CHG-0037-fix-two-defects-found-by-having-grok-and-claude-review-this-branch-through-rune: Fix two defects found by having grok and claude review this branch through rune itself: erase-line excluded the cursor cell, and backpressure defeated the terminator delay |
-| 2026-08-15 | CHG-0039-fix-six-defects-found-by-a-read-only-grok-kimi-and-agy-council-review-of-0-5-0: Fix six defects found by a read-only grok, kimi and agy council review of 0.5.0: renderer escapes and last-column cursor, a send accepted mid-delivery, a send settled before submission, stop killing before teardown, a false exit code, and a skipped process-group kill |
-| 2026-08-16 | CHG-0052-the-screen-tail-can-cut-an-escape-sequence-in-half-and-print-its-remainder-onto: The screen tail can cut an escape sequence in half and print its remainder onto the screen |
-| 2026-08-16 | CHG-0054-four-agent-pre-1-0-review-nine-bugs-fixed-and-fifteen-documentation-claims-tha: Four-agent pre-1.0 review: nine bugs fixed, and fifteen documentation claims that were wrong |
-| 2026-08-16 | CHG-0056-second-review-round-the-regex-echo-bug-fixed-four-renderer-defects-fixed-and: Second review round: the regex echo bug fixed, four renderer defects fixed, and one rule disproved |
-| 2026-08-17 | CHG-0058-integrate-the-post-0-8-0-fixes-two-quadratics-exec-fidelity-geometry-cursors: Integrate the post-0.8.0 fixes: two quadratics, exec fidelity, geometry, cursors, and the guide gate |
-| 2026-08-17 | CHG-0064-honour-the-modes-and-charsets-that-decide-what-the-screen-contains-and-strip-th: Honour the modes and charsets that decide what the screen contains, and strip the escapes the sanitizer missed |
-| 2026-08-17 | CHG-0065-record-that-the-wide-character-cell-model-was-built-and-measured-worse-than-the: Record that the wide-character cell model was built and measured worse than the gap |
-| 2026-08-18 | CHG-0070-give-the-screen-a-cell-model-so-a-wide-glyph-occupies-the-two-columns-it-is-draw: Give the screen a cell model so a wide glyph occupies the two columns it is drawn in |
-| 2026-08-18 | CHG-0071-make-a-failed-launch-loud-name-the-project-a-session-is-in-and-fix-two-multiby: Make a failed launch loud, name the project a session is in, and fix two multibyte defects |
-| 2026-08-19 | CHG-0077-hold-an-escape-split-across-chunks-so-a-retained-renderer-matches-a-one-shot-ren: Hold an escape split across chunks so a retained renderer matches a one-shot render |
-| 2026-08-19 | CHG-0077-hold-an-escape-split-across-chunks-so-a-retained-renderer-matches-a-one-shot-ren: Hold an escape split across chunks so a retained renderer matches a one-shot render |
