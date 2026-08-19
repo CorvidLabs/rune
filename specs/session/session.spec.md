@@ -1,6 +1,6 @@
 ---
 module: session
-version: 39
+version: 43
 status: active
 files:
   - lib/rune/session/store.rb
@@ -279,7 +279,9 @@ deciding who talks to whom stays the calling agent's job.
 | `activity` | internal method | Reports idle time and the last meaningful line from a session's transcript tail. |
 | `tail_events` | internal method | Parses the trailing NDJSON events of a transcript without reading the whole file. |
 | `summarize` | internal method | Reduces an output chunk to one readable, escape-free line. |
-| `idle_suffix` | internal method | Renders idle time for the terminal session list. |
+| `idle_suffix` | internal method | Renders idle time for the terminal session list, undimmed once a running session has been quiet past `STALE_IDLE_SECONDS`. |
+| `humanize_idle` | internal method | Idle time in a unit a reader does not have to convert: seconds, minutes, hours, then days. |
+| `STALE_IDLE_SECONDS` | constant | When a running session's silence stops being routine in `list`. Decides a colour, not a claim that it is stuck. |
 | `await_death` | internal method | Waits for signalled pids to disappear so `stop` is complete when it returns. |
 | `ACTIVITY_TAIL_BYTES` | constant | How much of a transcript's tail `list` reads for activity reporting. |
 | `ACTIVITY_LINE_LIMIT` | constant | Maximum length of the reported last line. |
@@ -322,7 +324,9 @@ deciding who talks to whom stays the calling agent's job.
 | `screen_after` | internal method | Renders the settled screen for `send --screen`, client-side. |
 | `screen_fields` | internal method | The rendered screen and the size it was rendered at, for `--screen` on either command. |
 | `window_size` | internal method | The child's last recorded winsize, resolved to a usable one. |
-| `liveness` | internal method | The child's state and exit code, on every send and read rather than only on `list`. |
+| `failure` | internal method | A failure carrying a stable `code` and the session `name` in `data`, so a caller need not match English. |
+| `resolved_state` | internal method | A session's state from real process liveness, distinguishing a vanished supervisor from a deliberate stop. |
+| `liveness` | internal method | The state and exit code a send or read reply carries, recomputed from process liveness. |
 | `busy_fields` | internal method | Whether the child printed within the settle window, and how long since. |
 | `read_payload` | internal method | Builds the result body for a transcript read. |
 | `ALIASES` | constant | Internal option keys whose user-facing flag is not their name with dashes. |
@@ -333,7 +337,7 @@ deciding who talks to whom stays the calling agent's job.
 | `start_rejection` | internal method | Returns the failure that blocks a start, or nil to proceed. |
 | `running_conflict` | internal method | Returns a failure when the name already has a live supervisor. |
 | `launch` | internal method | Creates session state, spawns the supervisor, and waits for readiness. |
-| `launch_failure` | internal method | Turns a child that exited 127 at launch into a failed result. |
+| `launch_failure` | internal method | Turns a launch whose exec failed into a failed result, from the fact the supervisor recorded rather than the exit status. |
 | `EXEC_FAILURE_STATUS` | constant | 127, the shell's report for a command that is not on PATH. |
 | `spawn_supervisor` | internal method | Re-invokes rune's executable as the detached supervisor for one session. |
 
@@ -471,6 +475,39 @@ deciding who talks to whom stays the calling agent's job.
 28. A control client can never take the session down with it: a broken, reset, or half-written
     request closes that client only. Before this was enforced, an `ECONNRESET` unwound the event
     loop and the teardown path then SIGKILLed a perfectly healthy child.
+
+    **A well-formed request that is not a JSON object is refused rather than dispatched.**
+    `JSON.parse` accepts any JSON *value*, so `null`, `123`, `true`, `"x"` and `[1,2,3]` all parsed
+    and then raised on `request[:op]` — `TypeError` for the Integer, `NoMethodError` for the rest,
+    neither caught by the `JSON::ParserError`/`IOError`/`SystemCallError` rescues. That unwound the
+    event loop into the supervisor's crash path and SIGKILLed the child. Measured with a heartbeat
+    child, whose death was read from its own file: 5/5 such payloads killed both processes, while
+    `{"op":123}` and unparseable text were answered correctly. This invariant existed and was
+    already violated; the guard is a type check before dispatch rather than another rescue, because
+    the failure was a non-object reaching code written for a Hash, not an exception escaping.
+    Reachable only from the non-Ruby client the socket exists to serve — rune's own always sends a
+    Hash.
+
+28b. A session failure carries `data.code` and, where a session is named, `data.name`, alongside
+    the prose. Every failure envelope was `{status, error}` and nothing else, so a caller
+    distinguishing "no such session" from "not running" had only the message — and the message is
+    not stable: the same missing-session condition produces two entirely different sentences
+    depending on whether the session exists in another project, one carrying remediation advice
+    that is wrong for the other case. At 1.0 those sentences would be a frozen API. The field is
+    additive (`Result#to_h` already emitted `data` when present) and the human renderer reads only
+    `error`, so nothing visible moves; it also closes the gap that `data.name` was unavailable on
+    exactly the path a retry loop needs it. **The code set is open**: it covers the conditions a
+    caller branches on today, and an unrecognised code must be treated as a generic failure so the
+    set can grow without a breaking change.
+28a. `send` and `read` report a session's state **recomputed from real process liveness**, agreeing
+    with `list`. `liveness` returned `meta[:state]` as recorded, which `describe`'s own comment
+    already forbade: a supervisor killed with SIGKILL never updates meta, so a recorded `running` is
+    routinely stale. Measured with the supervisor SIGKILLed — `list` said `dead`, `read` said
+    `running` with a real cursor and `status: ok`, indefinitely, and the refusal read `is not
+    running (state running, exit code nil)`, contradicting itself and printing Ruby's spelling of
+    "unknown" at a user. The guide recommends polling `read` for a readiness marker, so that loop
+    waited on a session that was already gone. A child that exited on its own or was stopped
+    deliberately still reports that rather than `dead`, so the two stay distinguishable.
 29. A `send` that races the child's exit is answered with an error, not a dropped connection: the
     write can fail after the last `pump` observed the child as alive, and that must still leave the
     session's recorded state correct.
@@ -942,14 +979,46 @@ deciding who talks to whom stays the calling agent's job.
     not need a footnote to be read correctly. Reported from a 22-minute real drive, where it cost
     an hour.
 
-    Only 127 fails, and that is deliberate: `start -- true` exits 0 immediately and is a
+    Only a failed *exec* fails, and that is deliberate: `start -- true` exits 0 immediately and is a
     *successful* launch of a program that had nothing to do, so treating any prompt exit as failure
-    would break every short-lived child. 127 is the shell's "command not found" — the one case
-    where the child never ran.
+    would break every short-lived child.
+
+    The test was `exit_code == 127`, on the reasoning that 127 is the shell's "command not found"
+    and therefore the one case where the child never ran. That holds for a shell and not for a
+    child: 127 is an ordinary status any program may choose. Measured with the child appending to a
+    file before exiting 127, so its own file rather than the reply proves execution — 12 of 12
+    executed and 7 of 12 were told the command was not on PATH. It was racy, turning on whether the
+    child died before the supervisor recorded it as running, so the same script passed or failed by
+    timing alone.
+
+    An exit status cannot carry this distinction, so the supervisor records it: reaching the
+    `ENOENT`/`EACCES` rescue around `PTY.spawn` *is* the fact that exec failed, because that raise
+    happens before the child exists. `launch_failed` is written only there, and is absent rather
+    than `false` otherwise — so meta from a version that never wrote it reads as a child that ran.
+    This also made a non-executable target (`EACCES`, 126) a loud failure; it previously returned
+    `status: "ok"` and failed only on the next `send`.
 
     The session record is kept rather than deleted. `start` failing loudly is the fix; removing the
     transcript that shows why would trade one quiet failure for another, and `list` reporting the
     session as dead with `exit_code: 127` is the diagnosis a caller needs.
+
+52a. `list` renders idle time so that a long silence is readable as one. Idle time is the fastest
+    read on whether a session is stuck, and it only works if it is legible when the answer is yes.
+    It was not: `idle_suffix` printed minutes at every scale, so a session that had been sitting on
+    an agent's approval prompt — *"Run this command? 1. Approve once ..."* — for a day and a half
+    rendered `idle 2172m`, in the same dim grey as every healthy line. It stayed there 36 hours.
+    rune was not blind to it; `idle_ms` was 130,293,976 and `child_busy` was `false`, so every fact
+    was present and correct. Only the rendering failed. Hours and days are used past 90 minutes, and
+    a *running* session past `STALE_IDLE_SECONDS` is not dimmed; a stopped session stays dim, since
+    its idle time is only how long ago it stopped.
+
+    This is legibility, not detection, and the distinction is load-bearing. rune cannot tell a child
+    waiting on a human from one thinking hard — `PromptDetector` is deliberately conservative and
+    returns `false` for exactly the agent REPLs this module drives, and four heuristics of that
+    shape have been measured and rejected on the adjacent settle problem. The threshold decides a
+    colour and carries no claim about what the session is doing. It also does nothing for the harder
+    half: a child that repaints a spinner while blocked holds `idle_ms` near zero and `child_busy`
+    true, and remains indistinguishable from one that is working.
 
 53. An error naming a session says where the session actually is, when it is somewhere. A
     session started in one directory and read from another got `No such session`, and the remedy
@@ -1208,4 +1277,6 @@ deciding who talks to whom stays the calling agent's job.
 | 2026-08-18 | CHG-0073-record-that-wait-for-regex-can-match-a-prior-turn-redraw-and-bring-the-1-0-ro: Record that --wait-for-regex can match a prior-turn redraw, and bring the 1.0 roadmap up to date |
 | 2026-08-19 | CHG-0074-correct-the-wait-for-regex-reprint-advice-qualify-reprint-not-visible-histor: Correct the --wait-for-regex reprint advice: qualify reprint, not visible history, and stop pairing child_busy with the unique sentinel |
 | 2026-08-19 | CHG-0076-correct-the-max-canon-claims-an-unterminated-1024-byte-line-wedges-the-session: Correct the MAX_CANON claims: an unterminated 1024-byte line wedges the session, and raw-mode children are not exempt |
-| 2026-08-19 | CHG-0076-correct-the-max-canon-claims-an-unterminated-1024-byte-line-wedges-the-session: Correct the MAX_CANON claims: an unterminated 1024-byte line wedges the session, and raw-mode children are not exempt |
+| 2026-08-19 | CHG-0078-report-what-a-session-is-actually-doing-a-real-127-is-not-a-failed-exec-and-36: Report what a session is actually doing: a real 127 is not a failed exec, and 36 hours of silence should not read as routine |
+| 2026-08-19 | CHG-0079-fix-what-the-1-0-readiness-review-found-a-socket-request-could-kill-a-child-re: Fix what the 1.0 readiness review found: a socket request could kill a child, read reported dead sessions as running, and two parsers disagreed about what an escape is |
+| 2026-08-19 | CHG-0080-say-what-start-actually-does-split-the-roadmap-by-what-would-change-it-and-giv: Say what start actually does, split the roadmap by what would change it, and give failures a code a caller can branch on |

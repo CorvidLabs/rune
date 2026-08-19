@@ -81,6 +81,12 @@ module Rune
       # A shell reports 127 for a command it could not find, so a child that exits 127 before the
       # session is even ready never ran.
       EXEC_FAILURE_STATUS = 127
+      # When a running session's silence stops being routine and starts being
+      # worth a second look in `list`. Not a claim that it is stuck — rune cannot
+      # tell waiting-for-a-human from thinking, and four heuristics that tried
+      # have been measured and rejected. It only decides whether the number is
+      # printed in a colour a reader's eye stops on.
+      STALE_IDLE_SECONDS = 15 * 60
 
       GENERATED_NAME_ATTEMPTS = 5
 
@@ -218,7 +224,7 @@ module Rune
         end
         return outcome unless outcome == :busy
 
-        Result.failure("Session #{name.inspect} is being started by another process.")
+        failure(:session_starting, "Session #{name.inspect} is being started by another process.", name: name)
       end
 
       def start_rejection(options, command)
@@ -247,8 +253,9 @@ module Rune
         # records its state before either pid is known, and "(pid )" reads like
         # a bug rather than the timing detail it is.
         pid = meta[:child_pid] || meta[:supervisor_pid]
-        Result.failure("Session #{name.inspect} is already running#{" (pid #{pid})" if pid}. " \
-                       'Stop it first or choose another name.')
+        failure(:session_already_running,
+                "Session #{name.inspect} is already running#{" (pid #{pid})" if pid}. " \
+                'Stop it first or choose another name.', name: name)
       end
 
       def launch(name, command)
@@ -296,17 +303,27 @@ module Rune
       # which is the wrong shape of answer: an envelope should not need a footnote to be read
       # correctly. Reported from a real 22-minute drive, where it cost an hour.
       #
-      # Only 127 fails, deliberately. `start -- true` exits 0 immediately and that is a *successful*
-      # launch of a program that had nothing to do; treating any prompt exit as a failure would
-      # break every short-lived child. 127 is the shell's "command not found", which is the one
-      # case where the child never ran at all.
+      # Only a failed *exec* fails, deliberately. `start -- true` exits 0 immediately and that is a
+      # *successful* launch of a program that had nothing to do; treating any prompt exit as a
+      # failure would break every short-lived child.
+      #
+      # The test used to be `exit_code == 127`, on the reasoning that 127 is the shell's "command
+      # not found" and therefore the one case where the child never ran. That is not true of a
+      # child: 127 is an ordinary status a program may choose, and a script that runs and exits 127
+      # was told "the command ... is not on PATH. Check that it is installed." Measured with the
+      # child appending to a file before exiting: 12 of 12 executed, 7 of 12 were reported as not
+      # installed — racy, because it depended on whether the child died before `record_running`.
+      # The supervisor knows the difference (only a `PTY.spawn` raise means exec failed) and now
+      # records it, so this reads the fact instead of inferring it from a status that cannot carry
+      # it. Meta without the field is a child that ran, which is also how older sessions read.
       def launch_failure(name, meta)
-        return nil unless meta[:exit_code] == EXEC_FAILURE_STATUS
+        return nil unless meta[:launch_failed]
 
         abandon(name, meta[:supervisor_pid])
-        Result.failure("Could not start #{name.inspect}: the command exited #{EXEC_FAILURE_STATUS} " \
-                       'immediately, which is what a shell reports for a command that is not on PATH. ' \
-                       'Check the command name and that it is installed.')
+        failure(:launch_failed,
+                "Could not start #{name.inspect}: the command could not be executed " \
+                "(exit #{meta[:exit_code]}). Check the command name, that it is installed, " \
+                'and that it is executable.', name: name)
       end
 
       # Re-invokes rune's own executable rather than forking in-process: a fork
@@ -425,9 +442,32 @@ module Rune
       # from real use by someone who read `settled: true, matched: nil` at 1198ms
       # against a 30s settle window and started drafting a bug that --settle-ms
       # was being ignored — the child had died. Presentation gap, not a data gap.
+      # The state a `send`/`read` reply carries. Recomputed from real process
+      # liveness, never the recorded claim.
+      #
+      # It used to return `meta[:state]` as-is, which `describe` already had a
+      # comment forbidding: a supervisor killed with SIGKILL never updates
+      # meta.json, so a recorded "running" is routinely stale. Measured — with
+      # the supervisor SIGKILLed, `list` said `dead` while `read` said
+      # `running`, with a real cursor and `status: ok`, indefinitely. The field
+      # exists so a naive loop cannot drive a corpse seeing plausible replies,
+      # and for the supervisor-death case it was doing the opposite; the guide
+      # recommends polling `read` for a readiness marker, so that loop waited
+      # forever on a session that was already gone.
       def liveness(name)
         meta = store.read_meta(name) || {}
-        { state: meta[:state], exit_code: meta[:exit_code] }.compact
+        { state: resolved_state(meta), exit_code: meta[:exit_code] }.compact
+      end
+
+      # "dead" is reserved for a supervisor that vanished without recording why.
+      # A session that exited on its own or was stopped deliberately reports
+      # that instead, so the two stay distinguishable rather than collapsing
+      # into one alarming word.
+      def resolved_state(meta)
+        return 'running' if Session::Store.alive?(meta[:supervisor_pid])
+        return meta[:state] if %w[exited stopped].include?(meta[:state])
+
+        meta[:state] && 'dead'
       end
 
       def validate_regex(source)
@@ -506,14 +546,21 @@ module Rune
       end
 
       def alive_session(name)
-        return Result.failure(no_such_session(name)) unless store.exist?(name)
+        return failure(:session_not_found, no_such_session(name), name: name) unless store.exist?(name)
 
         meta = store.read_meta(name)
-        return Result.failure(no_such_session(name)) unless meta
+        return failure(:session_not_found, no_such_session(name), name: name) unless meta
         return nil if Session::Store.alive?(meta[:supervisor_pid])
 
-        Result.failure("Session #{name.inspect} is not running (state #{meta[:state]}, " \
-                       "exit code #{meta[:exit_code].inspect}).")
+        # The resolved state, not the recorded one: reaching here means the
+        # supervisor is gone, so a recorded "running" would make the sentence
+        # contradict itself — `is not running (state running, exit code nil)`.
+        # And an absent exit code is said in words, because `nil.inspect` put
+        # Ruby's spelling of "we do not know" in front of a user.
+        state = resolved_state(meta) || 'unknown'
+        code = meta[:exit_code] ? ", exit code #{meta[:exit_code]}" : ' and recorded no exit code'
+        failure(:session_not_running, "Session #{name.inspect} is not running (state #{state}#{code}).",
+                name: name)
       end
 
       # ---- read
@@ -522,7 +569,9 @@ module Rune
         options, _rest, error = extract_options(args)
         return Result.failure(error) if error
         return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
-        return Result.failure(no_such_session(options[:name])) unless store.exist?(options[:name])
+        unless store.exist?(options[:name])
+          return failure(:session_not_found, no_such_session(options[:name]), name: options[:name])
+        end
 
         transcript = Session::Transcript.load(store.output_path(options[:name]))
         read_result(options, transcript)
@@ -894,7 +943,7 @@ module Rune
         return Result.failure(name_error(options[:name])) unless Session::Store.valid_name?(options[:name])
 
         name = options[:name]
-        return Result.failure(no_such_session(name)) unless store.exist?(name)
+        return failure(:session_not_found, no_such_session(name), name: name) unless store.exist?(name)
 
         meta = store.read_meta(name) || {}
         graceful_stop(name)
@@ -1026,7 +1075,7 @@ module Rune
 
       def archive_rejection(name)
         return Result.failure(name_error(name)) unless Session::Store.valid_name?(name)
-        return Result.failure(no_such_session(name)) unless store.exist?(name)
+        return failure(:session_not_found, no_such_session(name), name: name) unless store.exist?(name)
 
         supervisor = (store.read_meta(name) || {})[:supervisor_pid]
         return Result.failure(still_running(name)) if Session::Store.alive?(supervisor)
@@ -1221,6 +1270,26 @@ module Rune
       #
       # rune already knows the answer: `--all-projects` finds it. An error that can name the project
       # should name it rather than send the reader to a command that shows them nothing.
+      # A failure a caller can branch on without matching English.
+      #
+      # Every failure envelope was `{status, error}` and nothing else, so a
+      # caller distinguishing "no such session" from "not running" had only the
+      # prose — and the prose is not stable: the same missing-session condition
+      # produces two entirely different sentences depending on whether the
+      # session exists in another project. Those sentences would have been a
+      # frozen API at 1.0, remediation advice and all.
+      #
+      # `data` on a failure is additive, which is the argument for doing it
+      # before the freeze rather than after: `Result#to_h` already emits `data`
+      # when present, and the human renderer reads only `error`, so nothing
+      # visible moves. It also closes the gap that `data.name` was unavailable
+      # on exactly the path where a retry loop needs it. The code set is
+      # expected to grow; a caller should treat an unrecognised code as a
+      # generic failure rather than assuming this list is closed.
+      def failure(code, message, name: nil)
+        Result.failure(message, data: { code: code, name: name }.compact)
+      end
+
       def no_such_session(name)
         elsewhere = projects_holding(name)
         return "No such session: #{name.inspect}. Run 'rune session list'." if elsewhere.empty?
@@ -1261,13 +1330,46 @@ module Rune
 
       # Idle time is the fastest read on "is this one stuck": a running agent
       # that has printed nothing for minutes is the thing you want to notice.
+      #
+      # It only works if it is legible when it matters, and it was not. A session
+      # blocked on an approval prompt for a day and a half rendered
+      # `idle 2172m` — in the same dim grey as everything else, so the one line
+      # that said "this has been waiting on a human since yesterday" read as
+      # routine. It sat there for 36 hours. Minutes stop being a unit a reader
+      # converts somewhere around an hour, and grey is the colour of "ignore me".
+      #
+      # So: hours and days once it is that long, and drop the dimming for a
+      # *running* session that has gone quiet — a stopped one's idle is just how
+      # long ago it stopped, which is not news.
       def idle_suffix(session)
         return '' unless session[:idle_ms]
 
         seconds = session[:idle_ms] / 1000
-        return "  \e[90midle #{seconds}s\e[0m" if seconds < 90
+        colour = session[:state] == 'running' && seconds >= STALE_IDLE_SECONDS ? '33' : '90'
+        "  \e[#{colour}midle #{humanize_idle(seconds)}\e[0m"
+      end
 
-        "  \e[90midle #{(seconds / 60.0).round}m\e[0m"
+      # Floor rather than round, and each unit hands over where the next one
+      # reads naturally: an hour is `1.0h`, not `60m`, and a day is `1.0d`.
+      #
+      # Rounding straddled its own boundaries. `.round` on minutes printed the
+      # same `idle 15m` for 870s and 900s while only the second was past the
+      # stale threshold, so one running session was highlighted and an
+      # identically-labelled one was not, with nothing on screen to explain the
+      # difference — the exact legibility this is for. Flooring makes the label
+      # change at the same instant the colour does. It also stopped 90s
+      # rendering as `2m`, a 33% overstatement that made `1m` unreachable.
+      #
+      # Clamped at zero because a clock stepping backwards (NTP, a resumed VM,
+      # a RUNE_HOME shared between hosts) yields a negative idle, and
+      # `idle -86400s` is a worse answer than `idle 0s`.
+      def humanize_idle(seconds)
+        seconds = 0 if seconds.negative?
+        return "#{seconds}s" if seconds < 90
+        return "#{seconds / 60}m" if seconds < 3600
+        return "#{(seconds / 3600.0).round(1)}h" if seconds < 86_400
+
+        "#{(seconds / 86_400.0).round(1)}d"
       end
 
       def store = @store ||= Session::Store.new(project: @project_override)

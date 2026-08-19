@@ -158,6 +158,50 @@ RSpec.describe Rune::Commands::SessionCommand do
   # produces no output from most children, and so waits out timeout_ms — 120s by
   # default. Reported 3/3 against five-second client timeouts, alongside the
   # observation that every other malformed request got a clean error.
+  # Every failure envelope was `{status, error}` and nothing else, so a caller
+  # distinguishing "no such session" from "not running" had only English — and
+  # the prose is not stable: the same missing-session condition produces two
+  # entirely different sentences depending on whether the session exists in
+  # another project. Those sentences would have been a frozen API at 1.0. The
+  # field is additive, which is the argument for adding it before the freeze.
+  describe 'a failure a caller can branch on' do
+    it 'names the condition and the session, not only in prose' do
+      expect(session('read', '--name=ghost').to_h.dig(:data, :code)).to eq(:session_not_found)
+      expect(session('read', '--name=ghost').to_h.dig(:data, :name)).to eq('ghost')
+    end
+
+    it 'distinguishes a session that exists from one that is not running' do
+      start_session('busy', %w[cat])
+      expect(session('start', '--name=busy', '--', 'cat').to_h.dig(:data, :code))
+        .to eq(:session_already_running)
+
+      session('stop', '--name=busy')
+
+      expect(session('send', '--name=busy', '--settle-ms=300', '--timeout-ms=5000', '--', 'x')
+        .to_h.dig(:data, :code)).to eq(:session_not_running)
+    end
+
+    it 'names a launch that could not execute' do
+      result = session('start', '--name=nope', '--', 'definitely_not_a_real_binary_xyz')
+
+      expect(result.to_h.dig(:data, :code)).to eq(:launch_failed)
+    end
+
+    # The human renderer reads only `error`, so nothing visible moves. The
+    # StringIO has to claim to be a tty, because that is what the renderer
+    # branches on — otherwise it emits the agent-mode JSON and the assertion
+    # would be about the wrong surface entirely.
+    it 'leaves the human rendering of a failure unchanged' do
+      output = StringIO.new
+      def output.tty? = true
+
+      Rune::Renderer.new(io: output).render(session('read', '--name=ghost'))
+
+      expect(output.string).to include('No such session').and include('ghost')
+      expect(output.string).not_to include('session_not_found')
+    end
+  end
+
   describe 'a socket send with no text field' do
     it 'is refused immediately rather than waiting out the timeout' do
       start_session('sock', %w[cat])
@@ -175,6 +219,46 @@ RSpec.describe Rune::Commands::SessionCommand do
       reply = client.request({ op: 'send', text: '', timeout_ms: 1500 })
 
       expect(reply[:error]).to be_nil
+    end
+  end
+
+  # `JSON.parse` accepts any JSON *value*, not only an object, so `null`, `123`,
+  # `true`, `"x"` and `[1,2,3]` all parsed and then raised on `request[:op]` —
+  # TypeError for the Integer, NoMethodError for the rest, neither caught. That
+  # unwound the event loop and SIGKILLed a healthy child. Measured 5/5 before
+  # the fix, while `{"op":123}` and unparseable text were answered correctly,
+  # so it was specifically the non-object case. Reachable only from the
+  # non-Ruby socket client the protocol exists to serve: rune's own client
+  # always sends a Hash.
+  describe 'a socket request that is valid JSON but not an object' do
+    ['null', '123', 'true', '"hello"', '[1,2,3]'].each do |payload|
+      it "answers #{payload} with an error instead of dying" do
+        start_session("j#{payload.gsub(/\W/, '')}", %w[cat])
+        socket = store.socket_path("j#{payload.gsub(/\W/, '')}")
+
+        # `with_bindable_path` because a tmpdir socket path exceeds the 104-byte
+        # sockaddr limit, which is why `Session::Client` goes through it too.
+        reply = Rune::Session::Store.with_bindable_path(socket) do |connectable|
+          UNIXSocket.open(connectable) do |connection|
+            connection.puts(payload)
+            JSON.parse(connection.gets.to_s, symbolize_names: true)
+          end
+        end
+
+        expect(reply[:error]).to eq('malformed request')
+      end
+    end
+
+    # The point of the invariant is the child, not the reply.
+    it 'leaves the child alive and the session still usable' do
+      start_session('jalive', %w[cat])
+      Rune::Session::Store.with_bindable_path(store.socket_path('jalive')) do |connectable|
+        UNIXSocket.open(connectable) { |connection| connection.puts('null') }
+      end
+
+      expect(session('list').data[:sessions].first[:state]).to eq('running')
+      expect(session('send', '--name=jalive', '--settle-ms=300', '--timeout-ms=8000', '--', 'ping'))
+        .to be_success
     end
   end
 
@@ -198,6 +282,55 @@ RSpec.describe Rune::Commands::SessionCommand do
 
       expect(result.data[:state]).to eq('exited')
       expect(result.data[:exit_code]).to eq(7)
+    end
+
+    # The test above covers a child that exits while its supervisor survives to
+    # record it. The supervisor dying is the case that was wrong: it never gets
+    # to update meta.json, so the recorded state stays "running" forever.
+    # `list` recomputes from process liveness and said `dead`; `read` returned
+    # the recorded claim and said `running`, with a real cursor and
+    # `status: ok`, indefinitely. The guide recommends polling `read` for a
+    # readiness marker, so that loop waited on a session that was already gone.
+    it 'recomputes liveness on a read when the supervisor was killed outright' do
+      start_session('orphan', %w[cat])
+      supervisor = session('list').data[:sessions].first[:supervisor_pid]
+
+      Process.kill('KILL', supervisor)
+      wait_until(reason: 'the supervisor to be reaped') do
+        session('list').data[:sessions].first[:state] == 'dead'
+      end
+
+      expect(session('read', '--name=orphan').data[:state]).to eq('dead')
+    end
+
+    # "dead" is reserved for a supervisor that vanished without recording why.
+    # Collapsing a deliberate stop or a clean exit into it would trade one wrong
+    # answer for a more alarming one.
+    it 'still distinguishes a child that exited from a supervisor that vanished' do
+      start_session('quick', ['sh', '-c', 'exit 7'])
+      wait_until(reason: 'the child to exit') { session('list').data[:sessions].first[:state] == 'exited' }
+
+      result = session('read', '--name=quick')
+
+      expect(result.data[:state]).to eq('exited')
+      expect(result.data[:exit_code]).to eq(7)
+    end
+
+    # `nil.inspect` put Ruby's spelling of "we do not know" in front of a user,
+    # inside a sentence that also contradicted itself: `is not running (state
+    # running, exit code nil)`.
+    it 'refuses a send to a dead session without contradicting itself' do
+      start_session('gone', %w[cat])
+      Process.kill('KILL', session('list').data[:sessions].first[:supervisor_pid])
+      wait_until(reason: 'the supervisor to be reaped') do
+        session('list').data[:sessions].first[:state] == 'dead'
+      end
+
+      error = session('send', '--name=gone', '--settle-ms=300', '--timeout-ms=5000', '--', 'probe').error
+
+      expect(error).to include('is not running').and include('dead')
+      expect(error).not_to include('state running')
+      expect(error).not_to include('nil')
     end
 
     it 'returns a cursor from --no-wait, so fire-and-poll is one call' do
@@ -808,13 +941,53 @@ RSpec.describe Rune::Commands::SessionCommand do
       result = session('start', '--name=ghost', '--', 'definitely_not_a_real_binary_xyz')
 
       expect(result).to be_failure
-      expect(result.error).to include('127').and include('PATH')
+      expect(result.error).to include('127').and include('could not be executed')
     end
 
     # A child that exits 0 immediately launched fine and had nothing to do. Treating any prompt
-    # exit as a failure would break every short-lived child, so only 127 fails.
+    # exit as a failure would break every short-lived child.
     it 'still succeeds for a child that exits cleanly and at once' do
       expect(session('start', '--name=quick', '--', 'true')).to be_success
+    end
+
+    # The test used to be `exit_code == 127`, on the reasoning that 127 means "command not found"
+    # and therefore that the child never ran. 127 is an ordinary status a program may choose, so a
+    # script that ran perfectly well was told it was not installed. Measured before the fix with the
+    # child appending to a file first: 12 of 12 executed, 7 of 12 were reported as not installed —
+    # racy, since it turned on whether the child died before the supervisor recorded it as running.
+    it 'succeeds for a child that runs and then chooses to exit 127' do
+      Dir.mktmpdir do |dir|
+        ran = File.join(dir, 'ran')
+        script = File.join(dir, 'exits127.sh')
+        File.write(script, "#!/bin/sh\necho ran >> #{ran}\nexit 127\n")
+        FileUtils.chmod(0o755, script)
+
+        results = Array.new(6) { |i| session('start', "--name=real127_#{i}", '--', script) }
+
+        expect(results).to all(be_success)
+        # Out of band: the child's own file, not the reply, proves it executed.
+        # Waited for rather than read at once — `start` returns before the child
+        # has necessarily run, so reading immediately raced the children and
+        # failed under a loaded full-suite run while passing in isolation.
+        wait_until(reason: 'all six children to record that they ran') do
+          File.exist?(ran) && File.readlines(ran).size == 6
+        end
+      end
+    end
+
+    # EACCES means exec itself failed, so the child never ran — the same class as a missing binary.
+    # This returned `status: "ok"` and only failed on the next send.
+    it 'reports failure for a target that exists but cannot be executed' do
+      Dir.mktmpdir do |dir|
+        script = File.join(dir, 'noexec.sh')
+        File.write(script, "#!/bin/sh\necho hi\n")
+        FileUtils.chmod(0o644, script)
+
+        result = session('start', '--name=noexec', '--', script)
+
+        expect(result).to be_failure
+        expect(result.error).to include('126').and include('could not be executed')
+      end
     end
 
     # The record is kept deliberately. `start` failing loudly is the fix; deleting the transcript
@@ -926,6 +1099,80 @@ RSpec.describe Rune::Commands::SessionCommand do
 
       expect(entry[:idle_ms]).to be_a(Integer)
       expect(entry[:last_line]).to include('REPLY:marker')
+    end
+
+    # Idle time only answers "is it stuck" if it is readable when the answer is
+    # yes. A session blocked on an approval prompt for a day and a half rendered
+    # `idle 2172m`, in the same dim grey as every healthy line, and sat there for
+    # 36 hours. Minutes stop being a unit anyone converts at that scale.
+    describe 'the idle figure a human reads' do
+      def suffix(idle_ms, state: 'running')
+        described_class.new.send(:idle_suffix, { idle_ms: idle_ms, state: state })
+      end
+
+      it 'switches to hours and days rather than printing thousands of minutes' do
+        expect(suffix(45_000)).to include('idle 45s')
+        expect(suffix(300_000)).to include('idle 5m')
+        expect(suffix(3_600_000)).to include('idle 1.0h')
+        expect(suffix(86_400_000)).to include('idle 1.0d')
+        expect(suffix(130_293_976)).to include('idle 1.5d')
+      end
+
+      # Each unit hands over where the next reads naturally. An hour printed as
+      # `60m` and days were unreachable below 48h, so the motivating incident —
+      # 36 hours on an approval prompt — still rendered in hours.
+      it 'hands over between units at the point each stops reading naturally' do
+        expect(suffix(3_599_000)).to include('idle 59m')
+        expect(suffix(3_600_000)).to include('idle 1.0h')
+        expect(suffix(86_399_000)).to include('idle 24.0h')
+        expect(suffix(86_400_000)).to include('idle 1.0d')
+      end
+
+      # Rounding overstated at the handover: 90s printed as `2m`, and `1m` was
+      # unreachable.
+      it 'floors rather than rounding, so a minute is a minute' do
+        expect(suffix(90_000)).to include('idle 1m')
+        expect(suffix(149_000)).to include('idle 2m')
+      end
+
+      # The colour and the label have to change at the same instant. While the
+      # threshold was compared against raw seconds and the label was rounded,
+      # `idle 15m` rendered dim at 870s and yellow at 900s — one running session
+      # highlighted and an identically-labelled one not, with nothing on screen
+      # to explain it.
+      it 'never renders one label in both colours' do
+        by_label = Hash.new { |hash, key| hash[key] = [] }
+        (0..3000).each do |second|
+          rendered = suffix(second * 1000)
+          by_label[rendered[/idle [^\e]*/].strip] << rendered.include?("\e[33m")
+        end
+
+        # `.size == 1`, not `.one?` — `Array#one?` counts *truthy* elements, so
+        # `[false].one?` is false and every all-dim label read as a straddle.
+        expect(by_label.reject { |_, colours| colours.uniq.size == 1 }).to be_empty
+      end
+
+      # A clock stepping backwards (NTP, a resumed VM, a RUNE_HOME shared
+      # between hosts) yields a negative idle. `idle -86400s` is a worse answer
+      # than `idle 0s`.
+      it 'clamps a negative idle rather than printing it' do
+        expect(suffix(-999)).to include('idle 0s')
+        expect(suffix(-86_400_000)).to include('idle 0s')
+      end
+
+      # Grey is the colour of "nothing to see here", which is the wrong thing to
+      # say about the one line that means a session has been waiting on a human
+      # since yesterday.
+      it 'stops dimming a running session once its silence is worth noticing' do
+        expect(suffix(60_000)).to include("\e[90m")
+        expect(suffix(130_293_976)).to include("\e[33m")
+      end
+
+      # A stopped session's idle time is just how long ago it stopped.
+      it 'leaves a stopped session dim however long it has been quiet' do
+        expect(suffix(130_293_976, state: 'stopped')).to include("\e[90m")
+        expect(suffix(130_293_976, state: 'stopped')).not_to include("\e[33m")
+      end
     end
 
     # last_line exists to be read at a glance, which it is not if a full-screen

@@ -24,10 +24,22 @@ module Rune
       # `\e(1` and `\e)0` are as real as `\e(B`, and a designation left behind
       # puts its final byte into the text as a stray letter.
       #
+      # The CSI arm is the full ECMA-48 grammar — parameter bytes, then
+      # intermediate bytes, then one final byte — because it was the narrower
+      # half of the same disagreement. `ScreenRenderer::CSI` was widened to
+      # admit `:` and the intermediates after a real capture of one agent
+      # contained 80 sequences it printed instead of obeying; the sanitizer kept
+      # the old pattern, so `\e[38:2::255:0:0m` (the ITU-T T.416 colon form of
+      # truecolour SGR) and `\e[2 q` (DECSCUSR — fish, starship, zsh vi-mode,
+      # Codex CLI) still survived into `clean_output`, `--grep` and `list`'s
+      # `last_line` while `--screen` rendered them correctly. Two parsers in one
+      # module, one fixed and one not, is the exact shape this file's history
+      # already records twice.
+      #
       # Note: a `/` inside an `-x` mode comment would close the literal, so the
       # comments below deliberately avoid it.
       ANSI_REGEX = %r{
-        \e\[ [0-9;?<>=!]* [@-~]         # CSI, including private-parameter forms
+        \e\[ [0-9:;?<>=!]* [ -/]* [@-~] # CSI: parameters, then intermediates, then a final byte
         | \e\] [^\a\e]* (?: \a | \e\\ ) # OSC, BEL- or ST-terminated
         | \e [PX^_] [^\e]* \e\\         # DCS, SOS, PM, APC strings
         | \e [()*+] [A-Za-z0-9<>%"&./:?-] # charset designation into G0-G3

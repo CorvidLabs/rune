@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0078-report-what-a-session-is-actually-doing-a-real-127-is-not-a-failed-exec-and-36",
+  "slug": "report-what-a-session-is-actually-doing-a-real-127-is-not-a-failed-exec-and-36",
+  "title": "Report what a session is actually doing: a real 127 is not a failed exec, and 36 hours of silence should not read as routine",
+  "description": "Report what a session is actually doing: a real 127 is not a failed exec, and 36 hours of silence should not read as routine",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "aa63d6e4100f888c62fcd622b059cbd3c83724e4",
+  "created_at": 1787150801,
+  "updated_at": 1787174170,
+  "affected_specs": [
+    "session"
+  ],
+  "affected_paths": [
+    "lib/rune/commands/session_command.rb",
+    "lib/rune/session/supervisor.rb",
+    "spec/rune/session_spec.rb",
+    "specs/session/session.spec.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A child that runs and then exits 127 is reported as a successful start (measured 12/12, with the child's own file proving it executed), where before 7 of 12 were told the command was not on PATH. A genuinely missing binary and a target that exists but is not executable are both reported as failures, the latter having previously returned status ok and failed only on the next send. The supervisor records launch_failed only when exec itself failed, and the field is absent rather than false when a child ran, so meta written by older versions reads as a child that ran. In session list, a running session's idle time is rendered in hours or days past 90 minutes rather than thousands of minutes, and is no longer dimmed once it exceeds STALE_IDLE_SECONDS; a stopped session stays dim however long it has been quiet. Every new test fails when its arm of the fix is reverted."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

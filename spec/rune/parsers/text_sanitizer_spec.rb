@@ -58,5 +58,24 @@ RSpec.describe Rune::Parsers::TextSanitizer do
     it 'leaves text containing no escapes untouched' do
       expect(described_class.strip_ansi('plain 7 8 D E M c text')).to eq('plain 7 8 D E M c text')
     end
+
+    # `ScreenRenderer::CSI` was widened to the full ECMA-48 grammar — parameter
+    # bytes, then intermediates, then a final byte — after a real capture of one
+    # agent contained 80 sequences it printed instead of obeying. The sanitizer
+    # kept the narrower pattern, so the same sequences survived into
+    # `clean_output`, `--grep` and `list`'s `last_line` while `--screen`
+    # rendered them correctly. Two parsers in one module, one fixed and one not.
+    it 'strips the CSI forms the renderer already understood' do
+      expect(described_class.strip_ansi("\e[38:2::255:0:0mERROR\e[0m")).to eq('ERROR')
+      expect(described_class.strip_ansi("\e[4:3municurl\e[0m")).to eq('unicurl')
+      expect(described_class.strip_ansi("\e[2 q$ ready")).to eq('$ ready')
+      expect(described_class.strip_ansi("\e[!pafter")).to eq('after')
+    end
+
+    # The widened parameter and intermediate classes must not start eating text.
+    it 'still leaves colons, brackets and digits in ordinary text alone' do
+      expect(described_class.strip_ansi('ratio a:b in [1;2] is 3:4')).to eq('ratio a:b in [1;2] is 3:4')
+      expect(described_class.strip_ansi('12:34:56 elapsed')).to eq('12:34:56 elapsed')
+    end
   end
 end

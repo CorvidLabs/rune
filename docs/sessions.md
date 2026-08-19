@@ -62,10 +62,15 @@ $ rune session start --name grok -- grok
 {"name":"grok","command":["grok"],"child_pid":68012,"supervisor_pid":67926,"state":"running"}
 ```
 
-**`start` succeeding does not mean the child is running.** If the command does not exist, the
-reply is still `status: "ok"` and `rune` still exits 0 — with `state: "exited"` and
-`exit_code: 127` in the body. The start itself worked; the child died instantly. Check `state`,
-not the process exit status.
+**`start` succeeding does not mean the child is still running.** A command that cannot be executed
+at all — missing, not executable, or a directory — is a hard failure: `status: "error"` and exit 1,
+with no `data`. But a command that *does* start and then exits immediately is a successful launch of
+a program that had nothing to do, so it returns `status: "ok"` and exit 0.
+
+**`state` in a `start` reply is a snapshot, and it can already be wrong.** Measured against a script
+that exits 3 at once, the reply said `state: "running"` 3 times out of 3 — the child was gone before
+anything read it. Use `rune session list`, which recomputes state from the live process, or simply
+send: a `send` to a child that has exited answers with an error naming the state and exit code.
 
 `start` returns immediately and the `rune` process exits. `grok` keeps running, owned by a detached
 supervisor that holds its pty.

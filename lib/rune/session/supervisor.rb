@@ -222,7 +222,13 @@ module Rune
         # Same convention PTYRunner/PTYWatcher use: a missing (127) or
         # non-executable (126) target is the child's exit status, not a
         # supervisor-level crash.
-        finish(e.is_a?(Errno::ENOENT) ? 127 : 126)
+        #
+        # `launch_failed` is recorded because the status alone cannot carry this:
+        # a program that runs perfectly well and *chooses* to exit 127 is
+        # indistinguishable from one that never executed, and the caller was told
+        # the difference. Only this rescue means exec itself failed — reaching it
+        # requires `PTY.spawn` to raise, which happens before the child exists.
+        finish(e.is_a?(Errno::ENOENT) ? 127 : 126, launch_failed: true)
       rescue StandardError => e
         crashed(e)
       ensure
@@ -658,6 +664,19 @@ module Rune
         return safe_close(client) if line.nil?
 
         request = JSON.parse(line, symbolize_names: true)
+        # `JSON.parse` accepts any JSON *value*, not just an object. `null`,
+        # `123`, `true`, `"x"` and `[1,2,3]` all parse, and `request[:op]` then
+        # raises TypeError on the Integer and NoMethodError on the rest —
+        # neither of which the rescues below catch. It unwound the event loop
+        # into `run`'s StandardError rescue, which crashed the supervisor and
+        # SIGKILLed a perfectly healthy child. Measured: 5/5 such payloads
+        # killed the child, while `{"op":123}` and unparseable text were both
+        # answered correctly. Invariant 28 says a control client can never take
+        # the session down with it, and this was the hole in it — reachable
+        # only from the non-Ruby socket client the protocol exists to support,
+        # since rune's own client always sends a Hash.
+        return respond(client, error: 'malformed request') unless request.is_a?(Hash)
+
         dispatch(request, client, writer)
       rescue JSON::ParserError
         respond(client, error: 'malformed request')
@@ -911,10 +930,15 @@ module Rune
 
       # ---- teardown
 
-      def finish(exit_code)
+      # `launch_failed` is written only when exec itself failed, and is absent
+      # otherwise rather than false, so meta from an older version reads the same
+      # as a child that ran.
+      def finish(exit_code, launch_failed: false)
         @finished = true
         @exit_code = exit_code
-        @store.update_meta(@name, state: 'exited', exit_code: exit_code, exited_at: Time.now.to_f)
+        meta = { state: 'exited', exit_code: exit_code, exited_at: Time.now.to_f }
+        meta[:launch_failed] = true if launch_failed
+        @store.update_meta(@name, **meta)
         log_event('exit', exit_code: exit_code)
       end
 
