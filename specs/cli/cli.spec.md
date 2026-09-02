@@ -71,8 +71,6 @@ Core CLI framework for rune. Provides command registration, argument parsing, du
 | `extract_flag!` | class method | Removes every help alias from the pre-separator argv in place and reports whether any were present. |
 | `overview` | instance method | Builds the all-commands help `Result`. |
 | `for_command` | instance method | Builds one command's help `Result`, or a structured failure for an unknown name. |
-| `render_command` | internal method | Renders one command's usage and flag list for a terminal. |
-| `render_flags` | internal method | Renders an aligned flag/description list. |
 
 ## Invariants
 
