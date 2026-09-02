@@ -117,7 +117,8 @@ jobs:
       # rather than for any drift between the specs and the code. Revisit when
       # spec-sync 6 lands, which reworks the change-verification model.
       - name: Spec Sync Contract Check
-        uses: CorvidLabs/spec-sync@v5.2.0
+        uses: CorvidLabs/spec-sync@29392630a590c13fcca65bec2a3c0a8f8c9e4081 # v6.0.0-rc.12
         with:
+          version: 6.0.0-rc.12
           require-coverage: "100"
           lifecycle-enforce: "true"
