@@ -1,0 +1,31 @@
+name: trust
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  trust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      # The Trust lifecycle lane is `fledge lanes run verify`, whose steps shell
+      # out to `bundle exec` (fmt-check, lint, test). Without Ruby and the
+      # bundle installed the lane dies at step 2 with "bundle: not found".
+      # Same action, version and inputs as the Spec Sync job in ci.yml.
+      - name: Set up Ruby 3.3
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler: '2.4.22'
+          bundler-cache: true
+
+      - uses: CorvidLabs/trust@fcc889f54d8b4892a81af463c5a0250e2be66fc5 # v1.2.0
+        id: trust
