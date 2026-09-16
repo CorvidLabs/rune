@@ -134,7 +134,7 @@ jobs:
 
       - name: Install hi
         run: |
-          cargo install human-intent --version 0.3.3 --locked
+          cargo install human-intent --version 0.4.0 --locked
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Check intent structure
