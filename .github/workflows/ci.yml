@@ -122,3 +122,20 @@ jobs:
           version: 6.0.0
           require-coverage: "100"
           lifecycle-enforce: "true"
+
+  # Its own job rather than a step in `verify`: that job is a six-way Ruby
+  # matrix, and `cargo install` would rebuild hi from source in every one of
+  # them for a check that has nothing to do with the Ruby version under test.
+  intent:
+    name: Intent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install hi
+        run: |
+          cargo install human-intent --version 0.5.0 --locked
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Check intent structure
+        run: hi check
