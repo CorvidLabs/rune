@@ -286,6 +286,22 @@ rune session read --name reviewer --grep 'THE BOARD' --context 2
 
 ## Architecture & Internals
 
+`run` and `watch` own their child for the length of one call. `session start` hands the child to a
+detached supervisor process that keeps its PTY open, serves a control socket, and records a
+transcript, so later `rune` calls, from any process, can drive it or read it back.
+
+```mermaid
+flowchart LR
+    caller["Human or agent"] --> cli["rune CLI"]
+    cli -->|"run, watch"| pty["Program in a PTY"]
+    cli -->|"session start"| sup["Detached supervisor<br/>one per session"]
+    cli <-->|"send, attach, stop<br/>over control.sock"| sup
+    sup -->|"owns the PTY"| agent["Agent CLI, REPL or shell"]
+    sup -->|"transcript, meta"| home[("~/.rune")]
+    cli -->|"read, list"| home
+```
+
+- 📖 **[High-level design](docs/HLD.md)** — How rune works end to end, with diagrams: components, the three execution models, the session supervisor and its settle logic, on-disk state, security boundaries, timeouts and limits.
 - 📖 **[Getting Started guide](docs/getting_started.md)** — Output modes, `rune run` usage, timeouts, and parsers with real command output.
 - 📖 **[Persistent sessions guide](docs/sessions.md)** — `rune session`: named PTY sessions that outlive a single invocation, and send-and-settle for driving one agent CLI from another.
 - 📖 **[Pseudo-TTY (PTY) Architecture Guide](docs/pty_architecture.md)** — How pseudo-terminals, non-blocking stream reading, ANSI sanitization, prompt detection, script execution, and `rune watch`'s live bidirectional passthrough work under the hood in Ruby.
