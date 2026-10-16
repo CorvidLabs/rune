@@ -33,13 +33,6 @@ RSpec.describe SessionFaultRecovery do
     expect(described_class.late_problems(observation)).to eq([]), observation.inspect
   end
 
-  it 'abandons a catastrophic regex with structured fields and a live child' do
-    skip 'Regexp#timeout is not defined' unless described_class.regex_supported?
-
-    observation = described_class.observe_regex
-    expect(described_class.regex_problems(observation)).to eq([]), observation.inspect
-  end
-
   it 'restarts a name after the supervisor disappears without signalling the orphan' do
     observation = described_class.observe_reconnect
     expect(described_class.reconnect_problems(observation)).to eq([]), observation.inspect

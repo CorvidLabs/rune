@@ -19,3 +19,8 @@ and real execution receipts are retained in the coordinator R1 report.
 This is an unapproved draft definition prepared by agents, not a human scope
 approval, acceptance or lifecycle review. Existing change records and Trust's
 deliberately disabled provenance configuration remain untouched.
+
+Hosted CodeQL identified the deliberately exponential regex introduced by the
+new harness. The duplicate scenario is removed; the two existing timeout and
+recovery regressions retain this responsibility unchanged. No security finding
+is dismissed and no protection policy is edited. The draft remains unapproved.

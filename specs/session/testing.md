@@ -57,7 +57,6 @@ does not own.
 | Sequential read, then exit | 13, 14 | `read_problems`: one read observes `running` and a nil exit code while the child is held after printing its marker. The release file is written only after that read returns. A later read, list, and meta agree on exit 5 and `exited`. These are sequential reads, not an overlapped in-flight read. |
 | Exit during send | 6, 29 | `send_problems`: the in-flight send returns `status` ok, `child_exited: true`, and not `timed_out`; its output contains the child's marker once and the sent nonce does not contain that marker; the output is within the same short-fixture sanity bound; a following read, list, and meta agree on exit 9; the child and the supervisor are then dead. The send reply itself is not required to already say `exited`, because the supervisor can still be alive while it answers. |
 | Late output | 7, 33 | `late_problems`: the transcript contains the sent nonce before the release file exists, and does not yet contain the marker; the marker is not a substring of the nonce; the reply then matches that marker once; a proof file is written only by the child after release. There is no duration assertion. |
-| Regex budget | 41i | `regex_problems`: `regex_timed_out: true`, `settled: false`, and `matched` is not true. The pattern is not evaluated against the pumped `a`s in the example. It is checked only against the short sent nonce `go`. The reply contains sixty `a`s, state is `running`, exit code is nil, the child and the supervisor are alive, and the output is within the bound. There is no wall-clock assertion. The example skips only when `Regexp#timeout` is not defined. |
 | Supervisor disappearance, then the same name | 14, 32, 48, 48a | `reconnect_problems`: after SIGKILL of the recorded supervisor pid, list and read are `dead`. The child ignored HUP and TERM, and its pid and start time still match after the supervisor is gone and again after the name is started again. The new transcript contains the new marker once and does not contain the old marker. Exit code 0 agrees across read, list, and meta. The new supervisor pid differs. The new child and supervisor are dead. The old child is still alive. |
 | Unrelated process-group leader | 15, 38, 48a | `bystander_problems`: `stop` on a different fixture session returns success and list shows `stopped`. That session's child and supervisor are dead. A bystander spawned with its own process group, ignoring HUP and TERM, is a different pid, leads its group, and is still alive with the same start time. The harness never signals a negative pid. |
 
@@ -85,7 +84,6 @@ after, and the control raises if those bytes differ.
 | `marker` | `read` returns the fixed string `withheld` | `exit_problems` on that same exit |
 | `child_exited` | both `child_exited: true` replies become `{ settled: true }` | `send_problems` |
 | `running` | `liveness` supplies exit code 5 when meta has no exit code | `read_problems` |
-| `regex_timed_out` | a match budget of nil is reported as `settled: true, matched: false` | `regex_problems`, omitted when `Regexp#timeout` is absent |
 | `reset` | `launch` does not call `reset_transcript` | `reconnect_problems` |
 | `old_child` | `launch` passes a positive previous `child_pid` to `signal_owned_fixture`, which signals only a tracked pid whose recorded and current start times are present and equal | `reconnect_problems` |
 
@@ -149,14 +147,14 @@ recorder in place of `Process.kill`. They do not spawn a process or signal an
 unowned pid. `RUNE_HOME` and the module's home, tracking, and kill callback
 are cleared in an ensure that still runs when reaping raises.
 
-## Observed local verification
+## Initial local verification before duplicate removal
 
 The corrected harness ran on macOS on 2026-10-15 (America/Denver). The new
-spec passed all 17 examples; the complete RSpec suite passed 659 examples
+initial spec passed all 17 examples; the initial complete RSpec suite passed 659 examples
 with zero failures. Separate identity probes passed all three missing or
 mismatched identity cases. All seven disposable-product controls completed
 their setup and were rejected by their corresponding assertions, including
-the regex budget control on this Ruby version.
+the now-removed duplicate regex budget control on this Ruby version.
 
 A separate synthetic cleanup control restored the old conditions that
 ignored `still_present`. The corrected assertions rejected that copy: it
@@ -178,3 +176,20 @@ implementation. The results cover this local macOS/Ruby environment, not the
 hosted Ruby matrix or other platforms. No human lifecycle review or acceptance
 is recorded. Detailed command receipts, control output and hash-bound source
 review are retained with the coordinator's R1 report.
+
+## Timeout coverage retained in the existing suite
+
+The duplicate regex scenario and its mutation control were removed from the
+new harness after hosted CodeQL flagged its deliberately exponential pattern.
+The pattern was eliminated from this harness rather than encoded, moved or
+excluded from scanning. Production code, CodeQL configuration and all
+pre-existing tests are unchanged.
+
+`spec/rune/session_spec.rb` still contains both real timeout regressions under
+`a --wait-for-regex that backtracks catastrophically`: abandonment with
+`regex_timed_out: true` within the send deadline, and subsequent session
+usability. Those tests already own this scenario and remain explicitly in the
+verification plan. The removed new case's additional `settled`, `matched`,
+liveness and output-bound assertions are no longer claimed as added coverage.
+The revised harness has 16 examples and six mutation controls; its new
+verification receipts are recorded separately from the historical runs above.

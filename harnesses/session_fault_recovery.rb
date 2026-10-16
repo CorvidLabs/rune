@@ -6,8 +6,7 @@
 # a clean exit and a nonzero exit agree across read, list, and meta; a send
 # that is in flight when the child exits comes back with child_exited and the
 # child's own marker; a read can see the child still running and then exited;
-# a late answer is not the echo of the caller's nonce; a catastrophic regex
-# is abandoned without a wall-clock assertion; restarting a name after the
+# a late answer is not the echo of the caller's nonce; restarting a name after the
 # supervisor is killed does not keep the old transcript or signal the orphan;
 # stop does not signal an unrelated process-group leader.
 #
@@ -159,14 +158,6 @@ module SessionFaultRecovery
     puts marker
   RUBY
 
-  REGEX_CHILD = <<~'RUBY'
-    # frozen_string_literal: true
-    STDOUT.sync = true
-    STDIN.gets
-    puts(('a' * 60) + 'b')
-    sleep 30
-  RUBY
-
   SURVIVOR_CHILD = <<~'RUBY'
     # frozen_string_literal: true
     Signal.trap('HUP', 'IGNORE')
@@ -181,8 +172,6 @@ module SessionFaultRecovery
     sleep 300
   RUBY
 
-  def regex_supported? = Regexp.method_defined?(:timeout)
-
   def observe_exit(code) = isolate { observe_exit_in(want: code) }
 
   def observe_read_exit = isolate { observe_read_exit_in }
@@ -190,8 +179,6 @@ module SessionFaultRecovery
   def observe_send_exit = isolate { observe_send_exit_in }
 
   def observe_late = isolate { observe_late_in }
-
-  def observe_regex = isolate { observe_regex_in }
 
   def observe_reconnect = isolate { observe_reconnect_in }
 
@@ -357,21 +344,6 @@ module SessionFaultRecovery
     problems
   end
 
-  def regex_problems(obs)
-    problems = []
-    problems << 'status' unless obs[:status] == 'ok'
-    problems << 'regex_timed_out' unless obs[:regex_timed_out] == true
-    problems << 'settled' unless obs[:settled] == false
-    problems << 'echo' if obs[:matched] == true
-    problems << 'pattern' if obs[:pattern_matches_sent] == true
-    problems << 'pumped' unless obs[:output].to_s.include?('a' * 60)
-    problems << 'running' unless obs[:state] == 'running' && obs[:exit_code].nil?
-    problems << 'child_alive' unless obs[:child_alive] == true
-    problems << 'supervisor_alive' unless obs[:supervisor_alive] == true
-    problems << 'bounds' unless bounded?(obs)
-    problems
-  end
-
   def reconnect_problems(obs)
     problems = []
     problems << 'dead' unless obs[:dead_state] == 'dead' && obs[:read_dead_state] == 'dead'
@@ -412,7 +384,6 @@ module SessionFaultRecovery
         rune_fault('reset', 'reset', RESET_FAULT, 'reset'),
         rune_fault('old_child', 'old_child', OLD_CHILD_FAULT, 'old_child')
       ]
-      controls << rune_fault('regex_timed_out', 'regex_timed_out', REGEX_FAULT, 'regex_timed_out') if regex_supported?
       controls
     end
   end
@@ -458,11 +429,6 @@ module SessionFaultRecovery
                      "        SessionFaultRecovery.signal_owned_fixture(orphan) if orphan.positive?\n" \
                      "        store.create(name)\n",
                      false].freeze
-  REGEX_FAULT = ['rune/session/pending_send.rb',
-                 'return { settled: false, regex_timed_out: true } if matched.nil?',
-                 'return { settled: true, matched: false } if matched.nil?',
-                 false].freeze
-
   FAULT_RUNNER = <<~'RUBY'
     # frozen_string_literal: true
     require 'json'
@@ -476,8 +442,6 @@ module SessionFaultRecovery
                  SessionFaultRecovery.send_problems(SessionFaultRecovery.observe_send_exit)
                when 'running'
                  SessionFaultRecovery.read_problems(SessionFaultRecovery.observe_read_exit)
-               when 'regex_timed_out'
-                 SessionFaultRecovery.regex_problems(SessionFaultRecovery.observe_regex)
                when 'reset', 'old_child'
                  SessionFaultRecovery.reconnect_problems(SessionFaultRecovery.observe_reconnect)
                else
@@ -496,7 +460,6 @@ module SessionFaultRecovery
       ['reconnect', -> { [reconnect_problems(observe_reconnect), observe_note] }],
       ['bystander', -> { [bystander_problems(observe_bystander), observe_note] }]
     ]
-    checks << ['regex timeout', -> { [regex_problems(observe_regex), observe_note] }] if regex_supported?
     failures = []
     checks.each do |name, runner|
       problems, note = runner.call
@@ -618,27 +581,6 @@ module SessionFaultRecovery
       matched: data[:matched], output: output, bytes: output.bytesize,
       marker: marker, sent: sent, echo_before_release: echo_before,
       proof_seen: File.exist?(proof_path) && File.read(proof_path) == proof
-    )
-  end
-
-  def observe_regex_in(source: REGEX_CHILD, name: 'retime')
-    pattern = '(a+)+\1$'
-    sent = 'go'
-    script = write_fixture("#{name}.rb", source)
-    start_session(name, [RbConfig.ruby, script])
-    reply = session(
-      'send', "--name=#{name}", '--settle-ms=30000', '--timeout-ms=8000',
-      "--wait-for-regex=#{pattern}", '--', sent
-    )
-    data = reply.data || {}
-    meta = store.read_meta(name) || {}
-    output = data[:output].to_s
-    remember(
-      status: reply.success? ? 'ok' : 'error', error: reply.error,
-      regex_timed_out: data[:regex_timed_out], settled: data[:settled], matched: data[:matched],
-      output: output, bytes: output.bytesize, state: data[:state], exit_code: data[:exit_code],
-      pattern_matches_sent: Regexp.new(pattern).match?(sent),
-      child_alive: alive?(meta[:child_pid]), supervisor_alive: alive?(meta[:supervisor_pid])
     )
   end
 
@@ -1220,7 +1162,6 @@ module SessionFaultRecovery
       'marker' => 'rune/commands/session_command.rb',
       'child_exited' => 'rune/session/pending_send.rb',
       'running' => 'rune/commands/session_command.rb',
-      'regex_timed_out' => 'rune/session/pending_send.rb',
       'reset' => 'rune/commands/session_command.rb',
       'old_child' => 'rune/commands/session_command.rb'
     }

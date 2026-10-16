@@ -21,7 +21,7 @@ from the worker. Human approval and lifecycle finalization remain pending.
 ## Steps
 
 1. Inventory existing session contracts and tests.
-2. Add the isolated harness and 17 focused examples.
+2. Add the isolated harness and 16 focused examples.
 3. Review signal identity and cleanup semantics before live fixture execution.
 4. Run actual product mutants and the old-cleanup negative control.
 5. Run focused/full native checks and review exact candidate hashes.
@@ -39,3 +39,12 @@ mutation setup failure is not counted as a rejected product regression.
 AGENTS.md requires measured claims and tests that fail against broken code.
 Fixture subprocesses inherit private homes. No protection or lifecycle gate is
 weakened, and no human intent or acceptance is synthesized.
+
+## Scope correction after hosted review
+
+Remove the redundant new catastrophic-regex fixture and control. Keep and
+explicitly exercise both original timeout/recovery tests unchanged. This
+eliminates duplicate executable risk without changing scanners, suppressing an
+alert or weakening product timeout behavior. New counts are 16 examples and
+six copied-product controls. Historical 17/659/seven-control results are not
+presented as execution of this revised candidate.

@@ -28,3 +28,18 @@ The zero-example filter at `045121-d1a3f8` and negative-control setup error at
 logs are retained outside the source tree in the coordinator report directory.
 This records engineering observations, not human acceptance or hosted Ruby
 matrix qualification. No production fix or cross-platform pass is claimed.
+
+## Revised candidate after duplicate removal
+
+The 17/659/seven-control results above are historical initial-candidate results.
+The revised candidate has 16 new examples, six product controls and 658 full
+examples. Both original real-regex timeout/recovery regressions remain unchanged
+and must pass explicitly. Revised focused/full gates and independent diff review
+are recorded separately in the coordinator report; no revised-candidate pass is
+inferred from the prior runs.
+
+The revised focused spec passed 16 examples with zero failures in receipt
+`20261016T052852Z-R1-dd65e6`. Both unchanged original real-regex examples ran
+without skips and passed in `20261016T052725Z-R1-1f464b`. Independent review of
+the actual deletion confirmed unchanged product code and original test bytes.
+Full-suite and hosted scan results must be read for their exact candidate head.
