@@ -16,7 +16,8 @@
     "plugin.toml",
     "CHANGELOG.md",
     "docs/releases/0.10.0.md",
-    "docs/getting_started.md"
+    "docs/getting_started.md",
+    "Gemfile.lock"
   ],
   "no_spec_change": true,
   "no_spec_change_rationale": "Synchronize package and plugin release versions and document only merged changes. No new runtime behavior or API contract changes and no inclusion of draft PR 83.",

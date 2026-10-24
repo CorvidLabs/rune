@@ -74,5 +74,3 @@ DEPENDENCIES
   rune!
   simplecov (~> 0.22)
 
-BUNDLED WITH
-  4.0.20
