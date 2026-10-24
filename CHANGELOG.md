@@ -1,5 +1,26 @@
 # Changelog
 
+## [v0.10.0] - Unreleased
+
+This candidate covers already merged changes through `252702c`; draft #83 is excluded. See [the release handoff](docs/releases/0.10.0.md) for qualification and GitHub Packages publication gates.
+
+### Added
+
+- Honor terminal modes and character sets and represent wide glyphs in their screen columns (#66 and the merged mode/charset work).
+- Report actual session execution state rather than relying only on process liveness (#74).
+
+### Fixed
+
+- Preserve incomplete escape sequences across reads and retained-renderer updates (#74 and earlier merged escape fixes).
+- Preserve UTF-8 boundaries when a --since cursor falls inside a multi-byte character (#70).
+- Apply --tail to repaint output and retain regex-send results.
+- Report failed launches accurately and reject unknown watch flags (#65 and #68).
+
+### Documentation and maintenance
+
+- Clarify flag, terminal-input and regex-redraw limitations; repair translated links and add session/architecture translations (#64 and #69–74).
+- Include merged design, Human Intent and Trust/tooling maintenance (#75–82). No new performance measurement or stable 1.0 contract is claimed.
+
 ## [v0.9.0] - 2026-08-17
 
 ### Fixed
