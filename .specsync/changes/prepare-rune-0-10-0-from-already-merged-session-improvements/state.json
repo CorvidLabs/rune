@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_origin_version": 1,
+  "id": "prepare-rune-0-10-0-from-already-merged-session-improvements",
+  "slug": "prepare-rune-0-10-0-from-already-merged-session-improvements",
+  "title": "Prepare Rune 0.10.0 from already merged session improvements",
+  "description": "Prepare Rune 0.10.0 from already merged session improvements",
+  "kind": "operations",
+  "state": "draft",
+  "base_commit": "252702cf4d355076b9a4d2533e1d506aad3b0f02",
+  "created_at": 1792867340,
+  "updated_at": 1792867414,
+  "affected_specs": [],
+  "affected_paths": [
+    "lib/rune/version.rb",
+    "plugin.toml",
+    "CHANGELOG.md",
+    "docs/releases/0.10.0.md",
+    "docs/getting_started.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Synchronize package and plugin release versions and document only merged changes. No new runtime behavior or API contract changes and no inclusion of draft PR 83.",
+  "acceptance_criteria": [
+    "Package and plugin versions agree at 0.10.0 and notes cover only already merged changes while retaining GitHub Packages and disabled RubyGems.org publication."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

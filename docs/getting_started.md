@@ -82,7 +82,7 @@ colorized, human-formatted output:
 
 ```sh
 $ rune version
-rune v0.9.0
+rune v0.10.0
   Ruby 4.0.6 (arm64-darwin25)
   fledge:    ✓ available
   spec-sync: ✓ available
