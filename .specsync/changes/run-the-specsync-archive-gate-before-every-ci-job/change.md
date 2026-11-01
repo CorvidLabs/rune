@@ -1,6 +1,6 @@
 ---
 id: run-the-specsync-archive-gate-before-every-ci-job
-state: draft
+state: approved
 type: operations
 base_commit: 252702cf4d355076b9a4d2533e1d506aad3b0f02
 ---
