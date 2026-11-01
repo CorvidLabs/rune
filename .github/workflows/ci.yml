@@ -9,8 +9,25 @@ permissions:
   contents: read
 
 jobs:
+  # Runs first. Every other job needs it, so a pull request with any open SpecSync
+  # change under .specsync/changes/ runs nothing else until the change is archived.
+  archive-gate:
+    name: Archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      # The archive gate inputs are newer than v6.1.1, which ignores them.
+      - uses: CorvidLabs/spec-sync@106aaa43d0bcf049f19b173ddb63815a25c3f931 # main, archive gate (#832)
+        with:
+          archive-gate-only: 'true'
+
   verify:
     name: Ruby ${{ matrix.ruby }}
+    needs: archive-gate
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -76,6 +93,7 @@ jobs:
   # first job with the matrix gated behind it.
   spec-sync:
     name: Spec Sync
+    needs: archive-gate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -128,6 +146,7 @@ jobs:
   # them for a check that has nothing to do with the Ruby version under test.
   intent:
     name: Intent
+    needs: archive-gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
